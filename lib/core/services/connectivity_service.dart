@@ -1,25 +1,41 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Abstract contract for connectivity infrastructure operations.
 abstract class ConnectivityService {
-  /// Returns whether the device currently has a network connection.
   Future<bool> isConnected();
 
-  /// Returns the current connection type as a string.
   Future<String> connectionType();
 }
 
-/// Placeholder implementation for connectivity infrastructure operations.
-/// TODO: Replace this placeholder with a real connectivity implementation.
 class ConnectivityServiceImpl implements ConnectivityService {
-  @override
-  Future<bool> isConnected() async => true;
+  final Connectivity _connectivity = Connectivity();
 
   @override
-  Future<String> connectionType() async => 'unknown';
+  Future<bool> isConnected() async {
+    final result = await _connectivity.checkConnectivity();
+    return !result.contains(ConnectivityResult.none);
+  }
+
+  @override
+  Future<String> connectionType() async {
+    final result = await _connectivity.checkConnectivity();
+
+    if (result.contains(ConnectivityResult.wifi)) {
+      return 'wifi';
+    }
+
+    if (result.contains(ConnectivityResult.mobile)) {
+      return 'mobile';
+    }
+
+    if (result.contains(ConnectivityResult.ethernet)) {
+      return 'ethernet';
+    }
+
+    return 'none';
+  }
 }
 
-/// Riverpod provider for exposing a connectivity service implementation.
 final connectivityServiceProvider = Provider<ConnectivityService>(
   (ref) => ConnectivityServiceImpl(),
 );
