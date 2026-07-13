@@ -1,25 +1,60 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-/// Abstract contract for permission infrastructure operations.
 abstract class PermissionService {
-  /// Requests a specific permission from the platform layer.
   Future<bool> request(String permissionName);
 
-  /// Returns whether the requested permission is already granted.
   Future<bool> isGranted(String permissionName);
 }
 
-/// Placeholder implementation for permission infrastructure operations.
-/// TODO: Replace this placeholder with a permission handling implementation.
 class PermissionServiceImpl implements PermissionService {
   @override
-  Future<bool> request(String permissionName) async => true;
+  Future<bool> request(String permissionName) async {
+    final permission = _permission(permissionName);
+
+    if (permission == null) {
+      return false;
+    }
+
+    final status = await permission.request();
+    return status.isGranted;
+  }
 
   @override
-  Future<bool> isGranted(String permissionName) async => true;
+  Future<bool> isGranted(String permissionName) async {
+    final permission = _permission(permissionName);
+
+    if (permission == null) {
+      return false;
+    }
+
+    return permission.status.isGranted;
+  }
+
+  Permission? _permission(String name) {
+    switch (name.toLowerCase()) {
+      case 'notification':
+      case 'notifications':
+        return Permission.notification;
+
+      case 'location':
+        return Permission.location;
+
+      case 'camera':
+        return Permission.camera;
+
+      case 'storage':
+        return Permission.storage;
+
+      case 'bluetooth':
+        return Permission.bluetooth;
+
+      default:
+        return null;
+    }
+  }
 }
 
-/// Riverpod provider for exposing a permission service implementation.
 final permissionServiceProvider = Provider<PermissionService>(
   (ref) => PermissionServiceImpl(),
 );
