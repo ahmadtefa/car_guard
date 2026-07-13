@@ -32,31 +32,42 @@ abstract class DeviceRepository {
   Future<void> reconnect();
 }
 
+
 /// Default placeholder implementation of the repository.
-///
-/// The current implementation is a no-op infrastructure scaffold that keeps the
-/// architecture ready for future transport-specific implementations.
 class DeviceRepositoryImpl implements DeviceRepository {
-  DeviceRepositoryImpl({this.timeoutDuration = const Duration(seconds: 5)});
+  DeviceRepositoryImpl({
+    this.timeoutDuration = const Duration(seconds: 5),
+  });
 
   final Duration timeoutDuration;
+
   final StreamController<DeviceStatus> _updatesController =
       StreamController<DeviceStatus>.broadcast();
+
   bool _connected = false;
+
 
   @override
   Future<void> connect({required String host, int? port}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(
+      const Duration(milliseconds: 50),
+    );
+
     _connected = true;
   }
+
 
   @override
   Future<void> disconnect() async {
     _connected = false;
   }
 
+
   @override
-  Future<bool> isConnected() async => _connected;
+  Future<bool> isConnected() async {
+    return _connected;
+  }
+
 
   @override
   Future<Map<String, dynamic>> readJson() async {
@@ -64,9 +75,13 @@ class DeviceRepositoryImpl implements DeviceRepository {
       throw StateError('Device is not connected.');
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(
+      const Duration(milliseconds: 50),
+    );
+
     return DeviceStatus.disconnected().toJson();
   }
+
 
   @override
   Future<void> sendJson(Map<String, dynamic> payload) async {
@@ -74,30 +89,53 @@ class DeviceRepositoryImpl implements DeviceRepository {
       throw StateError('Device is not connected.');
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await Future<void>.delayed(
+      const Duration(milliseconds: 50),
+    );
+
     _updatesController.add(
       DeviceStatus(
         connected: true,
         deviceId: 'esp8266',
-        sensorData: const SensorData(),
-        batteryData: const BatteryData(),
-        temperatureData: const TemperatureData(),
-        coolantLevelData: const CoolantLevelData(),
+        batteryData: const BatteryData(
+          voltage: 12.6,
+        ),
+        temperatureData: const TemperatureData(
+          engineTemperature: 90.0,
+        ),
+        coolantLevelData: const CoolantLevelData(
+          coolantAvailable: true,
+        ),
+        controlData: const DeviceControlData(
+          fanRunning: false,
+          buzzerActive: false,
+        ),
         lastUpdated: DateTime.now(),
       ),
     );
   }
 
+
   @override
-  Stream<DeviceStatus> get liveUpdates => _updatesController.stream;
+  Stream<DeviceStatus> get liveUpdates {
+    return _updatesController.stream;
+  }
+
 
   @override
   Future<void> reconnect() async {
     await disconnect();
-    await Future<void>.delayed(timeoutDuration);
-    await connect(host: '127.0.0.1');
+
+    await Future<void>.delayed(
+      timeoutDuration,
+    );
+
+    await connect(
+      host: '127.0.0.1',
+    );
   }
 }
+
 
 /// Riverpod provider for exposing the device repository implementation.
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
