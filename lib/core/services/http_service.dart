@@ -1,33 +1,54 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 /// Abstract contract for HTTP infrastructure operations.
 abstract class HttpService {
-  /// Executes an HTTP GET request and returns a decoded JSON payload.
   Future<Map<String, dynamic>> getJson(
     String url, {
     Map<String, String>? headers,
   });
 
-  /// Executes an HTTP POST request and returns a decoded JSON payload.
   Future<Map<String, dynamic>> postJson(
     String url, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   });
 
-  /// Releases any underlying resources used by the client.
   Future<void> close();
 }
 
-/// Default placeholder implementation for HTTP infrastructure operations.
-/// TODO: Replace this placeholder with an HTTP client implementation.
 class HttpServiceImpl implements HttpService {
+  HttpServiceImpl({
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  final http.Client _client;
+
   @override
   Future<Map<String, dynamic>> getJson(
     String url, {
     Map<String, String>? headers,
   }) async {
-    return <String, dynamic>{};
+    final response = await _client.get(
+      Uri.parse(url),
+      headers: headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'HTTP GET failed (${response.statusCode})',
+      );
+    }
+
+    if (response.body.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    return Map<String, dynamic>.from(
+      jsonDecode(response.body) as Map,
+    );
   }
 
   @override
@@ -36,12 +57,36 @@ class HttpServiceImpl implements HttpService {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    return <String, dynamic>{};
+    final response = await _client.post(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        ...?headers,
+      },
+      body: jsonEncode(body ?? <String, dynamic>{}),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'HTTP POST failed (${response.statusCode})',
+      );
+    }
+
+    if (response.body.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    return Map<String, dynamic>.from(
+      jsonDecode(response.body) as Map,
+    );
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    _client.close();
+  }
 }
 
-/// Riverpod provider for exposing an HTTP service implementation.
-final httpServiceProvider = Provider<HttpService>((ref) => HttpServiceImpl());
+final httpServiceProvider = Provider<HttpService>(
+  (ref) => HttpServiceImpl(),
+);
