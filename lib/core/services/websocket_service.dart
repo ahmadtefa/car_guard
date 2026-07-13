@@ -1,38 +1,58 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Abstract contract for WebSocket infrastructure operations.
 abstract class WebSocketService {
-  /// Establishes a WebSocket connection to the provided endpoint.
   Future<void> connect({required String url});
 
-  /// Closes the active WebSocket connection.
   Future<void> disconnect();
 
-  /// Exposes incoming messages as a stream for later consumers.
   Stream<String> get messages;
 
-  /// Sends a message over the active connection.
   Future<void> send(String message);
 }
 
-/// Placeholder implementation for WebSocket infrastructure operations.
-/// TODO: Replace this placeholder with a real WebSocket transport implementation.
 class WebSocketServiceImpl implements WebSocketService {
-  final StreamController<String> _controller = StreamController<String>.broadcast();
+  WebSocketChannel? _channel;
+
+  final StreamController<String> _controller =
+      StreamController<String>.broadcast();
 
   @override
-  Future<void> connect({required String url}) async {}
+  Future<void> connect({required String url}) async {
+    await disconnect();
+
+    _channel = WebSocketChannel.connect(Uri.parse(url));
+
+    _channel!.stream.listen(
+      (message) {
+        if (!_controller.isClosed) {
+          _controller.add(message.toString());
+        }
+      },
+      onError: (error) {
+        if (!_controller.isClosed) {
+          _controller.addError(error);
+        }
+      },
+    );
+  }
 
   @override
-  Future<void> disconnect() async {}
+  Future<void> disconnect() async {
+    await _channel?.sink.close();
+    _channel = null;
+  }
 
   @override
   Stream<String> get messages => _controller.stream;
 
   @override
-  Future<void> send(String message) async {}
+  Future<void> send(String message) async {
+    _channel?.sink.add(message);
+  }
 }
 
 /// Riverpod provider for exposing a WebSocket service implementation.

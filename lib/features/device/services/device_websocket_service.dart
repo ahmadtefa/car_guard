@@ -1,56 +1,82 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:car_guard/core/services/websocket_service.dart';
 
 import 'device_http_service.dart';
 
-/// Generic stream-based transport abstraction reserved for future firmware
-/// streaming contracts.
 abstract class DeviceStreamTransport extends DeviceTransport {
-  /// Returns the current transport state.
   DeviceTransportState get state;
 }
 
-/// WebSocket-backed transport implementation for the device repository.
-///
-/// This implementation is intentionally transport-focused and keeps the
-/// repository contract free from UI and business concerns. It uses the shared
-/// core [WebSocketService] abstraction for dependency injection compatibility.
 class WebSocketDeviceTransport implements DeviceStreamTransport {
-  /// Creates a WebSocket transport implementation.
-  WebSocketDeviceTransport({required this.webSocketService});
+  WebSocketDeviceTransport({
+    required this.webSocketService,
+  });
 
   final WebSocketService webSocketService;
 
-  /// The current connection state of the transport.
   DeviceTransportState _state = DeviceTransportState.disconnected;
 
   final StreamController<Map<String, dynamic>> _messageController =
       StreamController<Map<String, dynamic>>.broadcast();
+
+  StreamSubscription<String>? _subscription;
 
   @override
   DeviceTransportState get state => _state;
 
   @override
   Future<void> connect({String? endpoint}) async {
+    if (_state == DeviceTransportState.connected) {
+      return;
+    }
+
     _state = DeviceTransportState.connecting;
+
     await webSocketService.connect(url: endpoint ?? '');
+
+    await _subscription?.cancel();
+
+    _subscription = webSocketService.messages.listen(
+      (message) {
+        try {
+          final json = jsonDecode(message);
+
+          if (json is Map<String, dynamic>) {
+            _messageController.add(json);
+          } else if (json is Map) {
+            _messageController.add(Map<String, dynamic>.from(json));
+          }
+        } catch (_) {}
+      },
+      onError: _messageController.addError,
+    );
+
     _state = DeviceTransportState.connected;
   }
 
   @override
   Future<void> disconnect() async {
-    _state = DeviceTransportState.disconnected;
+    await _subscription?.cancel();
+    _subscription = null;
+
     await webSocketService.disconnect();
+
+    _state = DeviceTransportState.disconnected;
   }
 
   @override
-  Future<bool> isConnected() async => state == DeviceTransportState.connected;
+  Future<bool> isConnected() async =>
+      _state == DeviceTransportState.connected;
 
   @override
-  Future<Map<String, dynamic>> readJson({required String endpoint}) async {
-    await connect(endpoint: endpoint);
-    return <String, dynamic>{};
+  Future<Map<String, dynamic>> readJson({
+    required String endpoint,
+  }) async {
+    throw UnsupportedError(
+      'readJson is not supported over WebSocket.',
+    );
   }
 
   @override
@@ -58,15 +84,18 @@ class WebSocketDeviceTransport implements DeviceStreamTransport {
     required String endpoint,
     required Map<String, dynamic> payload,
   }) async {
-    await connect(endpoint: endpoint);
-    await webSocketService.send(_serialize(payload));
-    return <String, dynamic>{};
+    if (_state != DeviceTransportState.connected) {
+      await connect(endpoint: endpoint);
+    }
+
+    await webSocketService.send(jsonEncode(payload));
+
+    return payload;
   }
 
   @override
-  Stream<Map<String, dynamic>> receiveLiveUpdates() {
-    return _messageController.stream;
-  }
+  Stream<Map<String, dynamic>> receiveLiveUpdates() =>
+      _messageController.stream;
 
   @override
   Future<void> reconnect() async {
@@ -74,21 +103,8 @@ class WebSocketDeviceTransport implements DeviceStreamTransport {
     await connect();
   }
 
-  /// Sends a message over the underlying WebSocket connection.
-  Future<void> send(String message) async {
-    if (state != DeviceTransportState.connected) {
-      await connect();
-    }
-    await webSocketService.send(message);
-  }
-
-  /// Disposes the transport and closes any active streams.
   Future<void> dispose() async {
     await disconnect();
     await _messageController.close();
-  }
-
-  String _serialize(Map<String, dynamic> payload) {
-    return payload.toString();
   }
 }
