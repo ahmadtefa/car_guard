@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/device_status_provider.dart';
 
@@ -14,6 +15,15 @@ class DashboardPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Car Guard'),
       ),
+
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          context.push('/connection');
+        },
+        icon: const Icon(Icons.wifi),
+        label: const Text('Connection'),
+      ),
+
       body: deviceState.when(
         data: (status) {
           return ListView(
@@ -69,10 +79,10 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-
   Widget _infoCard(String title, String value) {
     return Card(
       child: ListTile(
+        leading: const Icon(Icons.info_outline),
         title: Text(title),
         trailing: Text(
           value,

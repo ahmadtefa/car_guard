@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/device/pages/dashboard_page.dart';
+import '../features/device/pages/device_connection_page.dart';
 
-/// Central router definition for the application.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
@@ -11,7 +11,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         name: 'dashboard',
-        builder: (context, state) => const DashboardPage(),
+        builder: (context, state) =>
+            const DashboardPage(),
+      ),
+
+      GoRoute(
+        path: '/connection',
+        name: 'connection',
+        builder: (context, state) =>
+            const DeviceConnectionPage(),
       ),
     ],
   );
