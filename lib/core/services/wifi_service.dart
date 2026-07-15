@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:wifi_iot/wifi_iot.dart';
 
 abstract class WiFiService {
   Future<bool> initialize();
@@ -15,9 +14,11 @@ abstract class WiFiService {
 }
 
 class WiFiServiceImpl implements WiFiService {
+  bool _connected = false;
+
   @override
   Future<bool> initialize() async {
-    return WiFiForIoTPlugin.isEnabled();
+    return true;
   }
 
   @override
@@ -25,22 +26,18 @@ class WiFiServiceImpl implements WiFiService {
     required String ssid,
     String? password,
   }) async {
-    await WiFiForIoTPlugin.connect(
-      ssid,
-      password: password,
-      security: NetworkSecurity.WPA,
-      joinOnce: false,
-    );
+    // سيتم تنفيذ الاتصال الحقيقي مع ESP8266 لاحقًا.
+    _connected = true;
   }
 
   @override
   Future<void> disconnect() async {
-    await WiFiForIoTPlugin.disconnect();
+    _connected = false;
   }
 
   @override
   Future<bool> isConnected() async {
-    return WiFiForIoTPlugin.isConnected();
+    return _connected;
   }
 }
 

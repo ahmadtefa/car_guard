@@ -24,7 +24,11 @@ class WebSocketServiceImpl implements WebSocketService {
   Future<void> connect({required String url}) async {
     await disconnect();
 
-    _channel = WebSocketChannel.connect(Uri.parse(url));
+    final wsUrl = _normalizeWebSocketUrl(url);
+
+    _channel = WebSocketChannel.connect(
+      Uri.parse(wsUrl),
+    );
 
     _channel!.stream.listen(
       (message) {
@@ -38,6 +42,22 @@ class WebSocketServiceImpl implements WebSocketService {
         }
       },
     );
+  }
+
+  String _normalizeWebSocketUrl(String url) {
+    if (url.startsWith('ws://') || url.startsWith('wss://')) {
+      return url;
+    }
+
+    if (url.startsWith('http://')) {
+      return url.replaceFirst('http://', 'ws://');
+    }
+
+    if (url.startsWith('https://')) {
+      return url.replaceFirst('https://', 'wss://');
+    }
+
+    return 'ws://$url';
   }
 
   @override

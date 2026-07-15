@@ -13,7 +13,7 @@ class DashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Car Guard'),
+        title: const Text('Car Guard TEST'),
       ),
 
       floatingActionButton: FloatingActionButton.extended(
@@ -21,7 +21,7 @@ class DashboardPage extends ConsumerWidget {
           context.push('/connection');
         },
         icon: const Icon(Icons.wifi),
-        label: const Text('Connection'),
+        label: const Text('TEST BUTTON'),
       ),
 
       body: deviceState.when(

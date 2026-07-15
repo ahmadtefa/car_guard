@@ -6,10 +6,10 @@ import '../services/esp8266_repository.dart';
 final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
   return Esp8266Repository(
     host: '192.168.4.1',
+    port: 81,
   );
 });
 
-
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
-  return ref.watch(esp8266RepositoryProvider);
+  return ref.read(esp8266RepositoryProvider);
 });
