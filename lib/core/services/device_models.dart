@@ -75,19 +75,23 @@ class DeviceStatus {
 class BatteryData {
   const BatteryData({
     this.voltage = 0.0,
+    this.voltageDifference = 0.0,
   });
 
   final double voltage;
+  final double voltageDifference;
 
   factory BatteryData.fromJson(Map<String, dynamic> json) {
     return BatteryData(
       voltage: (json['voltage'] as num?)?.toDouble() ?? 0.0,
+      voltageDifference: (json['voltageDifference'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'voltage': voltage,
+      'voltageDifference': voltageDifference,
     };
   }
 }

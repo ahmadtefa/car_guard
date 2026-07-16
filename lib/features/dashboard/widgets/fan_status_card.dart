@@ -2,24 +2,22 @@ import 'package:flutter/material.dart';
 
 import 'base_dashboard_card.dart';
 
-class BatteryVoltageCard extends StatelessWidget {
-  const BatteryVoltageCard({
+class FanStatusCard extends StatelessWidget {
+  const FanStatusCard({
     super.key,
-    this.value = '--.-',
-    this.unit = 'V',
+    this.value = 'OFF',
     this.statusText = 'Unknown',
   });
 
   final String value;
-  final String unit;
   final String statusText;
 
   @override
   Widget build(BuildContext context) {
     return BaseDashboardCard(
-      title: 'Battery Voltage',
-      value: '$value $unit',
-      subtitle: 'Vehicle battery reading',
+      title: 'Radiator Fan',
+      value: value,
+      subtitle: 'Cooling system fan status',
       statusText: statusText,
     );
   }

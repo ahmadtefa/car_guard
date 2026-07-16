@@ -8,6 +8,7 @@ import '../widgets/battery_voltage_card.dart';
 import '../widgets/connection_status_card.dart';
 import '../widgets/coolant_level_card.dart';
 import '../widgets/engine_temperature_card.dart';
+import '../widgets/fan_status_card.dart';
 import '../widgets/voltage_difference_card.dart';
 
 class DashboardPage extends ConsumerWidget {
@@ -66,6 +67,13 @@ class DashboardPage extends ConsumerWidget {
 
                 CoolantLevelCard(
                   value: state.coolantLevel,
+                  statusText: state.connectionStatus,
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+
+                FanStatusCard(
+                  value: state.fanStatus,
                   statusText: state.connectionStatus,
                 ),
               ],

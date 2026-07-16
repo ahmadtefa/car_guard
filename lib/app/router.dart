@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../features/device/pages/dashboard_page.dart';
+import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/device/pages/device_connection_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {

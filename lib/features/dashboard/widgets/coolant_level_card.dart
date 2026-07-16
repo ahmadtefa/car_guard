@@ -2,23 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'base_dashboard_card.dart';
 
-/// A reusable placeholder widget for displaying coolant level information.
 class CoolantLevelCard extends StatelessWidget {
-  /// Creates a coolant level card.
   const CoolantLevelCard({
     super.key,
     this.title = 'Coolant Level',
     this.value = '--',
-    this.statusText = 'Waiting for sensor...',
+    this.statusText = 'Unknown',
   });
 
-  /// Title displayed above the placeholder value.
   final String title;
-
-  /// Main placeholder value for the coolant level.
   final String value;
-
-  /// Status label shown beneath the value.
   final String statusText;
 
   @override
@@ -26,7 +19,7 @@ class CoolantLevelCard extends StatelessWidget {
     return BaseDashboardCard(
       title: title,
       value: value,
-      subtitle: 'Waiting for measurement...',
+      subtitle: 'Coolant reservoir status',
       statusText: statusText,
     );
   }
