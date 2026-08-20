@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/device_provider.dart';
@@ -310,6 +311,16 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
               PrimaryButton(
                 onPressed: _saving ? null : _saveWifi,
                 child: const Text('Save Wi-Fi'),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+
+              SectionTitle(
+                title: 'Advanced',
+                subtitle: 'Password-protected calibration tools.',
+              ),
+              SecondaryButton(
+                onPressed: () => context.push('/advanced-settings'),
+                child: const Text('Advanced settings'),
               ),
             ],
           ],

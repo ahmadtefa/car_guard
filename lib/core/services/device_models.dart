@@ -221,6 +221,11 @@ class DeviceModuleSettings {
     double? minVolt,
     double? maxVolt,
     double? offset,
+    double? r1,
+    double? r2,
+    double? voltCalib,
+    double? sensorPullUp,
+    String? installDate,
   }) {
     return DeviceModuleSettings(
       maxTemp: maxTemp ?? this.maxTemp,
@@ -228,11 +233,11 @@ class DeviceModuleSettings {
       minVolt: minVolt ?? this.minVolt,
       maxVolt: maxVolt ?? this.maxVolt,
       offset: offset ?? this.offset,
-      r1: r1,
-      r2: r2,
-      voltCalib: voltCalib,
-      sensorPullUp: sensorPullUp,
-      installDate: installDate,
+      r1: r1 ?? this.r1,
+      r2: r2 ?? this.r2,
+      voltCalib: voltCalib ?? this.voltCalib,
+      sensorPullUp: sensorPullUp ?? this.sensorPullUp,
+      installDate: installDate ?? this.installDate,
       serial: serial,
     );
   }

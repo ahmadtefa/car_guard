@@ -41,19 +41,27 @@ void main() {
       expect(settings.serial, '');
     });
 
-    test('copyWith keeps calibration fields untouched', () {
+    test('copyWith updates calibration fields and keeps the serial', () {
       const original = DeviceModuleSettings(
         r1: 2200,
         serial: 'CG-1',
         voltCalib: 0.99,
       );
 
-      final updated = original.copyWith(maxTemp: 105, minVolt: 11.8);
+      final updated = original.copyWith(
+        maxTemp: 105,
+        minVolt: 11.8,
+        r2: 470,
+        voltCalib: 1.02,
+        installDate: '2025-06-01',
+      );
 
       expect(updated.maxTemp, 105);
       expect(updated.minVolt, 11.8);
-      expect(updated.r1, 2200);
-      expect(updated.voltCalib, 0.99);
+      expect(updated.r1, 2200, reason: 'untouched fields keep their value');
+      expect(updated.r2, 470);
+      expect(updated.voltCalib, 1.02);
+      expect(updated.installDate, '2025-06-01');
       expect(updated.serial, 'CG-1');
       expect(updated.fanOnTemp, original.fanOnTemp);
     });

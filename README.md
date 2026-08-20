@@ -118,5 +118,5 @@ flutter test
 - [ ] OTA firmware updates from the app (`/update`)
 - [ ] Persist readings history across sessions (currently in-memory)
 - [ ] Localization (Arabic + English)
-- [ ] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard)
+- [x] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard) — done
 - [ ] In-app alarm siren while an alert is active

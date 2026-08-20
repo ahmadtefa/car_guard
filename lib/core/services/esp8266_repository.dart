@@ -380,6 +380,72 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Saves calibration values to the module (`/saveadvancedsettings`).
+  Future<bool> saveAdvancedSettings(DeviceModuleSettings settings) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveAdvancedSettings}"
+      "?offset=${settings.offset}"
+      "&voltCalib=${settings.voltCalib}"
+      "&r1=${settings.r1}"
+      "&r2=${settings.r2}"
+      "&sensorPullUp=${settings.sensorPullUp}"
+      "&installDate=${Uri.encodeComponent(settings.installDate)}",
+    );
+
+  }
+
+
+
+  /// Runs the on-module voltage calibration wizard (`/calibratevoltage`).
+  ///
+  /// The firmware replies with `OK,<newFactor>`; the new factor is returned
+  /// so the caller can refresh the calibration field, or null on failure.
+  Future<double?> calibrateVoltage(double realVolt) async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.calibrateVoltage}"
+              "?realVolt=$realVolt",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 6),
+          );
+
+
+      final body = response.body.trim();
+
+      if (response.statusCode != 200 ||
+          !body.toUpperCase().startsWith("OK")) {
+        return null;
+      }
+
+      final parts = body.split(",");
+
+      if (parts.length < 2) {
+        return null;
+      }
+
+      return double.tryParse(parts[1].trim());
+
+    } catch (e) {
+
+      debugPrint(
+        "CALIBRATE VOLTAGE FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
   /// Provisions the module Wi-Fi (`/savewifi`).
   ///
   /// The module usually restarts its access point right after replying, so a
