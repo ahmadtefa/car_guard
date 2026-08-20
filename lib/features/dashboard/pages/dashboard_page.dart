@@ -862,7 +862,7 @@ class _DataSheet extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.xl),
 
-            const ModuleLimitsCard(),
+            ModuleLimitsCard(),
 
             const SizedBox(height: AppSpacing.md),
 
