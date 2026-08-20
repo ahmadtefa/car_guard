@@ -14,4 +14,11 @@ abstract final class AppColors {
   static const Color success = Color(0xFF16A34A);
   static const Color warning = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFDC2626);
+
+  /// Neon gauge palette matching the original Kayan dashboard design.
+  static const Color neonCyan = Color(0xFF00D4FF);
+  static const Color neonMagenta = Color(0xFFFF00FF);
+  static const Color neonGreen = Color(0xFF00FF88);
+  static const Color neonRed = Color(0xFFFF2244);
+  static const Color neonAmber = Color(0xFFFFAA00);
 }

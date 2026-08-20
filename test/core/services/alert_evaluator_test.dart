@@ -76,6 +76,26 @@ void main() {
       expect(alerts, isEmpty);
     });
 
+    test('high battery voltage raises a critical alert', () {
+      final alerts = AlertEvaluator.evaluate(
+        _status(voltage: 15.6),
+        const AppSettings(),
+      );
+
+      expect(alerts, hasLength(1));
+      expect(alerts.single.id, 'battery_high');
+      expect(alerts.single.severity, AlertSeverity.critical);
+    });
+
+    test('voltage inside the configured range raises no alert', () {
+      final alerts = AlertEvaluator.evaluate(
+        _status(voltage: 14.2),
+        const AppSettings(),
+      );
+
+      expect(alerts, isEmpty);
+    });
+
     test('low coolant raises a critical alert when enabled', () {
       final alerts = AlertEvaluator.evaluate(
         _status(coolantAvailable: false),

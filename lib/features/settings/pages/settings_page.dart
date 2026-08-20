@@ -93,6 +93,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  String _styleLabel(String name) {
+    return switch (name) {
+      'racing' => 'Racing',
+      'sporty' => 'Sporty',
+      'segments' => 'Segments',
+      'sweeper' => 'Sweeper',
+      _ => 'Cards',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings =
@@ -170,6 +180,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 onChangedEnd: (value) =>
                     _save(settings.copyWith(minBatteryVoltage: value)),
               ),
+              _ThresholdSlider(
+                label: 'Maximum battery voltage',
+                unit: 'V',
+                value: settings.maxBatteryVoltage,
+                min: 13,
+                max: 16.5,
+                divisions: 14,
+                onChangedEnd: (value) =>
+                    _save(settings.copyWith(maxBatteryVoltage: value)),
+              ),
               SwitchListTile(
                 title: const Text('Coolant alerts'),
                 subtitle: const Text('Notify when the coolant level is low.'),
@@ -187,6 +207,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _save(settings.copyWith(connectionAlertsEnabled: value)),
               ),
             ],
+            const SizedBox(height: AppSpacing.xl),
+
+            SectionTitle(
+              title: 'Dashboard style',
+              subtitle: 'Pick how the live readings are displayed.',
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final name in AppSettings.dashboardStyleNames)
+                    ChoiceChip(
+                      label: Text(_styleLabel(name)),
+                      selected: settings.dashboardStyleName == name,
+                      onSelected: (_) => _save(
+                        settings.copyWith(dashboardStyleName: name),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(height: AppSpacing.xl),
 
             SectionTitle(

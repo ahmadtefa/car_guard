@@ -315,6 +315,118 @@ class Esp8266Repository implements DeviceRepository {
   Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
 
 
+  /// Fetches the settings stored on the module (`/getallsettings`).
+  ///
+  /// Returns null when the device is unreachable or replies with an
+  /// unexpected payload.
+  Future<DeviceModuleSettings?> getDeviceSettings() async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.getAllSettings}",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return DeviceModuleSettings.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        "GET DEVICE SETTINGS FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
+  /// Saves alarm limits to the module (`/saveallsettings`).
+  Future<bool> saveDeviceSettings(
+    DeviceModuleSettings settings,
+  ) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveAllSettings}"
+      "?maxTemp=${settings.maxTemp}"
+      "&fanOnTemp=${settings.fanOnTemp}"
+      "&minVolt=${settings.minVolt}"
+      "&maxVolt=${settings.maxVolt}"
+      "&offset=${settings.offset}",
+    );
+
+  }
+
+
+
+  /// Provisions the module Wi-Fi (`/savewifi`).
+  ///
+  /// The module usually restarts its access point right after replying, so a
+  /// network failure after the request was sent is expected.
+  Future<bool> saveWifiSettings({
+    required String ssid,
+    required String password,
+  }) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveWifiSettings}"
+      "?ssid=${Uri.encodeComponent(ssid)}"
+      "&password=${Uri.encodeComponent(password)}",
+    );
+
+  }
+
+
+
+  Future<bool> _getExpectsOk(String pathAndQuery) async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse("http://$_activeHost$pathAndQuery"),
+          )
+          .timeout(
+            const Duration(seconds: 8),
+          );
+
+      return response.statusCode == 200 &&
+          response.body.trim().toUpperCase() == "OK";
+
+    } catch (e) {
+
+      debugPrint(
+        "DEVICE REQUEST FAILED $pathAndQuery : $e",
+      );
+
+      return false;
+
+    }
+
+  }
+
+
 
 
   void _handleData(

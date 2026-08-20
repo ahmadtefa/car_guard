@@ -25,6 +25,15 @@ status streamed straight to your phone over Wi-Fi.
   module straight from the dashboard (`/mute`, `/testfan`, `/restart`).
 - **Demo mode** — simulate a full device (thermostat cycles, alternator
   voltage swings, low-coolant windows) to explore the app without hardware.
+- **4 gauge styles + classic cards** — Racing bars, sporty analog gauges with
+  a redline, vertical segmented bars and the Audi sweeper, straight from the
+  original Kayan dashboard; switch with the palette button.
+- **Full-screen HUD** — tap any gauge to see one giant live reading.
+- **Alternator & fan cards** — charging status with live animations.
+- **High-voltage alert** — warns when charging voltage exceeds your maximum.
+- **Module settings screen** — read/edit the limits stored on the ESP8266
+  itself (`/getallsettings` + `/saveallsettings`), test fan, restart, and
+  provision the module Wi-Fi (`/savewifi`).
 - **Theme choice** — Auto / Light / Dark, persisted with the rest of the
   settings.
 
@@ -106,7 +115,8 @@ flutter test
 
 ## Roadmap
 
-- [ ] Device settings screen backed by `/getallsettings` & `/saveallsettings`
 - [ ] OTA firmware updates from the app (`/update`)
 - [ ] Persist readings history across sessions (currently in-memory)
 - [ ] Localization (Arabic + English)
+- [ ] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard)
+- [ ] In-app alarm siren while an alert is active

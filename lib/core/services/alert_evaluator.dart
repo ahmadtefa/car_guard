@@ -84,6 +84,21 @@ abstract final class AlertEvaluator {
       );
     }
 
+    if (voltage > 1 && voltage > settings.maxBatteryVoltage) {
+      alerts.add(
+        DeviceAlert(
+          id: 'battery_high',
+          title: 'Battery voltage high',
+          message:
+              'Charging voltage is ${voltage.toStringAsFixed(2)} V — above '
+              'the maximum of ${settings.maxBatteryVoltage} V. Have the '
+              'alternator and regulator checked.',
+          severity: AlertSeverity.critical,
+          timestamp: now,
+        ),
+      );
+    }
+
     if (settings.coolantAlertsEnabled &&
         !status.coolantLevelData.coolantAvailable) {
       alerts.add(

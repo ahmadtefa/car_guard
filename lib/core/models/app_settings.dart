@@ -20,10 +20,21 @@ class AppSettings {
     this.alertCooldown = const Duration(minutes: 5),
     this.demoModeEnabled = false,
     this.themeModeName = 'system',
+    this.maxBatteryVoltage = 15.0,
+    this.dashboardStyleName = 'cards',
   });
 
   /// Theme preference names accepted by [themeModeName].
   static const List<String> themeModeNames = ['system', 'light', 'dark'];
+
+  /// Dashboard gauge styles accepted by [dashboardStyleName].
+  static const List<String> dashboardStyleNames = [
+    'cards',
+    'racing',
+    'sporty',
+    'segments',
+    'sweeper',
+  ];
 
   /// Storage key used to persist the serialized settings.
   static const String storageKey = 'app_settings';
@@ -61,6 +72,12 @@ class AppSettings {
   /// Theme preference: 'system', 'light' or 'dark'.
   final String themeModeName;
 
+  /// Battery voltage (V) above which a high-voltage alert is raised.
+  final double maxBatteryVoltage;
+
+  /// Dashboard gauge style: one of [dashboardStyleNames].
+  final String dashboardStyleName;
+
   /// Returns a copy of this settings with the given fields replaced.
   AppSettings copyWith({
     String? deviceHost,
@@ -74,6 +91,8 @@ class AppSettings {
     Duration? alertCooldown,
     bool? demoModeEnabled,
     String? themeModeName,
+    double? maxBatteryVoltage,
+    String? dashboardStyleName,
   }) {
     return AppSettings(
       deviceHost: deviceHost ?? this.deviceHost,
@@ -88,6 +107,8 @@ class AppSettings {
       alertCooldown: alertCooldown ?? this.alertCooldown,
       demoModeEnabled: demoModeEnabled ?? this.demoModeEnabled,
       themeModeName: themeModeName ?? this.themeModeName,
+      maxBatteryVoltage: maxBatteryVoltage ?? this.maxBatteryVoltage,
+      dashboardStyleName: dashboardStyleName ?? this.dashboardStyleName,
     );
   }
 
@@ -105,6 +126,8 @@ class AppSettings {
       'alertCooldownMinutes': alertCooldown.inMinutes,
       'demoModeEnabled': demoModeEnabled,
       'themeModeName': themeModeName,
+      'maxBatteryVoltage': maxBatteryVoltage,
+      'dashboardStyleName': dashboardStyleName,
     };
   }
 
@@ -132,6 +155,12 @@ class AppSettings {
           themeModeNames.contains(json['themeModeName'] as String?)
           ? json['themeModeName'] as String
           : 'system',
+      maxBatteryVoltage:
+          (json['maxBatteryVoltage'] as num?)?.toDouble() ?? 15.0,
+      dashboardStyleName:
+          dashboardStyleNames.contains(json['dashboardStyleName'] as String?)
+          ? json['dashboardStyleName'] as String
+          : 'cards',
     );
   }
 

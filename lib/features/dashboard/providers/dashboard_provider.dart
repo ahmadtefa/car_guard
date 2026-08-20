@@ -40,6 +40,8 @@ class DashboardNotifier extends Notifier<DashboardState> {
 
             fanStatus:
                 deviceStatus.controlData.fanRunning ? 'ON' : 'OFF',
+
+            lastUpdated: _formatClock(deviceStatus.lastUpdated),
           );
         },
 
@@ -54,5 +56,11 @@ class DashboardNotifier extends Notifier<DashboardState> {
     });
 
     return const DashboardState();
+  }
+
+  String _formatClock(DateTime time) {
+    final two = (int value) => value.toString().padLeft(2, '0');
+
+    return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
   }
 }

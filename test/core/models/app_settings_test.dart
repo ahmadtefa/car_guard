@@ -15,6 +15,8 @@ void main() {
       expect(settings.alertCooldown, const Duration(minutes: 5));
       expect(settings.demoModeEnabled, isFalse);
       expect(settings.themeModeName, 'system');
+      expect(settings.maxBatteryVoltage, 15.0);
+      expect(settings.dashboardStyleName, 'cards');
     });
 
     test('round-trips through JSON', () {
@@ -30,6 +32,8 @@ void main() {
         alertCooldown: Duration(minutes: 10),
         demoModeEnabled: true,
         themeModeName: 'dark',
+        maxBatteryVoltage: 14.4,
+        dashboardStyleName: 'racing',
       );
 
       final restored = AppSettings.fromRaw(settings.encode());
@@ -48,6 +52,8 @@ void main() {
       expect(restored.alertCooldown, settings.alertCooldown);
       expect(restored.demoModeEnabled, settings.demoModeEnabled);
       expect(restored.themeModeName, settings.themeModeName);
+      expect(restored.maxBatteryVoltage, settings.maxBatteryVoltage);
+      expect(restored.dashboardStyleName, settings.dashboardStyleName);
     });
 
     test('missing JSON fields fall back to defaults', () {
@@ -56,6 +62,14 @@ void main() {
       expect(restored.deviceHost, '192.168.4.1');
       expect(restored.devicePort, 81);
       expect(restored.engineTempCritical, 110);
+    });
+
+    test('invalid dashboard styles fall back to cards', () {
+      final restored = AppSettings.fromJson(<String, dynamic>{
+        'dashboardStyleName': 'hologram',
+      });
+
+      expect(restored.dashboardStyleName, 'cards');
     });
 
     test('invalid theme names fall back to system', () {

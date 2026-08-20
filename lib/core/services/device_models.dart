@@ -164,3 +164,92 @@ class DeviceControlData {
     };
   }
 }
+
+
+/// Settings stored on the ESP8266 module itself, loaded via `/getallsettings`.
+class DeviceModuleSettings {
+  const DeviceModuleSettings({
+    this.maxTemp = 95.0,
+    this.fanOnTemp = 85.0,
+    this.minVolt = 12.0,
+    this.maxVolt = 15.0,
+    this.offset = 0.0,
+    this.r1 = 2155.0,
+    this.r2 = 390.0,
+    this.voltCalib = 0.9724,
+    this.sensorPullUp = 4700.0,
+    this.installDate = '',
+    this.serial = '',
+  });
+
+  /// Alarm temperature (°C) configured on the module.
+  final double maxTemp;
+
+  /// Temperature (°C) at which the module turns the fan on.
+  final double fanOnTemp;
+
+  /// Minimum battery voltage (V) configured on the module.
+  final double minVolt;
+
+  /// Maximum battery voltage (V) configured on the module.
+  final double maxVolt;
+
+  /// Temperature reading calibration offset (±°C).
+  final double offset;
+
+  /// Voltage divider resistor R1 (ohm).
+  final double r1;
+
+  /// Voltage divider resistor R2 (ohm).
+  final double r2;
+
+  /// Voltage calibration factor.
+  final double voltCalib;
+
+  /// Temperature sensor pull-up resistor (ohm).
+  final double sensorPullUp;
+
+  /// Module first-run date (yyyy-mm-dd) as reported by the firmware.
+  final String installDate;
+
+  /// Module serial number.
+  final String serial;
+
+  DeviceModuleSettings copyWith({
+    double? maxTemp,
+    double? fanOnTemp,
+    double? minVolt,
+    double? maxVolt,
+    double? offset,
+  }) {
+    return DeviceModuleSettings(
+      maxTemp: maxTemp ?? this.maxTemp,
+      fanOnTemp: fanOnTemp ?? this.fanOnTemp,
+      minVolt: minVolt ?? this.minVolt,
+      maxVolt: maxVolt ?? this.maxVolt,
+      offset: offset ?? this.offset,
+      r1: r1,
+      r2: r2,
+      voltCalib: voltCalib,
+      sensorPullUp: sensorPullUp,
+      installDate: installDate,
+      serial: serial,
+    );
+  }
+
+  factory DeviceModuleSettings.fromJson(Map<String, dynamic> json) {
+    return DeviceModuleSettings(
+      maxTemp: (json['maxTemp'] as num?)?.toDouble() ?? 95.0,
+      fanOnTemp: (json['fanOnTemp'] as num?)?.toDouble() ?? 85.0,
+      minVolt: (json['minVolt'] as num?)?.toDouble() ?? 12.0,
+      maxVolt: (json['maxVolt'] as num?)?.toDouble() ?? 15.0,
+      offset: (json['offset'] as num?)?.toDouble() ?? 0.0,
+      r1: (json['r1'] as num?)?.toDouble() ?? 2155.0,
+      r2: (json['r2'] as num?)?.toDouble() ?? 390.0,
+      voltCalib: (json['voltCalib'] as num?)?.toDouble() ?? 0.9724,
+      sensorPullUp: (json['sensorPullUp'] as num?)?.toDouble() ?? 4700.0,
+      installDate: json['installDate'] as String? ?? '',
+      serial: json['serial'] as String? ?? '',
+    );
+  }
+}
