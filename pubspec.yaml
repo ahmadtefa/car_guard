@@ -43,6 +43,7 @@ dependencies:
   connectivity_plus: ^7.2.0
   shared_preferences: ^2.5.5
   audioplayers: ^6.4.0
+  flutter_foreground_task: ^8.10.0
   flutter_localizations:
     sdk: flutter
 

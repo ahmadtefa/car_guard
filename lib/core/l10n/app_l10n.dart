@@ -101,6 +101,28 @@ class AppL10n {
   String get commandFailed =>
       isAr ? 'فشل الأمر — هل الجهاز متصل؟' : 'Command failed — device reachable?';
 
+  // ---------- Background monitoring ----------
+  String get backgroundSection =>
+      isAr ? 'المراقبة في الخلفية' : 'Background monitoring';
+  String get backgroundSectionInfo => isAr
+      ? 'تفحص القراءات والتطبيق في الخلفية أو الشاشة مقفولة (أندرويد).'
+      : 'Keeps watching readings while the app is in the background or the screen is off (Android).';
+  String get backgroundToggle =>
+      isAr ? 'تشغيل في الخلفية' : 'Run in background';
+  String get backgroundToggleInfo => isAr
+      ? 'إشعار دائم بالقراءة الحالية + تشغيل تلقائي بعد إعادة تشغيل الموبايل.'
+      : 'Persistent notification with live readings + auto-start after phone reboot.';
+  String get serviceStarted =>
+      isAr ? 'بدأت المراقبة في الخلفية' : 'Background monitoring started';
+  String get serviceStopped =>
+      isAr ? 'توقفت المراقبة في الخلفية' : 'Background monitoring stopped';
+  String get notificationsRequired => isAr
+      ? 'إذن الإشعارات مطلوب لتنبيهات الخلفية — فعّله من إعدادات النظام.'
+      : 'Notifications permission is required for background alerts — enable it from system settings.';
+  String get serviceStartFailed => isAr
+      ? 'تعذر تشغيل الخدمة — جرّب تاني.'
+      : 'Could not start the service — try again.';
+
   // ---------- Alerts ----------
   String get connectionLostTitle => isAr ? 'انقطع الاتصال' : 'Connection lost';
   String get connectionLostMessage => isAr

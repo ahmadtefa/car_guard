@@ -36,6 +36,7 @@ lib/core/providers/websocket_provider.dart
 lib/core/providers/wifi_provider.dart
 lib/core/services/alarm_service.dart
 lib/core/services/alert_evaluator.dart
+lib/core/services/background_monitor.dart
 lib/core/services/connectivity_service.dart
 lib/core/services/demo_device_service.dart
 lib/core/services/device_models.dart

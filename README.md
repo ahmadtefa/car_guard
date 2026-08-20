@@ -46,6 +46,10 @@ status streamed straight to your phone over Wi-Fi.
   with a mute toggle that also silences the module buzzer.
 - **Correct CSV protocol** — `temp,volt,fanState,?,maxTemp,fanOnTemp,
   minVolt,maxVolt,offset`, matching the reference firmware.
+- **Background monitoring (Android)** — a foreground service keeps polling
+  the module every 5 seconds with the screen off, shows live readings in a
+  persistent notification, fires alert notifications, and auto-starts after
+  phone reboot (enable it from Settings).
 
 ## Architecture
 

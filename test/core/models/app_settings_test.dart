@@ -19,6 +19,7 @@ void main() {
       expect(settings.dashboardStyleName, 'cards');
       expect(settings.languageName, 'en');
       expect(settings.alarmSoundEnabled, isTrue);
+      expect(settings.backgroundMonitoringEnabled, isFalse);
     });
 
     test('round-trips through JSON', () {
@@ -38,6 +39,7 @@ void main() {
         dashboardStyleName: 'racing',
         languageName: 'ar',
         alarmSoundEnabled: false,
+        backgroundMonitoringEnabled: true,
       );
 
       final restored = AppSettings.fromRaw(settings.encode());
@@ -60,6 +62,10 @@ void main() {
       expect(restored.dashboardStyleName, settings.dashboardStyleName);
       expect(restored.languageName, settings.languageName);
       expect(restored.alarmSoundEnabled, settings.alarmSoundEnabled);
+      expect(
+        restored.backgroundMonitoringEnabled,
+        settings.backgroundMonitoringEnabled,
+      );
     });
 
     test('missing JSON fields fall back to defaults', () {

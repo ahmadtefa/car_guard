@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
+import '../../../core/services/background_monitor.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
@@ -88,7 +90,42 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _hostController.text = defaults.deviceHost;
     _portController.text = defaults.devicePort.toString();
 
+    await BackgroundMonitor.stop();
+
     await _save(defaults);
+  }
+
+  Future<void> _toggleBackground(bool value) async {
+    final l = ref.read(l10nProvider);
+
+    if (value) {
+      final granted =
+          await ref.read(notificationServiceProvider).initialize();
+
+      if (!granted) {
+        _showError(l.notificationsRequired);
+        return;
+      }
+
+      await BackgroundMonitor.requestIgnoreBatteryOptimization();
+
+      final started = await BackgroundMonitor.start();
+
+      if (!started) {
+        _showError(l.serviceStartFailed);
+        return;
+      }
+    } else {
+      await BackgroundMonitor.stop();
+    }
+
+    await _save(_current.copyWith(backgroundMonitoringEnabled: value));
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value ? l.serviceStarted : l.serviceStopped)),
+    );
   }
 
   void _showError(String message) {
@@ -217,6 +254,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               value: settings.demoModeEnabled,
               onChanged: (value) =>
                   _save(settings.copyWith(demoModeEnabled: value)),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            SectionTitle(
+              title: l.backgroundSection,
+              subtitle: l.backgroundSectionInfo,
+            ),
+            SwitchListTile(
+              title: Text(l.backgroundToggle),
+              subtitle: Text(l.backgroundToggleInfo),
+              value: settings.backgroundMonitoringEnabled,
+              onChanged: _toggleBackground,
             ),
             const SizedBox(height: AppSpacing.xl),
 

@@ -24,6 +24,7 @@ class AppSettings {
     this.dashboardStyleName = 'cards',
     this.languageName = 'en',
     this.alarmSoundEnabled = true,
+    this.backgroundMonitoringEnabled = false,
   });
 
   /// Theme preference names accepted by [themeModeName].
@@ -89,6 +90,9 @@ class AppSettings {
   /// Whether the in-app alarm siren may play while alerts are active.
   final bool alarmSoundEnabled;
 
+  /// Whether the background monitoring service should run (Android).
+  final bool backgroundMonitoringEnabled;
+
   /// Returns a copy of this settings with the given fields replaced.
   AppSettings copyWith({
     String? deviceHost,
@@ -106,6 +110,7 @@ class AppSettings {
     String? dashboardStyleName,
     String? languageName,
     bool? alarmSoundEnabled,
+    bool? backgroundMonitoringEnabled,
   }) {
     return AppSettings(
       deviceHost: deviceHost ?? this.deviceHost,
@@ -124,6 +129,8 @@ class AppSettings {
       dashboardStyleName: dashboardStyleName ?? this.dashboardStyleName,
       languageName: languageName ?? this.languageName,
       alarmSoundEnabled: alarmSoundEnabled ?? this.alarmSoundEnabled,
+      backgroundMonitoringEnabled:
+          backgroundMonitoringEnabled ?? this.backgroundMonitoringEnabled,
     );
   }
 
@@ -145,6 +152,7 @@ class AppSettings {
       'dashboardStyleName': dashboardStyleName,
       'languageName': languageName,
       'alarmSoundEnabled': alarmSoundEnabled,
+      'backgroundMonitoringEnabled': backgroundMonitoringEnabled,
     };
   }
 
@@ -182,6 +190,8 @@ class AppSettings {
           ? json['languageName'] as String
           : 'en',
       alarmSoundEnabled: json['alarmSoundEnabled'] as bool? ?? true,
+      backgroundMonitoringEnabled:
+          json['backgroundMonitoringEnabled'] as bool? ?? false,
     );
   }
 
