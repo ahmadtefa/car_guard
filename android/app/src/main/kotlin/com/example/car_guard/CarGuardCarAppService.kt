@@ -9,10 +9,14 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.Session
 import androidx.car.app.model.CarColor
+import androidx.car.app.model.CarText
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
+import androidx.car.app.validation.HostValidator
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -31,6 +35,9 @@ import java.util.Locale
  */
 class CarGuardCarAppService : CarAppService() {
     override fun onCreateSession(): Session = CarGuardSession()
+
+    override fun createHostValidator(): HostValidator =
+        HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
 }
 
 class CarGuardSession : Session() {
@@ -68,41 +75,37 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        host = loadHost()
-        poller.run()
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                host = loadHost()
+                poller.run()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                handler.removeCallbacks(poller)
+            }
+        })
     }
 
-    override fun onStop() {
-        super.onStop()
-        handler.removeCallbacks(poller)
-    }
+    private fun coloredText(text: String, color: CarColor): CarText =
+        CarText.Builder(text).setCarColor(color).build()
+
+    private fun row(title: String, value: String, color: CarColor): Row =
+        Row.Builder()
+            .setTitle(title)
+            .addText(coloredText(value, color))
+            .build()
 
     override fun onGetTemplate(): Template {
         val listBuilder = ItemList.Builder()
         val current = reading
 
         if (current == null) {
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Car Guard")
-                    .addText("Connecting to module…", CarColor.DEFAULT)
-                    .build(),
-            )
+            listBuilder.addItem(row("Car Guard", "Connecting to module…", CarColor.DEFAULT))
         } else if (!current.connected) {
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Status")
-                    .addText("Disconnected", CarColor.RED)
-                    .build(),
-            )
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Module address")
-                    .addText(host, CarColor.DEFAULT)
-                    .build(),
-            )
+            listBuilder.addItem(row("Status", "Disconnected", CarColor.RED))
+            listBuilder.addItem(row("Module address", host, CarColor.DEFAULT))
         } else {
             val tempColor = when {
                 current.temp >= current.maxTemp -> CarColor.RED
@@ -115,48 +118,28 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 else -> CarColor.GREEN
             }
 
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Engine temperature")
-                    .addText(
-                        String.format(Locale.US, "%.1f °C", current.temp),
-                        tempColor,
-                    )
-                    .build(),
+            listBuilder.addItem(
+                row("Engine temperature", String.format(Locale.US, "%.1f °C", current.temp), tempColor),
             )
 
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Battery voltage")
-                    .addText(
-                        String.format(Locale.US, "%.2f V", current.volt),
-                        voltColor,
-                    )
-                    .build(),
+            listBuilder.addItem(
+                row("Battery voltage", String.format(Locale.US, "%.2f V", current.volt), voltColor),
             )
 
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Radiator fan")
-                    .addText(
-                        if (current.fanOn) "ON" else "OFF",
-                        if (current.fanOn) CarColor.GREEN else CarColor.DEFAULT,
-                    )
-                    .build(),
+            listBuilder.addItem(
+                row("Radiator fan", if (current.fanOn) "ON" else "OFF", if (current.fanOn) CarColor.GREEN else CarColor.DEFAULT),
             )
 
-            listBuilder.addRow(
-                Row.Builder()
-                    .setTitle("Module alarm")
-                    .addText(
-                        when {
-                            current.alarm -> "ACTIVE!"
-                            current.muted -> "Muted"
-                            else -> "OK"
-                        },
-                        if (current.alarm) CarColor.RED else CarColor.DEFAULT,
-                    )
-                    .build(),
+            listBuilder.addItem(
+                row(
+                    "Module alarm",
+                    when {
+                        current.alarm -> "ACTIVE!"
+                        current.muted -> "Muted"
+                        else -> "OK"
+                    },
+                    if (current.alarm) CarColor.RED else CarColor.DEFAULT,
+                ),
             )
         }
 
