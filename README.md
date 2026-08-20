@@ -119,6 +119,19 @@ Pair your phone with the ESP8266 access point (or the same network), then set
 the module address in **Connection** or **Settings**. The default is
 `192.168.4.1:81`.
 
+## Android Auto
+
+The app ships an Android Auto front-end (`CarGuardCarAppService`): on a
+supported head unit (or the Desktop Head Unit for testing) it shows live
+engine temperature, battery voltage, fan state and the module alarm,
+color-coded by the thresholds the module reports. It reads the saved
+device address from the app settings and polls `/data` every 5 seconds.
+
+> Note: vehicle-monitoring is not a Play-Store-distributable Android Auto
+> category — this integration is for personal (sideloaded) use.
+> CarPlay is not possible: Apple restricts CarPlay to specific app
+> categories (audio, navigation, messaging…).
+
 ## Testing
 
 Tests live in `test/` and mirror the `lib/` layout:
