@@ -87,7 +87,7 @@ class NotificationServiceImpl implements NotificationService {
       id: _nextId++,
       title: title,
       body: body,
-      details: notificationDetails,
+      notificationDetails: notificationDetails,
     );
   }
 
