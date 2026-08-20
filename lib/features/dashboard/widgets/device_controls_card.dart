@@ -96,32 +96,12 @@ class DeviceControlsCard extends ConsumerWidget {
             statusLine,
             const SizedBox(height: AppSpacing.md),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: SecondaryButton(
-                  onPressed: () =>
-                      _toggleAlarm(context, ref, settings, demoEnabled),
-                  child: Text(
-                    settings.alarmSoundEnabled ? l.muteAlarm : l.enableAlarm,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: SecondaryButton(
-                  onPressed: demoEnabled
-                      ? null
-                      : () => _send(
-                            context,
-                            ref,
-                            () => ref.read(esp8266RepositoryProvider).testFan(),
-                            l.fanTestStarted,
-                          ),
-                  child: Text(l.testFan),
-                ),
-              ),
-            ],
+          SecondaryButton(
+            onPressed: () =>
+                _toggleAlarm(context, ref, settings, demoEnabled),
+            child: Text(
+              settings.alarmSoundEnabled ? l.muteAlarm : l.enableAlarm,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           SecondaryButton(

@@ -9,6 +9,9 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/services/device_models.dart';
+import '../../../core/widgets/secondary_button.dart';
+import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
@@ -72,6 +75,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       setState(() => _barVisible = true);
     }
     _scheduleHide();
+  }
+
+  void _showModuleInfo() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => const _ModuleInfoSheet(),
+    );
   }
 
   void _openHud(String type) {
@@ -390,16 +400,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
 
               IconButton(
+                tooltip: l.moduleInfo,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.info_outline_rounded),
+                onPressed: _showModuleInfo,
+              ),
+              IconButton(
                 tooltip: l.dashboardStyle,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.palette_outlined),
                 onPressed: _showStylePicker,
-              ),
-              IconButton(
-                tooltip: l.settings,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => context.push('/settings'),
               ),
             ],
           ),
@@ -516,6 +526,117 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet with the module serial, install date and a settings
+/// shortcut (the only settings entry point since the gear left the bar).
+class _ModuleInfoSheet extends ConsumerStatefulWidget {
+  const _ModuleInfoSheet();
+
+  @override
+  ConsumerState<_ModuleInfoSheet> createState() => _ModuleInfoSheetState();
+}
+
+class _ModuleInfoSheetState extends ConsumerState<_ModuleInfoSheet> {
+  bool _loading = true;
+  DeviceModuleSettings? _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+
+    final result =
+        await ref.read(esp8266RepositoryProvider).getDeviceSettings();
+
+    if (!mounted) return;
+
+    setState(() {
+      _settings = result;
+      _loading = false;
+    });
+  }
+
+  Widget _row(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.neonCyan),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(child: Text(label)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = ref.watch(l10nProvider);
+
+    return SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        padding: AppSpacing.padding,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.memory_rounded, color: AppColors.neonCyan),
+              const SizedBox(width: AppSpacing.md),
+              Text(l.moduleInfo, style: Theme.of(context).textTheme.titleLarge),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(AppSpacing.xl),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_settings == null) ...[
+            Text(l.cantReadModule, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(onPressed: _load, child: Text(l.retry)),
+          ] else ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  children: [
+                    _row(
+                      Icons.tag_rounded,
+                      l.serialLabel,
+                      (_settings!.serial.isEmpty) ? '--' : _settings!.serial,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _row(
+                      Icons.calendar_month_outlined,
+                      l.installedLabel,
+                      (_settings!.installDate.isEmpty)
+                          ? l.unknownDate
+                          : _settings!.installDate,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/settings');
+              },
+              child: Text(l.settings),
+            ),
+          ],
+        ],
       ),
     );
   }

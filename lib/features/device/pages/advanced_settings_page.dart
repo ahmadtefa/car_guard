@@ -178,7 +178,20 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     if (!mounted) return;
 
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+
+      if (ok) {
+        _loaded = (_loaded ?? const DeviceModuleSettings()).copyWith(
+          offset: offset,
+          voltCalib: voltCalib,
+          r1: r1,
+          r2: r2,
+          sensorPullUp: pullUp,
+          installDate: installDateText,
+        );
+      }
+    });
 
     final l = ref.read(l10nProvider);
 
@@ -413,7 +426,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
                 controller: _installDate,
                 labelText: l.installDateLabel,
                 hintText: '2025-01-15',
-                enabled: false,
+                keyboardType: TextInputType.text,
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.calendar_month_outlined),
                   onPressed: _pickDate,

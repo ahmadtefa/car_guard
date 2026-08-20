@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
+import '../../../core/providers/device_provider.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/services/background_monitor.dart';
 import '../../../core/services/notification_service.dart';
@@ -102,6 +103,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  Future<void> _testFan() async {
+    final l = ref.read(l10nProvider);
+
+    final ok = await ref.read(esp8266RepositoryProvider).testFan();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? l.fanTestStarted : l.commandFailed),
+      ),
+    );
+  }
+
   String _styleLabel(String name, AppL10n l) {
     return switch (name) {
       'racing' => l.styleRacing,
@@ -132,6 +147,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             SecondaryButton(
               onPressed: () => context.push('/advanced-settings'),
               child: Text(l.advancedModuleSettings),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
+              onPressed: settings.demoModeEnabled ? null : _testFan,
+              child: Text(l.testFan),
             ),
             const SizedBox(height: AppSpacing.xl),
 
