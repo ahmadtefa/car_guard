@@ -10,6 +10,7 @@ import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
+import '../../../core/widgets/spinning_icon.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
@@ -151,6 +152,47 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
+  /// Overlays small corner badges (fan / alternator) on any gauge widget.
+  Widget _badged(
+    Widget child, {
+    Widget? topRight,
+    Widget? topLeft,
+  }) {
+    return Stack(
+      children: [
+        child,
+        if (topRight != null) Positioned(top: 8, right: 8, child: topRight),
+        if (topLeft != null) Positioned(top: 8, left: 8, child: topLeft),
+      ],
+    );
+  }
+
+  Widget _statusBadge({
+    required IconData icon,
+    required bool active,
+    required Color activeColor,
+    required Color idleColor,
+    required Duration duration,
+  }) {
+    final color = active ? activeColor : idleColor;
+
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: color.withAlpha((255 * 0.16).round()),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withAlpha((255 * 0.6).round())),
+      ),
+      child: SpinningIcon(
+        icon: icon,
+        spinning: active,
+        duration: duration,
+        size: 18,
+        color: color,
+      ),
+    );
+  }
+
   Widget _buildGaugeArea({
     required AppSettings settings,
     required DashboardState state,
@@ -161,6 +203,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final connected = device?.connected ?? false;
     final temperature = device?.temperatureData.engineTemperature ?? 0;
     final voltage = device?.batteryData.voltage ?? 0;
+
+    final fanOn = device?.controlData.fanRunning ?? false;
+    final charging = connected && voltage >= 13.0;
+
+    final fanBadge = _statusBadge(
+      icon: Icons.air,
+      active: fanOn,
+      activeColor: AppColors.neonGreen,
+      idleColor: AppColors.neonAmber,
+      duration: const Duration(milliseconds: 600),
+    );
+
+    final gearBadge = _statusBadge(
+      icon: Icons.settings,
+      active: charging,
+      activeColor: AppColors.neonGreen,
+      idleColor: AppColors.textSecondary,
+      duration: const Duration(milliseconds: 1200),
+    );
 
     final tempPercent = (temperature / 180).clamp(0.0, 1.0);
     final voltPercent = ((voltage - 10) / 6).clamp(0.0, 1.0);
@@ -175,22 +236,28 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       case 'racing':
         return Column(
           children: [
-            RacingGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              warning: tempWarning,
-              onTap: () => _openHud('temp'),
+            _badged(
+              topRight: fanBadge,
+              child: RacingGauge(
+                label: l.engineTempLabel,
+                value: temperature,
+                unit: '°C',
+                percent: tempPercent,
+                warning: tempWarning,
+                onTap: () => _openHud('temp'),
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
-            RacingGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              warning: voltWarning,
-              onTap: () => _openHud('volt'),
+            _badged(
+              topLeft: gearBadge,
+              child: RacingGauge(
+                label: l.batteryVoltLabel,
+                value: voltage,
+                unit: 'V',
+                percent: voltPercent,
+                warning: voltWarning,
+                onTap: () => _openHud('volt'),
+              ),
             ),
           ],
         );
@@ -200,28 +267,34 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: SportyGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                min: 0,
-                max: 180,
-                redlineValue: settings.engineTempCritical,
-                unit: '°C',
-                warning: tempWarning,
-                onTap: () => _openHud('temp'),
+              child: _badged(
+                topRight: fanBadge,
+                child: SportyGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  min: 0,
+                  max: 180,
+                  redlineValue: settings.engineTempCritical,
+                  unit: '°C',
+                  warning: tempWarning,
+                  onTap: () => _openHud('temp'),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: SportyGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                min: 10,
-                max: 16,
-                redlineValue: settings.maxBatteryVoltage,
-                unit: 'V',
-                warning: voltWarning,
-                onTap: () => _openHud('volt'),
+              child: _badged(
+                topLeft: gearBadge,
+                child: SportyGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  min: 10,
+                  max: 16,
+                  redlineValue: settings.maxBatteryVoltage,
+                  unit: 'V',
+                  warning: voltWarning,
+                  onTap: () => _openHud('volt'),
+                ),
               ),
             ),
           ],
@@ -232,24 +305,30 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: SegmentedGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                unit: '°C',
-                activeCount: (tempPercent * 12).round(),
-                danger: tempWarning,
-                onTap: () => _openHud('temp'),
+              child: _badged(
+                topRight: fanBadge,
+                child: SegmentedGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  unit: '°C',
+                  activeCount: (tempPercent * 12).round(),
+                  danger: tempWarning,
+                  onTap: () => _openHud('temp'),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: SegmentedGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                unit: 'V',
-                activeCount: (voltPercent * 12).round(),
-                danger: voltWarning,
-                onTap: () => _openHud('volt'),
+              child: _badged(
+                topLeft: gearBadge,
+                child: SegmentedGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  unit: 'V',
+                  activeCount: (voltPercent * 12).round(),
+                  danger: voltWarning,
+                  onTap: () => _openHud('volt'),
+                ),
               ),
             ),
           ],
@@ -258,36 +337,42 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       case 'sweeper':
         return Column(
           children: [
-            AudiSweeperGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              gradientColors: [
-                AppColors.neonCyan,
-                AppColors.neonAmber,
-                AppColors.neonRed,
-              ],
-              accentColor: tempWarning
-                  ? AppColors.neonRed
-                  : AppColors.neonMagenta,
-              onTap: () => _openHud('temp'),
+            _badged(
+              topRight: fanBadge,
+              child: AudiSweeperGauge(
+                label: l.engineTempLabel,
+                value: temperature,
+                unit: '°C',
+                percent: tempPercent,
+                gradientColors: [
+                  AppColors.neonCyan,
+                  AppColors.neonAmber,
+                  AppColors.neonRed,
+                ],
+                accentColor: tempWarning
+                    ? AppColors.neonRed
+                    : AppColors.neonMagenta,
+                onTap: () => _openHud('temp'),
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
-            AudiSweeperGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              gradientColors: [
-                AppColors.neonRed,
-                AppColors.neonGreen,
-                AppColors.neonGreen,
-              ],
-              accentColor: voltWarning
-                  ? AppColors.neonRed
-                  : AppColors.neonGreen,
-              onTap: () => _openHud('volt'),
+            _badged(
+              topLeft: gearBadge,
+              child: AudiSweeperGauge(
+                label: l.batteryVoltLabel,
+                value: voltage,
+                unit: 'V',
+                percent: voltPercent,
+                gradientColors: [
+                  AppColors.neonRed,
+                  AppColors.neonGreen,
+                  AppColors.neonGreen,
+                ],
+                accentColor: voltWarning
+                    ? AppColors.neonRed
+                    : AppColors.neonGreen,
+                onTap: () => _openHud('volt'),
+              ),
             ),
           ],
         );
@@ -295,11 +380,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       default:
         return Column(
           children: [
-            EngineTemperatureCard(
-              value: state.engineTemperature,
-              temperature: connected ? temperature : null,
-              warnValue: settings.engineTempWarning,
-              criticalValue: settings.engineTempCritical,
+            _badged(
+              topRight: fanBadge,
+              child: EngineTemperatureCard(
+                value: state.engineTemperature,
+                temperature: connected ? temperature : null,
+                warnValue: settings.engineTempWarning,
+                criticalValue: settings.engineTempCritical,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             BatteryVoltageCard(
@@ -310,7 +398,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               highValue: settings.maxBatteryVoltage,
             ),
             const SizedBox(height: AppSpacing.md),
-            const VoltageDeltaCard(),
+            _badged(
+              topLeft: gearBadge,
+              child: const VoltageDeltaCard(),
+            ),
           ],
         );
     }

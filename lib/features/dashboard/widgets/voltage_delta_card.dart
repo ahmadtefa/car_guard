@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../../../core/providers/device_status_provider.dart';
-import '../../../core/widgets/spinning_icon.dart';
 import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
 import 'mini_gauges.dart';
@@ -41,44 +39,12 @@ class VoltageDeltaCard extends ConsumerWidget {
       }
     }
 
-    // Alternator state for the corner badge.
-    final device = ref.watch(deviceStatusProvider).value;
-    final connected = device?.connected ?? false;
-    final voltage = device?.batteryData.voltage ?? 0;
-    final charging = connected && voltage >= 13.0;
-
-    final gearColor = charging ? AppColors.neonGreen : AppColors.textSecondary;
-
-    return Stack(
-      children: [
-        BaseDashboardCard(
-          title: l.voltageDifference,
-          value: valueText,
-          subtitle: l.voltageDeltaInfo,
-          statusText: statusText,
-          child: DeltaGauge(delta: delta, scale: 1.5),
-        ),
-
-        // Spinning gear badge while the alternator charges.
-        Positioned(
-          top: 10,
-          left: 10,
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: gearColor.withAlpha((255 * 0.14).round()),
-              shape: BoxShape.circle,
-            ),
-            child: SpinningIcon(
-              icon: Icons.settings,
-              spinning: charging,
-              duration: const Duration(milliseconds: 1200),
-              size: 16,
-              color: gearColor,
-            ),
-          ),
-        ),
-      ],
+    return BaseDashboardCard(
+      title: l.voltageDifference,
+      value: valueText,
+      subtitle: l.voltageDeltaInfo,
+      statusText: statusText,
+      child: DeltaGauge(delta: delta, scale: 1.5),
     );
   }
 }
