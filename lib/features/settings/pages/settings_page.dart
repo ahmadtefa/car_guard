@@ -149,6 +149,84 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  /// Demo mode requires the demo code before it can be enabled.
+  static const String _demoCode = '1122';
+
+  Future<void> _toggleDemo(bool value) async {
+    final l = ref.read(l10nProvider);
+
+    if (!value) {
+      await _save(_current.copyWith(demoModeEnabled: false));
+      return;
+    }
+
+    final granted = await _askDemoCode(l);
+
+    if (granted) {
+      await _save(_current.copyWith(demoModeEnabled: true));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l.wrongDemoCode)),
+      );
+    }
+  }
+
+  Future<bool> _askDemoCode(AppL10n l) async {
+    final controller = TextEditingController();
+    var error = false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(l.demoCodeLabel),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: l.demoCodeLabel,
+                  errorText: error ? l.wrongDemoCode : null,
+                ),
+                onSubmitted: (value) {
+                  if (value.trim() == _demoCode) {
+                    Navigator.of(dialogContext).pop(true);
+                  } else {
+                    setDialogState(() => error = true);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (controller.text.trim() == _demoCode) {
+                  Navigator.of(dialogContext).pop(true);
+                } else {
+                  setDialogState(() => error = true);
+                }
+              },
+              child: Text(l.unlock),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    controller.dispose();
+
+    return result ?? false;
+  }
+
   String _styleLabel(String name, AppL10n l) {
     return switch (name) {
       'racing' => l.styleRacing,
@@ -227,8 +305,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               title: Text(l.simulatedDevice),
               subtitle: Text(l.simulatedDeviceInfo),
               value: settings.demoModeEnabled,
-              onChanged: (value) =>
-                  _save(settings.copyWith(demoModeEnabled: value)),
+              onChanged: _toggleDemo,
             ),
             const SizedBox(height: AppSpacing.xl),
 

@@ -82,6 +82,8 @@ class AppL10n {
       isAr ? 'لا يشحن ($volt فولت)' : 'Not charging ($volt V)';
 
   String get systemOk => isAr ? 'النظام يعمل' : 'System OK';
+  String get demoCodeLabel => isAr ? 'كود وضع المحاكاة' : 'Demo mode code';
+  String get wrongDemoCode => isAr ? 'الكود غير صحيح!' : 'Wrong code!';
   String get fullscreenGauges => isAr
       ? 'العدادات بالشاشة الكاملة'
       : 'Fullscreen gauges';
