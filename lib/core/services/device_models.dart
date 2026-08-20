@@ -1,4 +1,42 @@
 // Strongly typed domain models for the ESP8266 communication layer.
+/// Alarm limits reported by the module inside its live stream.
+///
+/// Every field is nullable: the firmware may omit values, in which case the
+/// app keeps its locally configured thresholds.
+class ModuleLimits {
+  const ModuleLimits({
+    this.maxTemp,
+    this.fanOnTemp,
+    this.minVolt,
+    this.maxVolt,
+    this.offset,
+  });
+
+  final double? maxTemp;
+  final double? fanOnTemp;
+  final double? minVolt;
+  final double? maxVolt;
+  final double? offset;
+
+  /// True when the module did not report any limit.
+  bool get isEmpty =>
+      maxTemp == null &&
+      fanOnTemp == null &&
+      minVolt == null &&
+      maxVolt == null &&
+      offset == null;
+
+  factory ModuleLimits.fromJson(Map<String, dynamic> json) {
+    return ModuleLimits(
+      maxTemp: (json['maxTemp'] as num?)?.toDouble(),
+      fanOnTemp: (json['fanOnTemp'] as num?)?.toDouble(),
+      minVolt: (json['minVolt'] as num?)?.toDouble(),
+      maxVolt: (json['maxVolt'] as num?)?.toDouble(),
+      offset: (json['offset'] as num?)?.toDouble(),
+    );
+  }
+}
+
 class DeviceStatus {
   const DeviceStatus({
     required this.connected,
@@ -8,6 +46,7 @@ class DeviceStatus {
     required this.coolantLevelData,
     required this.controlData,
     required this.lastUpdated,
+    this.moduleLimits = const ModuleLimits(),
   });
 
   final bool connected;
@@ -19,6 +58,9 @@ class DeviceStatus {
   final DeviceControlData controlData;
 
   final DateTime lastUpdated;
+
+  /// Limits reported alongside the reading, when the firmware sends them.
+  final ModuleLimits moduleLimits;
 
   factory DeviceStatus.disconnected() {
     return DeviceStatus(
@@ -55,6 +97,10 @@ class DeviceStatus {
 
       lastUpdated:
           DateTime.tryParse(json['lastUpdated'] ?? '') ?? DateTime.now(),
+
+      moduleLimits: ModuleLimits.fromJson(
+        Map<String, dynamic>.from(json),
+      ),
     );
   }
 
@@ -67,6 +113,11 @@ class DeviceStatus {
       'coolantLevelData': coolantLevelData.toJson(),
       'controlData': controlData.toJson(),
       'lastUpdated': lastUpdated.toIso8601String(),
+      'maxTemp': moduleLimits.maxTemp,
+      'fanOnTemp': moduleLimits.fanOnTemp,
+      'minVolt': moduleLimits.minVolt,
+      'maxVolt': moduleLimits.maxVolt,
+      'offset': moduleLimits.offset,
     };
   }
 }

@@ -1,29 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import 'base_dashboard_card.dart';
 
 /// Displays whether the app is currently talking to the device.
-class ConnectionStatusCard extends StatelessWidget {
+class ConnectionStatusCard extends ConsumerWidget {
   /// Creates a connection status card.
   const ConnectionStatusCard({super.key, this.statusText = 'Disconnected'});
 
-  /// Status text displayed in the card.
+  /// Status token displayed in the card ('Connected'/'Disconnected').
   final String statusText;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
     final connected = statusText == 'Connected';
 
-    final color = connected ? AppColors.success : AppColors.danger;
+    final color = connected ? AppColors.neonGreen : AppColors.neonRed;
 
     return BaseDashboardCard(
-      title: 'Connection Status',
+      title: l.connectionStatus,
       value: '',
-      subtitle: connected
-          ? 'Streaming live readings'
-          : 'Waiting for device...',
+      subtitle: connected ? l.streamingLive : l.waitingForDevice,
       statusText: '',
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -46,11 +48,10 @@ class ConnectionStatusCard extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              statusText,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(color: color),
+              connected ? l.connected : l.disconnected,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: color),
             ),
           ],
         ),

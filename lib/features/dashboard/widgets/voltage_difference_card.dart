@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/app_l10n.dart';
 import 'base_dashboard_card.dart';
 
 /// Displays the voltage difference reported by the device.
-class VoltageDifferenceCard extends StatelessWidget {
+class VoltageDifferenceCard extends ConsumerWidget {
   const VoltageDifferenceCard({
     super.key,
     this.value = '--.- V',
@@ -16,12 +18,14 @@ class VoltageDifferenceCard extends StatelessWidget {
   final String statusText;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
     return BaseDashboardCard(
-      title: 'Voltage Difference',
+      title: l.voltageDifference,
       value: value,
-      subtitle: 'Charging vs. resting delta',
-      statusText: statusText,
+      subtitle: l.chargingDeltaInfo,
+      statusText: statusText == 'Unknown' ? l.unknown : statusText,
     );
   }
 }

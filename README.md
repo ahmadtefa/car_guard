@@ -36,6 +36,16 @@ status streamed straight to your phone over Wi-Fi.
   provision the module Wi-Fi (`/savewifi`).
 - **Theme choice** — Auto / Light / Dark, persisted with the rest of the
   settings.
+- **Arabic + English UI** — full translation with automatic RTL layout; quick
+  toggle from the dashboard.
+- **Module-borne limits** — alarm thresholds reported by the firmware in the
+  live stream override the app-side ones, exactly like the original dashboard.
+- **Automatic WebSocket reconnect** — up to 10 attempts with growing delay,
+  HTTP polling keeps running meanwhile.
+- **In-app alarm siren** — loops while a warning/critical alert is active,
+  with a mute toggle that also silences the module buzzer.
+- **Correct CSV protocol** — `temp,volt,fanState,?,maxTemp,fanOnTemp,
+  minVolt,maxVolt,offset`, matching the reference firmware.
 
 ## Architecture
 
@@ -117,6 +127,6 @@ flutter test
 
 - [ ] OTA firmware updates from the app (`/update`)
 - [ ] Persist readings history across sessions (currently in-memory)
-- [ ] Localization (Arabic + English)
+- [x] Localization (Arabic + English) — done
 - [x] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard) — done
-- [ ] In-app alarm siren while an alert is active
+- [x] In-app alarm siren while an alert is active — done

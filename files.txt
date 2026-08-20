@@ -11,6 +11,7 @@ lib/core/constants/app_spacing.dart
 lib/core/constants/app_strings.dart
 lib/core/constants/app_text_styles.dart
 lib/core/constants/device_endpoints.dart
+lib/core/l10n/app_l10n.dart
 lib/core/models/api_response.dart
 lib/core/models/app_exception.dart
 lib/core/models/app_settings.dart
@@ -20,10 +21,12 @@ lib/core/models/device_data.dart
 lib/core/models/operation_state.dart
 lib/core/models/reading_sample.dart
 lib/core/models/result.dart
+lib/core/providers/alarm_provider.dart
 lib/core/providers/connectivity_provider.dart
 lib/core/providers/demo_device_provider.dart
 lib/core/providers/device_provider.dart
 lib/core/providers/device_status_provider.dart
+lib/core/providers/effective_settings_provider.dart
 lib/core/providers/http_provider.dart
 lib/core/providers/notification_provider.dart
 lib/core/providers/ota_provider.dart
@@ -31,6 +34,7 @@ lib/core/providers/permission_provider.dart
 lib/core/providers/storage_provider.dart
 lib/core/providers/websocket_provider.dart
 lib/core/providers/wifi_provider.dart
+lib/core/services/alarm_service.dart
 lib/core/services/alert_evaluator.dart
 lib/core/services/connectivity_service.dart
 lib/core/services/demo_device_service.dart

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/models/device_alert.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/providers/effective_settings_provider.dart';
+import '../../../core/services/alarm_service.dart';
 import '../../../core/services/alert_evaluator.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/services/notification_service.dart';
@@ -55,11 +57,15 @@ class AlertsNotifier extends Notifier<AlertsState> {
       _everConnected = true;
     }
 
-    final settings =
+    final local =
         ref.read(settingsProvider).value ?? const AppSettings();
 
-    if (!settings.alertsEnabled) {
+    // Thresholds may be overridden by limits reported by the module itself.
+    final settings = ref.read(effectiveSettingsProvider);
+
+    if (!local.alertsEnabled) {
       state = AlertsState(active: const [], history: state.history);
+      await _updateSiren(const [], local);
       return;
     }
 
@@ -70,6 +76,7 @@ class AlertsNotifier extends Notifier<AlertsState> {
     );
 
     await _notifyNewAlerts(alerts, settings);
+    await _updateSiren(alerts, local);
 
     // Prepend alerts to the history while avoiding flooding it with the same
     // alert repeating on every reading (the device streams ~1 value/second).
@@ -85,6 +92,24 @@ class AlertsNotifier extends Notifier<AlertsState> {
     }
 
     state = AlertsState(active: alerts, history: history);
+  }
+
+  /// Starts/stops the in-app siren based on active alerts and the user's
+  /// alarm-sound preference (kept from the local settings).
+  Future<void> _updateSiren(
+    List<DeviceAlert> alerts,
+    AppSettings local,
+  ) async {
+    final alarm = ref.read(alarmServiceProvider);
+
+    final audible =
+        alerts.any((alert) => alert.severity != AlertSeverity.info);
+
+    if (audible && local.alarmSoundEnabled && !alarm.isPlaying) {
+      await alarm.start();
+    } else if ((!audible || !local.alarmSoundEnabled) && alarm.isPlaying) {
+      await alarm.stop();
+    }
   }
 
   Future<void> _notifyNewAlerts(

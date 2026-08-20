@@ -36,6 +36,10 @@ class Esp8266Repository implements DeviceRepository {
   bool _connected = false;
   bool _usingHttpFallback = false;
 
+  int _wsReconnectAttempts = 0;
+  Timer? _wsReconnectTimer;
+  static const int _maxWsReconnectAttempts = 10;
+
   /// True while the repository is intentionally torn down; prevents the
   /// WebSocket onDone/onError callbacks from restarting the HTTP fallback
   /// after [disconnect] already cancelled every timer.
@@ -60,6 +64,10 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+    _wsReconnectAttempts = 0;
 
 
     debugPrint(
@@ -88,6 +96,13 @@ class Esp8266Repository implements DeviceRepository {
           _connected = true;
           _usingHttpFallback = false;
 
+          if (_wsReconnectAttempts != 0) {
+            _wsReconnectAttempts = 0;
+          }
+
+          _wsReconnectTimer?.cancel();
+          _wsReconnectTimer = null;
+
           _connectionController.add(true);
 
 
@@ -112,6 +127,9 @@ class Esp8266Repository implements DeviceRepository {
 
           _startHttpFallback(host);
 
+          _scheduleWsReconnect();
+
+
         },
 
 
@@ -128,6 +146,8 @@ class Esp8266Repository implements DeviceRepository {
           _setDisconnected();
 
           _startHttpFallback(host);
+
+          _scheduleWsReconnect();
 
         },
 
@@ -252,6 +272,55 @@ class Esp8266Repository implements DeviceRepository {
 
       },
 
+    );
+
+  }
+
+
+
+  void _scheduleWsReconnect() {
+
+    if (_stopped || _wsReconnectTimer != null) {
+      return;
+    }
+
+    if (_wsReconnectAttempts >= _maxWsReconnectAttempts) {
+
+      debugPrint(
+        "WS RECONNECT GAVE UP - STAYING ON HTTP POLLING",
+      );
+
+      return;
+
+    }
+
+
+    _wsReconnectAttempts++;
+
+
+    final delaySeconds = 3 * _wsReconnectAttempts.clamp(1, 5);
+
+    debugPrint(
+      "WS RECONNECT IN ${delaySeconds}s (attempt $_wsReconnectAttempts/$_maxWsReconnectAttempts)",
+    );
+
+
+    _wsReconnectTimer = Timer(
+      Duration(seconds: delaySeconds),
+      () {
+
+        _wsReconnectTimer = null;
+
+        if (_stopped || _connected) {
+          return;
+        }
+
+        connect(
+          host: _activeHost,
+          port: _activePort,
+        );
+
+      },
     );
 
   }
@@ -519,6 +588,14 @@ class Esp8266Repository implements DeviceRepository {
             rawCoolant == '1' ||
             rawCoolant == true;
 
+        final moduleLimits = ModuleLimits(
+          maxTemp: (json["maxTemp"] as num?)?.toDouble(),
+          fanOnTemp: (json["fanOnTemp"] as num?)?.toDouble(),
+          minVolt: (json["minVolt"] as num?)?.toDouble(),
+          maxVolt: (json["maxVolt"] as num?)?.toDouble(),
+          offset: (json["offset"] as num?)?.toDouble(),
+        );
+
         status = DeviceStatus(
 
           connected: true,
@@ -574,6 +651,9 @@ class Esp8266Repository implements DeviceRepository {
           ),
 
 
+          moduleLimits: moduleLimits,
+
+
           lastUpdated:
               DateTime.now(),
 
@@ -587,7 +667,7 @@ class Esp8266Repository implements DeviceRepository {
             data.split(',');
 
 
-        if (parts.length < 4) {
+        if (parts.length < 3) {
 
           debugPrint(
             "INVALID WS DATA",
@@ -598,6 +678,8 @@ class Esp8266Repository implements DeviceRepository {
         }
 
 
+        // Reference protocol (from the original Kayan dashboard):
+        // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset
         status = DeviceStatus(
 
           connected: true,
@@ -608,12 +690,10 @@ class Esp8266Repository implements DeviceRepository {
           batteryData: BatteryData(
 
             voltage:
-                double.parse(
-                  parts[1],
-                ),
-
-            voltageDifference:
-                parts.length > 5 ? (double.tryParse(parts[5]) ?? 0.0) : 0.0,
+                double.tryParse(
+                  parts[1].trim(),
+                ) ??
+                0.0,
 
           ),
 
@@ -622,18 +702,18 @@ class Esp8266Repository implements DeviceRepository {
               TemperatureData(
 
             engineTemperature:
-                double.parse(
-                  parts[0],
-                ),
+                double.tryParse(
+                  parts[0].trim(),
+                ) ??
+                0.0,
 
           ),
 
 
           coolantLevelData:
-              CoolantLevelData(
+              const CoolantLevelData(
 
-            coolantAvailable:
-                parts[2] == "1",
+            coolantAvailable: true,
 
           ),
 
@@ -642,10 +722,35 @@ class Esp8266Repository implements DeviceRepository {
               DeviceControlData(
 
             fanRunning:
-                parts[3] == "1",
+                parts[2].trim() == "1" ||
+                    parts[2].trim().toLowerCase() == "true",
 
-            buzzerActive:
-                parts.length > 4 ? parts[4].trim() == "1" : false,
+            buzzerActive: false,
+
+          ),
+
+
+          moduleLimits: ModuleLimits(
+
+            maxTemp: parts.length > 4
+                ? double.tryParse(parts[4].trim())
+                : null,
+
+            fanOnTemp: parts.length > 5
+                ? double.tryParse(parts[5].trim())
+                : null,
+
+            minVolt: parts.length > 6
+                ? double.tryParse(parts[6].trim())
+                : null,
+
+            maxVolt: parts.length > 7
+                ? double.tryParse(parts[7].trim())
+                : null,
+
+            offset: parts.length > 8
+                ? double.tryParse(parts[8].trim())
+                : null,
 
           ),
 
@@ -697,6 +802,12 @@ class Esp8266Repository implements DeviceRepository {
     _wsTimeoutTimer?.cancel();
 
     _wsTimeoutTimer = null;
+
+    _wsReconnectTimer?.cancel();
+
+    _wsReconnectTimer = null;
+
+    _wsReconnectAttempts = 0;
 
     await _channel?.sink.close();
 

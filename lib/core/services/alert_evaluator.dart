@@ -1,3 +1,4 @@
+import '../l10n/app_l10n.dart';
 import '../models/app_settings.dart';
 import '../models/device_alert.dart';
 import 'device_models.dart';
@@ -21,14 +22,15 @@ abstract final class AlertEvaluator {
   }) {
     final alerts = <DeviceAlert>[];
     final now = DateTime.now();
+    final l = AppL10n(settings.languageName);
 
     if (!status.connected) {
       if (settings.connectionAlertsEnabled && hadConnectionBefore) {
         alerts.add(
           DeviceAlert(
             id: 'connection_lost',
-            title: 'Connection lost',
-            message: 'The Car Guard device is no longer reachable.',
+            title: l.connectionLostTitle,
+            message: l.connectionLostMessage,
             severity: AlertSeverity.info,
             timestamp: now,
           ),
@@ -44,10 +46,10 @@ abstract final class AlertEvaluator {
       alerts.add(
         DeviceAlert(
           id: 'engine_overheat',
-          title: 'Engine overheating',
-          message:
-              'Engine temperature is ${temperature.toStringAsFixed(1)} °C. '
-              'Stop safely and check the cooling system.',
+          title: l.engineOverheatTitle,
+          message: l.engineOverheatMessage(
+            temperature.toStringAsFixed(1),
+          ),
           severity: AlertSeverity.critical,
           timestamp: now,
         ),
@@ -56,10 +58,10 @@ abstract final class AlertEvaluator {
       alerts.add(
         DeviceAlert(
           id: 'engine_temp_high',
-          title: 'Engine temperature high',
-          message:
-              'Engine temperature is ${temperature.toStringAsFixed(1)} °C. '
-              'Keep an eye on the gauge.',
+          title: l.engineTempHighTitle,
+          message: l.engineTempHighMessage(
+            temperature.toStringAsFixed(1),
+          ),
           severity: AlertSeverity.warning,
           timestamp: now,
         ),
@@ -74,10 +76,11 @@ abstract final class AlertEvaluator {
       alerts.add(
         DeviceAlert(
           id: 'battery_low',
-          title: 'Battery voltage low',
-          message:
-              'Battery is at ${voltage.toStringAsFixed(2)} V, below the '
-              'configured minimum of ${settings.minBatteryVoltage} V.',
+          title: l.batteryLowTitle,
+          message: l.batteryLowMessage(
+            voltage.toStringAsFixed(2),
+            settings.minBatteryVoltage.toStringAsFixed(1),
+          ),
           severity: AlertSeverity.warning,
           timestamp: now,
         ),
@@ -88,11 +91,11 @@ abstract final class AlertEvaluator {
       alerts.add(
         DeviceAlert(
           id: 'battery_high',
-          title: 'Battery voltage high',
-          message:
-              'Charging voltage is ${voltage.toStringAsFixed(2)} V — above '
-              'the maximum of ${settings.maxBatteryVoltage} V. Have the '
-              'alternator and regulator checked.',
+          title: l.batteryHighTitle,
+          message: l.batteryHighMessage(
+            voltage.toStringAsFixed(2),
+            settings.maxBatteryVoltage.toStringAsFixed(1),
+          ),
           severity: AlertSeverity.critical,
           timestamp: now,
         ),
@@ -104,8 +107,8 @@ abstract final class AlertEvaluator {
       alerts.add(
         DeviceAlert(
           id: 'coolant_low',
-          title: 'Coolant level low',
-          message: 'The coolant reservoir needs a top-up.',
+          title: l.coolantLowTitle,
+          message: l.coolantLowMessage,
           severity: AlertSeverity.critical,
           timestamp: now,
         ),

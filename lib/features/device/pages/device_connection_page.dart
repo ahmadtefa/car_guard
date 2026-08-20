@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/device_status_provider.dart';
@@ -36,10 +37,11 @@ class _DeviceConnectionPageState
 
   Future<void> _connect() async {
     final host = _hostController.text.trim();
+    final l = ref.read(l10nProvider);
 
     if (host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the device address first.')),
+        SnackBar(content: Text(l.enterAddressFirst)),
       );
       return;
     }
@@ -49,8 +51,7 @@ class _DeviceConnectionPageState
     });
 
     try {
-      final repository =
-          ref.read(esp8266RepositoryProvider);
+      final repository = ref.read(esp8266RepositoryProvider);
 
       await repository.connect(
         host: host,
@@ -65,17 +66,13 @@ class _DeviceConnectionPageState
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connecting...'),
-        ),
+        SnackBar(content: Text(l.connecting)),
       );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Connection Error\n$e'),
-        ),
+        SnackBar(content: Text('${l.connectionError}\n$e')),
       );
     }
 
@@ -87,31 +84,29 @@ class _DeviceConnectionPageState
   }
 
   Future<void> _disconnect() async {
-    final repository =
-        ref.read(esp8266RepositoryProvider);
+    final repository = ref.read(esp8266RepositoryProvider);
 
     await repository.disconnect();
 
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Disconnected'),
+      SnackBar(
+        content: Text(ref.read(l10nProvider).disconnectedMsg),
       ),
     );
   }
 
   Future<void> _reconnect() async {
-    final repository =
-        ref.read(esp8266RepositoryProvider);
+    final repository = ref.read(esp8266RepositoryProvider);
 
     await repository.reconnect();
 
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Reconnecting...'),
+      SnackBar(
+        content: Text(ref.read(l10nProvider).reconnecting),
       ),
     );
   }
@@ -125,10 +120,11 @@ class _DeviceConnectionPageState
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(deviceStatusProvider);
+    final l = ref.watch(l10nProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Device Connection'),
+        title: Text(l.deviceConnection),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -137,109 +133,73 @@ class _DeviceConnectionPageState
             final connected = device.connected;
 
             return Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-
                 Card(
                   child: Padding(
-                    padding:
-                        const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          connected
-                              ? '🟢 Connected'
-                              : '🔴 Disconnected',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium,
+                          connected ? '🟢 ${l.connected}' : '🔴 ${l.disconnected}',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-
                         const SizedBox(height: 8),
-
+                        Text('${l.deviceLabel}: ${device.deviceId}'),
                         Text(
-                          'Device: ${device.deviceId}',
-                        ),
-
-                        Text(
-                          'Last Update: '
+                          '${l.lastUpdateLabel}: '
                           '${device.lastUpdated.hour}:'
                           '${device.lastUpdated.minute}',
                         ),
-
-                        Text(
-                          'Port: ${_settings.devicePort}',
-                        ),
+                        Text('${l.portLabel}: ${_settings.devicePort}'),
                       ],
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 TextField(
                   controller: _hostController,
                   enabled: !connected,
-                  keyboardType:
-                      TextInputType.url,
-                  decoration:
-                      const InputDecoration(
-                    labelText: 'Device IP Address',
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    labelText: l.deviceIpLabel,
                     hintText: '192.168.4.1',
-                    border:
-                        OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 if (!connected)
                   ElevatedButton(
-                    onPressed:
-                        _connecting
-                            ? null
-                            : _connect,
+                    onPressed: _connecting ? null : _connect,
                     child: _connecting
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child:
-                                CircularProgressIndicator(
+                            child: CircularProgressIndicator(
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text('Connect'),
+                        : Text(l.connectAction),
                   ),
-
                 if (connected)
                   ElevatedButton(
                     onPressed: _disconnect,
-                    child:
-                        const Text('Disconnect'),
+                    child: Text(l.disconnectAction),
                   ),
-
                 const SizedBox(height: 10),
-
                 OutlinedButton(
                   onPressed: _reconnect,
-                  child:
-                      const Text('Reconnect'),
+                  child: Text(l.reconnectAction),
                 ),
               ],
             );
           },
-
           loading: () => const Center(
             child: CircularProgressIndicator(),
           ),
-
           error: (_, error) => Center(
-            child: Text(
-              'Error: $error',
-            ),
+            child: Text('${l.connectionError}: $error'),
           ),
         ),
       ),

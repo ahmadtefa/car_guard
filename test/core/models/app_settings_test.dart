@@ -17,6 +17,8 @@ void main() {
       expect(settings.themeModeName, 'system');
       expect(settings.maxBatteryVoltage, 15.0);
       expect(settings.dashboardStyleName, 'cards');
+      expect(settings.languageName, 'en');
+      expect(settings.alarmSoundEnabled, isTrue);
     });
 
     test('round-trips through JSON', () {
@@ -34,6 +36,8 @@ void main() {
         themeModeName: 'dark',
         maxBatteryVoltage: 14.4,
         dashboardStyleName: 'racing',
+        languageName: 'ar',
+        alarmSoundEnabled: false,
       );
 
       final restored = AppSettings.fromRaw(settings.encode());
@@ -54,6 +58,8 @@ void main() {
       expect(restored.themeModeName, settings.themeModeName);
       expect(restored.maxBatteryVoltage, settings.maxBatteryVoltage);
       expect(restored.dashboardStyleName, settings.dashboardStyleName);
+      expect(restored.languageName, settings.languageName);
+      expect(restored.alarmSoundEnabled, settings.alarmSoundEnabled);
     });
 
     test('missing JSON fields fall back to defaults', () {
@@ -70,6 +76,14 @@ void main() {
       });
 
       expect(restored.dashboardStyleName, 'cards');
+    });
+
+    test('invalid language names fall back to English', () {
+      final restored = AppSettings.fromJson(<String, dynamic>{
+        'languageName': 'fr',
+      });
+
+      expect(restored.languageName, 'en');
     });
 
     test('invalid theme names fall back to system', () {

@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/alerts_provider.dart';
@@ -36,16 +38,16 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  void _showStylePicker(BuildContext context, WidgetRef ref) {
+  void _showStylePicker(BuildContext context, WidgetRef ref, AppL10n l) {
     final settings =
         ref.read(settingsProvider).value ?? const AppSettings();
 
-    const options = <(String, IconData, String)>[
-      ('cards', Icons.dashboard_outlined, 'Classic cards'),
-      ('racing', Icons.speed, 'Racing'),
-      ('sporty', Icons.donut_large_outlined, 'Sporty gauges'),
-      ('segments', Icons.view_week_outlined, 'Segmented bars'),
-      ('sweeper', Icons.linear_scale_outlined, 'Audi sweeper'),
+    final options = <(String, IconData, String)>[
+      ('cards', Icons.dashboard_outlined, l.styleCards),
+      ('racing', Icons.speed, l.styleRacing),
+      ('sporty', Icons.donut_large_outlined, l.styleSporty),
+      ('segments', Icons.view_week_outlined, l.styleSegments),
+      ('sweeper', Icons.linear_scale_outlined, l.styleSweeper),
     ];
 
     showModalBottomSheet<void>(
@@ -55,11 +57,14 @@ class DashboardPage extends ConsumerWidget {
           child: ListView(
             shrinkWrap: true,
             children: [
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.lg),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Text(
-                  'Dashboard style',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  l.dashboardStyle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -95,6 +100,7 @@ class DashboardPage extends ConsumerWidget {
     WidgetRef ref, {
     required AppSettings settings,
     required DashboardState state,
+    required AppL10n l,
   }) {
     final device = ref.watch(deviceStatusProvider).value;
 
@@ -116,7 +122,7 @@ class DashboardPage extends ConsumerWidget {
         return Column(
           children: [
             RacingGauge(
-              label: 'ENGINE TEMP',
+              label: l.engineTempLabel,
               value: temperature,
               unit: '°C',
               percent: tempPercent,
@@ -125,7 +131,7 @@ class DashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             RacingGauge(
-              label: 'BATTERY VOLT',
+              label: l.batteryVoltLabel,
               value: voltage,
               unit: 'V',
               percent: voltPercent,
@@ -141,7 +147,7 @@ class DashboardPage extends ConsumerWidget {
           children: [
             Expanded(
               child: SportyGauge(
-                label: 'ENGINE TEMP',
+                label: l.engineTempLabel,
                 value: temperature,
                 min: 0,
                 max: 180,
@@ -154,7 +160,7 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: SportyGauge(
-                label: 'BATTERY VOLT',
+                label: l.batteryVoltLabel,
                 value: voltage,
                 min: 10,
                 max: 16,
@@ -173,7 +179,7 @@ class DashboardPage extends ConsumerWidget {
           children: [
             Expanded(
               child: SegmentedGauge(
-                label: 'ENGINE TEMP',
+                label: l.engineTempLabel,
                 value: temperature,
                 unit: '°C',
                 activeCount: (tempPercent * 12).round(),
@@ -184,7 +190,7 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: SegmentedGauge(
-                label: 'BATTERY VOLT',
+                label: l.batteryVoltLabel,
                 value: voltage,
                 unit: 'V',
                 activeCount: (voltPercent * 12).round(),
@@ -199,7 +205,7 @@ class DashboardPage extends ConsumerWidget {
         return Column(
           children: [
             AudiSweeperGauge(
-              label: 'ENGINE TEMP',
+              label: l.engineTempLabel,
               value: temperature,
               unit: '°C',
               percent: tempPercent,
@@ -215,7 +221,7 @@ class DashboardPage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             AudiSweeperGauge(
-              label: 'BATTERY VOLT',
+              label: l.batteryVoltLabel,
               value: voltage,
               unit: 'V',
               percent: voltPercent,
@@ -239,7 +245,7 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
             BatteryVoltageCard(
               value: state.batteryVoltage,
-              statusText: connected ? 'Live reading' : 'No data',
+              statusText: connected ? l.liveReading : l.noData,
             ),
           ],
         );
@@ -251,10 +257,14 @@ class DashboardPage extends ConsumerWidget {
     final state = ref.watch(dashboardProvider);
     final activeAlerts = ref.watch(alertsProvider).active;
     final history = ref.watch(readingsHistoryProvider);
-    final settings =
-        ref.watch(settingsProvider).value ?? const AppSettings();
 
-    final demoEnabled = settings.demoModeEnabled;
+    final l = ref.watch(l10nProvider);
+
+    final local = ref.watch(settingsProvider).value ?? const AppSettings();
+    // Thresholds may be overridden by limits reported by the module.
+    final settings = ref.watch(effectiveSettingsProvider);
+
+    final demoEnabled = local.demoModeEnabled;
     final connected = state.connectionStatus == 'Connected';
 
     return Scaffold(
@@ -262,7 +272,7 @@ class DashboardPage extends ConsumerWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Car Guard'),
+            Text(l.appName),
             if (demoEnabled) ...[
               const SizedBox(width: 8),
               Container(
@@ -287,12 +297,26 @@ class DashboardPage extends ConsumerWidget {
         centerTitle: false,
         actions: [
           IconButton(
-            tooltip: 'Dashboard style',
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: () => _showStylePicker(context, ref),
+            tooltip: l.language,
+            icon: Text(
+              local.languageName == 'ar' ? 'EN' : 'ع',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () {
+              ref.read(settingsProvider.notifier).save(
+                local.copyWith(
+                  languageName: local.languageName == 'ar' ? 'en' : 'ar',
+                ),
+              );
+            },
           ),
           IconButton(
-            tooltip: 'Settings',
+            tooltip: l.dashboardStyle,
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => _showStylePicker(context, ref, l),
+          ),
+          IconButton(
+            tooltip: l.settings,
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
           ),
@@ -304,7 +328,7 @@ class DashboardPage extends ConsumerWidget {
           context.push('/connection');
         },
         icon: const Icon(Icons.wifi),
-        label: const Text('Connection'),
+        label: Text(l.deviceConnection),
       ),
 
       body: SafeArea(
@@ -328,13 +352,14 @@ class DashboardPage extends ConsumerWidget {
                   ref,
                   settings: settings,
                   state: state,
+                  l: l,
                 ),
 
                 const SizedBox(height: AppSpacing.xs),
 
                 Center(
                   child: Text(
-                    'Last updated: ${state.lastUpdated}',
+                    '${l.lastUpdated}: ${state.lastUpdated}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(
                         context,
@@ -347,7 +372,7 @@ class DashboardPage extends ConsumerWidget {
 
                 VoltageDifferenceCard(
                   value: state.voltageDifference,
-                  statusText: connected ? 'Live reading' : 'No data',
+                  statusText: connected ? l.liveReading : l.noData,
                 ),
 
                 const SizedBox(height: AppSpacing.md),
@@ -355,15 +380,15 @@ class DashboardPage extends ConsumerWidget {
                 CoolantLevelCard(
                   value: state.coolantLevel,
                   statusText: state.coolantLevel == 'Low'
-                      ? 'Needs attention'
-                      : 'Normal',
+                      ? l.needsAttention
+                      : l.normal,
                 ),
 
                 const SizedBox(height: AppSpacing.md),
 
                 FanStatusCard(
                   value: state.fanStatus,
-                  statusText: connected ? 'Live reading' : 'No data',
+                  statusText: connected ? l.liveReading : l.noData,
                 ),
 
                 const SizedBox(height: AppSpacing.md),
@@ -373,7 +398,7 @@ class DashboardPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xl),
 
                 ReadingChartCard(
-                  title: 'Engine Temperature',
+                  title: l.engineTemperature,
                   values: history
                       .map((sample) => sample.engineTemperature)
                       .toList(),
@@ -384,7 +409,7 @@ class DashboardPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
 
                 ReadingChartCard(
-                  title: 'Battery Voltage',
+                  title: l.batteryVoltage,
                   values: history
                       .map((sample) => sample.batteryVoltage)
                       .toList(),

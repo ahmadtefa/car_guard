@@ -22,6 +22,8 @@ class AppSettings {
     this.themeModeName = 'system',
     this.maxBatteryVoltage = 15.0,
     this.dashboardStyleName = 'cards',
+    this.languageName = 'en',
+    this.alarmSoundEnabled = true,
   });
 
   /// Theme preference names accepted by [themeModeName].
@@ -35,6 +37,9 @@ class AppSettings {
     'segments',
     'sweeper',
   ];
+
+  /// UI languages accepted by [languageName].
+  static const List<String> languageNames = ['en', 'ar'];
 
   /// Storage key used to persist the serialized settings.
   static const String storageKey = 'app_settings';
@@ -78,6 +83,12 @@ class AppSettings {
   /// Dashboard gauge style: one of [dashboardStyleNames].
   final String dashboardStyleName;
 
+  /// UI language: 'en' or 'ar'.
+  final String languageName;
+
+  /// Whether the in-app alarm siren may play while alerts are active.
+  final bool alarmSoundEnabled;
+
   /// Returns a copy of this settings with the given fields replaced.
   AppSettings copyWith({
     String? deviceHost,
@@ -93,6 +104,8 @@ class AppSettings {
     String? themeModeName,
     double? maxBatteryVoltage,
     String? dashboardStyleName,
+    String? languageName,
+    bool? alarmSoundEnabled,
   }) {
     return AppSettings(
       deviceHost: deviceHost ?? this.deviceHost,
@@ -109,6 +122,8 @@ class AppSettings {
       themeModeName: themeModeName ?? this.themeModeName,
       maxBatteryVoltage: maxBatteryVoltage ?? this.maxBatteryVoltage,
       dashboardStyleName: dashboardStyleName ?? this.dashboardStyleName,
+      languageName: languageName ?? this.languageName,
+      alarmSoundEnabled: alarmSoundEnabled ?? this.alarmSoundEnabled,
     );
   }
 
@@ -128,6 +143,8 @@ class AppSettings {
       'themeModeName': themeModeName,
       'maxBatteryVoltage': maxBatteryVoltage,
       'dashboardStyleName': dashboardStyleName,
+      'languageName': languageName,
+      'alarmSoundEnabled': alarmSoundEnabled,
     };
   }
 
@@ -161,6 +178,10 @@ class AppSettings {
           dashboardStyleNames.contains(json['dashboardStyleName'] as String?)
           ? json['dashboardStyleName'] as String
           : 'cards',
+      languageName: languageNames.contains(json['languageName'] as String?)
+          ? json['languageName'] as String
+          : 'en',
+      alarmSoundEnabled: json['alarmSoundEnabled'] as bool? ?? true,
     );
   }
 

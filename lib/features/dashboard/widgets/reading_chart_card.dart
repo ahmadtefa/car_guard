@@ -1,19 +1,20 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/l10n/app_l10n.dart';
 
 /// Card that renders a reading series as a lightweight sparkline using a
 /// [CustomPainter] — no chart dependency required.
-class ReadingChartCard extends StatelessWidget {
+class ReadingChartCard extends ConsumerWidget {
   const ReadingChartCard({
     super.key,
     required this.title,
     required this.values,
     required this.unit,
     this.color = AppColors.primary,
-    this.subtitle = 'Last 5 minutes',
   });
 
   final String title;
@@ -23,7 +24,6 @@ class ReadingChartCard extends StatelessWidget {
 
   final String unit;
   final Color color;
-  final String subtitle;
 
   String get _currentLabel {
     if (values.isEmpty) return '-- $unit';
@@ -31,8 +31,8 @@ class ReadingChartCard extends StatelessWidget {
     return '${values.last.toStringAsFixed(1)} $unit';
   }
 
-  String get _rangeLabel {
-    if (values.length < 2) return 'Collecting data...';
+  String _rangeLabel(AppL10n l) {
+    if (values.length < 2) return l.collectingData;
 
     final min = values.reduce(math.min);
     final max = values.reduce(math.max);
@@ -41,7 +41,9 @@ class ReadingChartCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -59,7 +61,7 @@ class ReadingChartCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '$subtitle • $_rangeLabel',
+              '${l.last5Minutes} • ${_rangeLabel(l)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),

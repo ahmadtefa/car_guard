@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/models/app_settings.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_status_provider.dart';
-import '../../settings/providers/settings_provider.dart';
+import '../../../core/providers/effective_settings_provider.dart';
 
 /// Full-screen HUD showing one giant live reading; tap anywhere to close.
 ///
@@ -19,8 +19,8 @@ class FullscreenHudPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final device = ref.watch(deviceStatusProvider).value;
-    final settings =
-        ref.watch(settingsProvider).value ?? const AppSettings();
+    final settings = ref.watch(effectiveSettingsProvider);
+    final l = ref.watch(l10nProvider);
 
     final connected = device?.connected ?? false;
     final isTemp = type == 'temp';
@@ -34,7 +34,7 @@ class FullscreenHudPage extends ConsumerWidget {
 
     if (isTemp) {
       valueText = connected ? '${temperature.toStringAsFixed(1)} °C' : '-- °C';
-      labelText = 'ENGINE TEMP';
+      labelText = l.engineTempLabel;
 
       color = !connected
           ? Colors.white30
@@ -45,7 +45,7 @@ class FullscreenHudPage extends ConsumerWidget {
           : AppColors.neonMagenta;
     } else {
       valueText = connected ? '${voltage.toStringAsFixed(2)} V' : '--.- V';
-      labelText = 'BATTERY VOLT';
+      labelText = l.batteryVoltLabel;
 
       color = !connected
           ? Colors.white30
@@ -88,7 +88,7 @@ class FullscreenHudPage extends ConsumerWidget {
               ),
               const SizedBox(height: 48),
               Text(
-                'Tap to close',
+                l.tapToClose,
                 style: TextStyle(fontSize: 14, color: Colors.white.withAlpha(
                   (255 * 0.35).round(),
                 )),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -73,7 +74,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
       await _load();
     } else {
       setState(() {
-        _passwordError = 'Wrong calibration code!';
+        _passwordError = ref.read(l10nProvider).wrongCode;
       });
     }
   }
@@ -93,7 +94,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
         _loading = false;
       });
 
-      _snack('Could not read the module settings — is the device reachable?');
+      _snack(ref.read(l10nProvider).cantReadModule);
       return;
     }
 
@@ -114,7 +115,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
     final value = double.tryParse(controller.text.trim());
 
     if (value == null) {
-      _snack('$label must be a number.');
+      _snack(ref.read(l10nProvider).mustBeNumber(label));
       return null;
     }
 
@@ -165,7 +166,9 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     setState(() => _busy = false);
 
-    _snack(ok ? 'Calibration saved' : 'Failed — device reachable?');
+    final l = ref.read(l10nProvider);
+
+    _snack(ok ? l.calibrationSaved : l.failedReachable);
   }
 
   Future<void> _calibrateVoltage() async {
@@ -174,7 +177,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
     if (realVolt == null) return;
 
     if (realVolt < 8 || realVolt > 18) {
-      _snack('Enter a voltage between 8 and 18 V.');
+      _snack(ref.read(l10nProvider).voltageRangeError);
       return;
     }
 
@@ -189,15 +192,15 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
     setState(() => _busy = false);
 
     if (newFactor == null) {
-      _snack(
-        'Calibration failed — check the connection and the voltage value.',
-      );
+      _snack(ref.read(l10nProvider).calibrationFailed);
       return;
     }
 
     _voltCalib.text = newFactor.toStringAsFixed(4);
 
-    _snack('Calibrated! New factor: ${newFactor.toStringAsFixed(4)}');
+    _snack(
+      ref.read(l10nProvider).newFactor(newFactor.toStringAsFixed(4)),
+    );
   }
 
   Future<void> _pickDate() async {
@@ -224,19 +227,16 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restart module?'),
-        content: const Text(
-          'The module will reboot and the connection will drop for a few '
-          'seconds.',
-        ),
+        title: Text(ref.read(l10nProvider).restartModuleQ),
+        content: Text(ref.read(l10nProvider).restartConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(ref.read(l10nProvider).cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Restart'),
+            child: Text(ref.read(l10nProvider).restart),
           ),
         ],
       ),
@@ -246,10 +246,12 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     final ok = await ref.read(esp8266RepositoryProvider).restartDevice();
 
-    _snack(ok ? 'Module is restarting...' : 'Restart command failed');
+    final l = ref.read(l10nProvider);
+
+    _snack(ok ? l.restartMsg : l.restartFailed);
   }
 
-  Widget _buildLockScreen() {
+  Widget _buildLockScreen(AppL10n l) {
     return Center(
       child: SingleChildScrollView(
         padding: AppSpacing.padding,
@@ -258,16 +260,16 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
           children: [
             const Icon(Icons.lock_outline, size: 56),
             const SizedBox(height: AppSpacing.lg),
-            Text('Advanced settings', style: Theme.of(context).textTheme.titleLarge),
+            Text(l.advancedModuleSettings, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Enter the calibration code to continue.',
+              l.enterCodeToContinue,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.xl),
             AppTextField(
               controller: _password,
-              labelText: 'Calibration code',
+              labelText: l.calibrationCodeLabel,
               hintText: '••••••',
               obscureText: true,
               onSubmitted: (_) => _unlock(),
@@ -275,7 +277,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
             const SizedBox(height: AppSpacing.md),
             PrimaryButton(
               onPressed: _unlock,
-              child: const Text('Unlock'),
+              child: Text(l.unlock),
             ),
             if (_passwordError != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -292,15 +294,17 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l = ref.watch(l10nProvider);
+
     if (!_unlocked) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Calibration')),
-        body: _buildLockScreen(),
+        appBar: AppBar(title: Text(l.calibration)),
+        body: _buildLockScreen(l),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calibration')),
+      appBar: AppBar(title: Text(l.calibration)),
       body: SafeArea(
         child: ListView(
           padding: AppSpacing.padding,
@@ -312,12 +316,12 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               )
             else ...[
               SectionTitle(
-                title: 'Reading calibration',
-                subtitle: 'Fine-tune what the module reports.',
+                title: l.readingCalibration,
+                subtitle: l.readingCalibrationInfo,
               ),
               AppTextField(
                 controller: _offset,
-                labelText: 'Temperature offset (±°C)',
+                labelText: l.tempOffsetLabel,
                 hintText: '0.0',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -326,7 +330,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               ),
               AppTextField(
                 controller: _voltCalib,
-                labelText: 'Voltage calibration factor',
+                labelText: l.voltCalibLabel,
                 hintText: '0.9724',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -341,19 +345,18 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Voltage wizard',
+                        l.voltageWizard,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Measure the battery with a multimeter and enter the '
-                        'real value — the module recalculates its factor.',
+                        l.voltageWizardInfo,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       AppTextField(
                         controller: _realVolt,
-                        labelText: 'Real measured voltage (V)',
+                        labelText: l.realVoltageLabel,
                         hintText: '12.60',
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -362,7 +365,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
                       const SizedBox(height: AppSpacing.sm),
                       SecondaryButton(
                         onPressed: _busy ? null : _calibrateVoltage,
-                        child: const Text('Calibrate voltage now'),
+                        child: Text(l.calibrateNow),
                       ),
                     ],
                   ),
@@ -371,30 +374,30 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               const SizedBox(height: AppSpacing.md),
 
               SectionTitle(
-                title: 'Voltage divider & sensor',
-                subtitle: 'Hardware values of your module.',
+                title: l.dividerAndSensor,
+                subtitle: l.dividerAndSensorInfo,
               ),
               AppTextField(
                 controller: _r1,
-                labelText: 'R1 resistance (ohm)',
+                labelText: l.r1Label,
                 hintText: '2155',
                 keyboardType: TextInputType.number,
               ),
               AppTextField(
                 controller: _r2,
-                labelText: 'R2 resistance (ohm)',
+                labelText: l.r2Label,
                 hintText: '390',
                 keyboardType: TextInputType.number,
               ),
               AppTextField(
                 controller: _pullUp,
-                labelText: 'Sensor pull-up resistance (ohm)',
+                labelText: l.pullUpLabel,
                 hintText: '4700',
                 keyboardType: TextInputType.number,
               ),
               AppTextField(
                 controller: _installDate,
-                labelText: 'Install date (yyyy-mm-dd)',
+                labelText: l.installDateLabel,
                 hintText: '2025-01-15',
                 enabled: false,
                 suffixIcon: IconButton(
@@ -406,17 +409,17 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               const SizedBox(height: AppSpacing.md),
               PrimaryButton(
                 onPressed: _busy ? null : _save,
-                child: const Text('Save calibration'),
+                child: Text(l.saveCalibration),
               ),
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(
                 onPressed: _busy ? null : _restartDevice,
-                child: const Text('Restart module'),
+                child: Text(l.restartModule),
               ),
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(
                 onPressed: _loading ? null : _load,
-                child: const Text('Reload from module'),
+                child: Text(l.reloadFromModule),
               ),
             ],
           ],

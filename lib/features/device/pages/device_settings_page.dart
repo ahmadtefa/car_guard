@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -12,7 +13,7 @@ import '../../../core/widgets/section_title.dart';
 
 /// Reads and edits the settings stored on the ESP8266 module itself
 /// (`/getallsettings`, `/saveallsettings`) and provisions its Wi-Fi
-/// (`/savewifi`) — the Flutter twin of the original Kayan settings modal.
+/// (`/savewifi`).
 class DeviceSettingsPage extends ConsumerStatefulWidget {
   const DeviceSettingsPage({super.key});
 
@@ -65,8 +66,7 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
     if (settings == null) {
       setState(() {
         _loading = false;
-        _error = 'Could not read the module settings. Make sure the app is '
-            'connected to the Car Guard device.';
+        _error = ref.read(l10nProvider).cantReadModule;
       });
       return;
     }
@@ -94,7 +94,7 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
     final value = double.tryParse(controller.text.trim());
 
     if (value == null) {
-      _snack('$label must be a number.');
+      _snack(ref.read(l10nProvider).mustBeNumber(label));
       return null;
     }
 
@@ -102,10 +102,12 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
   }
 
   Future<void> _saveLimits() async {
-    final alarmTemp = _parseField(_alarmTemp, 'Alarm temperature');
-    final fanOnTemp = _parseField(_fanOnTemp, 'Fan temperature');
-    final minVolt = _parseField(_minVolt, 'Minimum voltage');
-    final maxVolt = _parseField(_maxVolt, 'Maximum voltage');
+    final l = ref.read(l10nProvider);
+
+    final alarmTemp = _parseField(_alarmTemp, l.alarmTempLabel);
+    final fanOnTemp = _parseField(_fanOnTemp, l.fanOnTempLabel);
+    final minVolt = _parseField(_minVolt, l.minVoltLabel);
+    final maxVolt = _parseField(_maxVolt, l.maxVoltLabel);
 
     if (alarmTemp == null ||
         fanOnTemp == null ||
@@ -115,12 +117,12 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
     }
 
     if (fanOnTemp >= alarmTemp) {
-      _snack('Fan temperature must be lower than the alarm temperature.');
+      _snack(l.fanLowerThanAlarm);
       return;
     }
 
     if (minVolt >= maxVolt) {
-      _snack('Minimum voltage must be lower than the maximum voltage.');
+      _snack(l.minLowerThanMax);
       return;
     }
 
@@ -141,32 +143,33 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
 
     setState(() => _saving = false);
 
-    _snack(ok ? 'Settings saved to the module' : 'Failed — device reachable?');
+    _snack(ok ? l.savedToModule : l.failedReachable);
   }
 
   Future<void> _testFan() async {
+    final l = ref.read(l10nProvider);
+
     final ok = await ref.read(esp8266RepositoryProvider).testFan();
 
-    _snack(ok ? 'Fan test started (5 seconds)' : 'Fan test failed');
+    _snack(ok ? l.fanTestStarted : l.failedReachable);
   }
 
   Future<void> _restartDevice() async {
+    final l = ref.read(l10nProvider);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restart module?'),
-        content: const Text(
-          'The module will reboot and the connection will drop for a few '
-          'seconds.',
-        ),
+        title: Text(l.restartModuleQ),
+        content: Text(l.restartConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Restart'),
+            child: Text(l.restart),
           ),
         ],
       ),
@@ -176,20 +179,22 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
 
     final ok = await ref.read(esp8266RepositoryProvider).restartDevice();
 
-    _snack(ok ? 'Module is restarting...' : 'Restart command failed');
+    _snack(ok ? l.restartMsg : l.restartFailed);
   }
 
   Future<void> _saveWifi() async {
+    final l = ref.read(l10nProvider);
+
     final ssid = _ssid.text.trim();
     final password = _password.text;
 
     if (ssid.length < 4) {
-      _snack('Network name must be at least 4 characters.');
+      _snack(l.ssidTooShort);
       return;
     }
 
     if (password.length < 8) {
-      _snack('Password must be at least 8 characters.');
+      _snack(l.passwordTooShort);
       return;
     }
 
@@ -205,13 +210,15 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
 
     // The module restarts its access point right after saving, so a missing
     // "OK" reply is not necessarily a failure — mirror the original UX.
-    _snack('Wi-Fi settings sent — connect to "$ssid" if the module restarted.');
+    _snack(l.wifiSent(ssid));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = ref.watch(l10nProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Module Settings')),
+      appBar: AppBar(title: Text(l.moduleSettings)),
       body: SafeArea(
         child: ListView(
           padding: AppSpacing.padding,
@@ -225,11 +232,11 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
               const SizedBox(height: AppSpacing.lg),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: AppSpacing.md),
-              PrimaryButton(onPressed: _load, child: const Text('Retry')),
+              PrimaryButton(onPressed: _load, child: Text(l.retry)),
             ] else ...[
               SectionTitle(
-                title: 'Module info',
-                subtitle: 'Reported by the firmware.',
+                title: l.moduleInfo,
+                subtitle: l.reportedByFirmware,
               ),
               Card(
                 child: Padding(
@@ -237,10 +244,14 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Serial: ${(_loaded?.serial.isEmpty ?? true) ? '--' : _loaded!.serial}'),
+                      Text(
+                        '${l.serialLabel}: '
+                        '${(_loaded?.serial.isEmpty ?? true) ? '--' : _loaded!.serial}',
+                      ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'Installed: ${(_loaded?.installDate.isEmpty ?? true) ? 'unknown' : _loaded!.installDate}',
+                        '${l.installedLabel}: '
+                        '${(_loaded?.installDate.isEmpty ?? true) ? l.unknownDate : _loaded!.installDate}',
                       ),
                     ],
                   ),
@@ -249,24 +260,24 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
               const SizedBox(height: AppSpacing.xl),
 
               SectionTitle(
-                title: 'Alarm limits',
-                subtitle: 'Saved directly on the module.',
+                title: l.alarmLimits,
+                subtitle: l.savedOnModuleInfo,
               ),
               AppTextField(
                 controller: _fanOnTemp,
-                labelText: 'Fan ON temperature (°C)',
+                labelText: l.fanOnTempLabel,
                 hintText: '85',
                 keyboardType: TextInputType.number,
               ),
               AppTextField(
                 controller: _alarmTemp,
-                labelText: 'Alarm temperature (°C)',
+                labelText: l.alarmTempLabel,
                 hintText: '95',
                 keyboardType: TextInputType.number,
               ),
               AppTextField(
                 controller: _minVolt,
-                labelText: 'Minimum battery voltage (V)',
+                labelText: l.minVoltLabel,
                 hintText: '12.0',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -274,7 +285,7 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
               ),
               AppTextField(
                 controller: _maxVolt,
-                labelText: 'Maximum battery voltage (V)',
+                labelText: l.maxVoltLabel,
                 hintText: '15.0',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -282,47 +293,50 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
               ),
               PrimaryButton(
                 onPressed: _saving ? null : _saveLimits,
-                child: const Text('Save to module'),
+                child: Text(l.saveToModule),
               ),
               const SizedBox(height: AppSpacing.md),
-              SecondaryButton(onPressed: _testFan, child: const Text('Test fan (5s)')),
+              SecondaryButton(
+                onPressed: _testFan,
+                child: Text(l.testFan5s),
+              ),
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(
                 onPressed: _restartDevice,
-                child: const Text('Restart module'),
+                child: Text(l.restartModule),
               ),
               const SizedBox(height: AppSpacing.xl),
 
               SectionTitle(
-                title: 'Module Wi-Fi',
-                subtitle: 'The module will restart its network after saving.',
+                title: l.moduleWifi,
+                subtitle: l.moduleWifiInfo,
               ),
               AppTextField(
                 controller: _ssid,
-                labelText: 'Network name (SSID)',
+                labelText: l.ssidLabel,
                 hintText: 'CarGuard',
               ),
               AppTextField(
                 controller: _password,
-                labelText: 'Password',
+                labelText: l.passwordLabel,
                 hintText: '12345678',
                 obscureText: true,
               ),
               PrimaryButton(
                 onPressed: _saving ? null : _saveWifi,
-                child: const Text('Save Wi-Fi'),
+                child: Text(l.saveWifi),
               ),
             ],
 
             // Always reachable, even when the module itself is not.
             const SizedBox(height: AppSpacing.xl),
             SectionTitle(
-              title: 'Advanced',
-              subtitle: 'Password-protected calibration tools.',
+              title: l.advancedSection,
+              subtitle: l.advancedSectionInfo,
             ),
             SecondaryButton(
               onPressed: () => context.push('/advanced-settings'),
-              child: const Text('Advanced settings'),
+              child: Text(l.advancedModuleSettings),
             ),
           ],
         ),

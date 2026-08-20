@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/app_l10n.dart';
 import 'base_dashboard_card.dart';
 
-class BatteryVoltageCard extends StatelessWidget {
+class BatteryVoltageCard extends ConsumerWidget {
   const BatteryVoltageCard({
     super.key,
     this.value = '--.- V',
@@ -15,12 +17,14 @@ class BatteryVoltageCard extends StatelessWidget {
   final String statusText;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
     return BaseDashboardCard(
-      title: 'Battery Voltage',
+      title: l.batteryVoltage,
       value: value,
-      subtitle: 'Vehicle battery reading',
-      statusText: statusText,
+      subtitle: l.vehicleBatteryInfo,
+      statusText: statusText == 'Unknown' ? l.unknown : statusText,
     );
   }
 }

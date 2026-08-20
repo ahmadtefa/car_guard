@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/device_alert.dart';
 
 /// Banner shown at the top of the dashboard while alerts are active.
 ///
 /// Displays the most urgent alert prominently and mentions how many more are
 /// firing behind it.
-class AlertsBanner extends StatelessWidget {
+class AlertsBanner extends ConsumerWidget {
   /// Creates an alerts banner; renders nothing when [alerts] is empty.
   const AlertsBanner({super.key, required this.alerts});
 
@@ -17,16 +19,18 @@ class AlertsBanner extends StatelessWidget {
   final List<DeviceAlert> alerts;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (alerts.isEmpty) return const SizedBox.shrink();
+
+    final l = ref.watch(l10nProvider);
 
     final sorted = [...alerts]
       ..sort((a, b) => b.severity.rank.compareTo(a.severity.rank));
     final lead = sorted.first;
 
     final color = switch (lead.severity) {
-      AlertSeverity.critical => AppColors.danger,
-      AlertSeverity.warning => AppColors.warning,
+      AlertSeverity.critical => AppColors.neonRed,
+      AlertSeverity.warning => AppColors.neonAmber,
       AlertSeverity.info => AppColors.textSecondary,
     };
 
@@ -64,8 +68,7 @@ class AlertsBanner extends StatelessWidget {
                   if (sorted.length > 1) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      '+${sorted.length - 1} more alert'
-                      '${sorted.length > 2 ? 's' : ''}',
+                      l.moreAlerts(sorted.length - 1),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: color,
                       ),
