@@ -19,7 +19,8 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.example.car_guard"
-    compileSdk = flutter.compileSdkVersion
+    // file_picker (via flutter_plugin_android_lifecycle) requires API 36.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
