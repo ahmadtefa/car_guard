@@ -10,6 +10,7 @@
 ```bash
 keytool -genkey -v -keystore ~/car_guard_release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias carguard
 ```
+- [x] إعداد التوقيع جاهز في الـ gradle — يقرأ `android/key.properties` تلقائياً ويرجع للـ debug لو الملف مش موجود
 - [ ] ملف `android/key.properties` (متضيفش الجواب ده على git!):
 ```properties
 storePassword=كلمة_سر_الـ_keystore
@@ -17,7 +18,7 @@ keyPassword=كلمة_سر_المفتاح
 keyAlias=carguard
 storeFile=/home/ahmd/car_guard_release.jks
 ```
-- [ ] إضافة إعداد التوقيع في `android/app/build.gradle.kts` (تحت الطلب في الشات)
+- [x] تم — إعداد التوقيع مضاف تلقائياً في الـ gradle
 
 ## المرحلة 3: قبل بناء نسخة المتجر ⚠️
 - [ ] **شيل بلوك خدمة Android Auto من `AndroidManifest.xml`** (فئة غير مسموح بيها في مراجعة Play — الميزة تفضل موجودة في نسختك الشخصية، والشات ده في الأسفل لو حبيت ترجعها):
@@ -35,7 +36,7 @@ storeFile=/home/ahmd/car_guard_release.jks
 (خلي `minCarApiLevel` أو اشيله — مش مهم)
 
 ## المرحلة 4: متطلبات المحتوى والسياسات
-- [ ] **صفحة Privacy Policy** (مطلوبة إجبارياً حتى لو مش بتجمع بيانات) — صفحة واحدة بسيطة على GitHub Pages مثلاً بتفيد أن التطبيق لا يجمع ولا يشارك أي بيانات، كل البيانات محلية على الجهاز/الشبكة المحلية
+- [x] **صفحة Privacy Policy جاهزة** في `docs/privacy-policy.html` (عربي/إنجليزي) — ارفعها على GitHub Pages والصق الرابط في الكونسول
 - [ ] نموذج "Data safety" في الكونسول: لا يوجد جمع بيانات (Set to "No data collected")
 - [ ] Content rating questionnaire (تصنيف "Everyone" أو "3+")
 - [ ] التصريحات في الكونسول:
@@ -45,9 +46,13 @@ storeFile=/home/ahmd/car_guard_release.jks
 - [ ] Target API level: شغال بأحدث SDK — عادة مقبول تلقائياً
 
 ## المرحلة 5: الأصول
-- [ ] أيقونة التطبيق (حالياً أيقونة Flutter الافتراضية — يفضل شعار "كيان")
+- [x] أيقونة التطبيق جاهزة في `assets/icon/app_icon.png` — نفّذ الأمر التالي مرة على جهازك لتوليد كل المقاسات:
+```bash
+flutter pub get && dart run flutter_launcher_icons
+```
 - [ ] لقطات شاشة: هاتف (2-8 صور) + 7/10 بوصة لو هتعلّم مدعوم للتابلت
-- [ ] وصف مختصر (80 حرف) + وصف كامل + صورة بارزة 1024×500
+- [x] نصوص المتجر (عربي/إنجليزي) جاهزة في `docs/play-listing.md`
+- [ ] صورة بارزة 1024×500
 
 ## المرحلة 6: البناء والرفع
 ```bash
