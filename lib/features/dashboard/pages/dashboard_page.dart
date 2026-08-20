@@ -21,6 +21,7 @@ import '../widgets/dashboard_gauges.dart';
 import '../widgets/device_controls_card.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fan_status_card.dart';
+import '../widgets/voltage_delta_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
@@ -240,12 +241,22 @@ class DashboardPage extends ConsumerWidget {
       default:
         return Column(
           children: [
-            EngineTemperatureCard(value: state.engineTemperature),
+            EngineTemperatureCard(
+              value: state.engineTemperature,
+              temperature: connected ? temperature : null,
+              warnValue: settings.engineTempWarning,
+              criticalValue: settings.engineTempCritical,
+            ),
             const SizedBox(height: AppSpacing.md),
             BatteryVoltageCard(
               value: state.batteryVoltage,
               statusText: connected ? l.liveReading : l.noData,
+              voltage: connected ? voltage : null,
+              lowValue: settings.minBatteryVoltage,
+              highValue: settings.maxBatteryVoltage,
             ),
+            const SizedBox(height: AppSpacing.md),
+            const VoltageDeltaCard(),
           ],
         );
     }

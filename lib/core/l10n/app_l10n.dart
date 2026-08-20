@@ -55,6 +55,14 @@ class AppL10n {
   String get voltageDifference => isAr ? 'فرق الجهد' : 'Voltage Difference';
   String get chargingDeltaInfo =>
       isAr ? 'الفرق بين الشحن والسكون' : 'Charging vs. resting delta';
+  String get voltageDeltaInfo => isAr
+      ? 'تغير الجهد خلال آخر دقيقة ونص.'
+      : 'Voltage change over the last ~90 seconds.';
+  String get deltaRising =>
+      isAr ? 'الجهد في ارتفاع (شحن) ⬆️' : 'Voltage rising (charging) ⬆️';
+  String get deltaFalling =>
+      isAr ? 'الجهد في انخفاض ⬇️' : 'Voltage dropping ⬇️';
+  String get deltaStable => isAr ? 'مستقر' : 'Stable';
   String get coolantLevel => isAr ? 'مستوى المياه' : 'Coolant Level';
   String get coolantReservoirInfo =>
       isAr ? 'حالة خزان الردييتر' : 'Coolant reservoir status';
