@@ -1,17 +1,106 @@
-# car_guard
+# Car Guard 🚗
 
-A new Flutter project.
+A Flutter application that turns an ESP8266 module into a live vehicle
+monitor: engine temperature, battery voltage, coolant level, and radiator fan
+status streamed straight to your phone over Wi-Fi.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- **Live dashboard** — engine temperature, battery voltage, voltage
+  difference, coolant level, and fan status update in real time.
+- **Robust transport** — live updates over WebSocket (port 81) with an
+  automatic HTTP polling fallback when the socket drops.
+- **Smart alerts** — dashboard banner + local notifications when:
+  - the engine overheats (warning & critical thresholds),
+  - the battery voltage drops below your minimum,
+  - the coolant level runs low,
+  - the device connection is lost.
+- **Settings page** — configure the device address and every alert threshold;
+  everything is persisted on the phone and restored on the next launch.
+- **Auto reconnect** — the app reconnects to the last saved device address on
+  startup.
+- **Dark & light themes** following the system setting.
 
-A few resources to get you started if this is your first Flutter project:
+## Architecture
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The project follows a feature-first layout on top of Riverpod:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```
+lib/
+├── app/                    # Entry point, router, root widget
+├── core/
+│   ├── constants/          # Colors, spacing, endpoints, strings
+│   ├── models/             # AppSettings, DeviceAlert, shared data models
+│   ├── providers/          # Riverpod wiring for device & status streams
+│   ├── services/           # ESP8266 repository, alerts, notifications,
+│   │                       # storage, connectivity, permissions, OTA
+│   ├── theme/              # Material 3 theme
+│   └── widgets/            # Shared design-system widgets
+└── features/
+    ├── dashboard/          # Live dashboard cards + alerts banner
+    ├── device/             # Device connection screen
+    └── settings/           # Device address & alert thresholds
+```
+
+Key components:
+
+| Component | Responsibility |
+| --- | --- |
+| `Esp8266Repository` | WebSocket + HTTP communication with the module |
+| `AlertEvaluator` | Pure logic mapping readings + settings → alerts |
+| `AlertsNotifier` | De-duplicates alerts and fires notifications |
+| `SettingsNotifier` | Loads/saves `AppSettings` via SharedPreferences |
+| `NotificationServiceImpl` | Local notifications (Android & iOS) |
+
+## Device protocol
+
+The repository accepts two payload formats:
+
+**JSON** (preferred):
+
+```json
+{
+  "volt": 12.58,
+  "voltDiff": 0.12,
+  "temp": 92.5,
+  "coolant": 1,
+  "fanState": 1,
+  "buzzerState": 0
+}
+```
+
+**CSV** (fallback): `temp,volt,coolant,fan,buzzer,voltDiff`
+
+HTTP endpoints exposed by the module (`DeviceEndpoints`): `/data`,
+`/getallsettings`, `/saveallsettings`, `/saveadvancedsettings`,
+`/calibratevoltage`, `/getwifisettings`, `/savewifi`, `/restart`, `/mute`,
+`/testfan`, `/update`.
+
+## Getting started
+
+```bash
+flutter pub get
+flutter run              # debug on a connected device/emulator
+flutter analyze          # static analysis
+flutter test             # run the test suite
+```
+
+Pair your phone with the ESP8266 access point (or the same network), then set
+the module address in **Connection** or **Settings**. The default is
+`192.168.4.1:81`.
+
+## Testing
+
+Tests live in `test/` and mirror the `lib/` layout:
+
+```bash
+flutter test
+```
+
+## Roadmap
+
+- [ ] Device settings screen backed by `/getallsettings` & `/saveallsettings`
+- [ ] OTA firmware updates from the app (`/update`)
+- [ ] Readings history with charts
+- [ ] Mute/buzzer control from the dashboard (`/mute`, `/testfan`)
+- [ ] Localization (Arabic + English)

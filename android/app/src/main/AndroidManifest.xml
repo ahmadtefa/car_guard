@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Networking is required to reach the ESP8266 module. Without the
+         INTERNET permission release builds silently fail every request. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Runtime permission required on Android 13+ for alert notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="car_guard"
+        android:label="Car Guard"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -264,6 +264,15 @@ class Esp8266Repository implements DeviceRepository {
         final json =
             jsonDecode(data);
 
+        // Coolant may arrive as 1/0, "1"/"0" or true/false depending on the
+        // firmware revision; when the key is absent we optimistically assume
+        // coolant is available instead of crying wolf.
+        final rawCoolant = json["coolant"] ?? json["coolantAvailable"];
+
+        final coolantAvailable = rawCoolant == null ||
+            rawCoolant == 1 ||
+            rawCoolant == '1' ||
+            rawCoolant == true;
 
         status = DeviceStatus(
 
@@ -296,10 +305,10 @@ class Esp8266Repository implements DeviceRepository {
 
 
           coolantLevelData:
-              const CoolantLevelData(
+              CoolantLevelData(
 
 
-            coolantAvailable: true,
+            coolantAvailable: coolantAvailable,
 
 
           ),
@@ -308,7 +317,8 @@ class Esp8266Repository implements DeviceRepository {
           controlData: DeviceControlData(
 
             fanRunning:
-                json["fanState"] == 1,
+                json["fanState"] == 1 ||
+                json["fanState"] == true,
 
             buzzerActive:
                 json["buzzerState"] == 1 ||

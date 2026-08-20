@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class DeviceConnectionPage extends ConsumerStatefulWidget {
   const DeviceConnectionPage({super.key});
@@ -14,12 +16,34 @@ class DeviceConnectionPage extends ConsumerStatefulWidget {
 
 class _DeviceConnectionPageState
     extends ConsumerState<DeviceConnectionPage> {
-  final TextEditingController _hostController =
-      TextEditingController(text: '192.168.4.1');
+  late final TextEditingController _hostController;
 
   bool _connecting = false;
 
+  @override
+  void initState() {
+    super.initState();
+
+    // Prefill with the last address the user saved in settings.
+    final settings =
+        ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+
+    _hostController = TextEditingController(text: settings.deviceHost);
+  }
+
+  AppSettings get _settings =>
+      ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+
   Future<void> _connect() async {
+    final host = _hostController.text.trim();
+
+    if (host.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the device address first.')),
+      );
+      return;
+    }
+
     setState(() {
       _connecting = true;
     });
@@ -29,8 +53,14 @@ class _DeviceConnectionPageState
           ref.read(esp8266RepositoryProvider);
 
       await repository.connect(
-        host: _hostController.text.trim(),
+        host: host,
+        port: _settings.devicePort,
       );
+
+      // Remember the address so the next launch reconnects automatically.
+      await ref.read(settingsProvider.notifier).update(
+            _settings.copyWith(deviceHost: host),
+          );
 
       if (!mounted) return;
 
@@ -138,6 +168,10 @@ class _DeviceConnectionPageState
                           'Last Update: '
                           '${device.lastUpdated.hour}:'
                           '${device.lastUpdated.minute}',
+                        ),
+
+                        Text(
+                          'Port: ${_settings.devicePort}',
                         ),
                       ],
                     ),

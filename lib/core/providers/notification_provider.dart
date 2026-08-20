@@ -6,7 +6,6 @@ import '../services/notification_service.dart';
 ///
 /// This keeps the notification API abstract and makes future implementations
 /// swappable through Riverpod.
-/// TODO: Update this wiring when a platform notification implementation is added.
 final notificationProvider = Provider<NotificationService>(
   (ref) => ref.watch(notificationServiceProvider),
 );
