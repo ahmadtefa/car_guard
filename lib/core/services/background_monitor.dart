@@ -216,7 +216,7 @@ abstract final class BackgroundMonitor {
 
   static void _init() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: const AndroidNotificationOptions(
+      androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'car_guard_background',
         channelName: 'Car Guard Background Monitoring',
         channelDescription:
@@ -226,7 +226,7 @@ abstract final class BackgroundMonitor {
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
       ),
-      foregroundTaskOptions: const ForegroundTaskOptions(
+      foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot: true,
         allowWakeLock: true,
