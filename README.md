@@ -132,6 +132,14 @@ device address from the app settings and polls `/data` every 5 seconds.
 > CarPlay is not possible: Apple restricts CarPlay to specific app
 > categories (audio, navigation, messaging…).
 
+## Play Store
+
+See `docs/play-store-checklist.md` for the full Arabic release roadmap.
+Key points: `applicationId` is `com.kayan.carguard` (change before first
+upload — it can never change after), the Android Auto service block must
+be removed from the manifest for Play builds (disallowed category), and a
+release keystore is required.
+
 ## Testing
 
 Tests live in `test/` and mirror the `lib/` layout:

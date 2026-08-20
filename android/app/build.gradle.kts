@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.car_guard"
+        applicationId = "com.kayan.carguard"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
