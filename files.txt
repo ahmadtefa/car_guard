@@ -82,6 +82,7 @@ lib/features/dashboard/widgets/engine_temperature_card.dart
 lib/features/dashboard/widgets/fullscreen_hud_page.dart
 lib/features/dashboard/widgets/mini_gauges.dart
 lib/features/dashboard/widgets/module_limits_card.dart
+lib/features/dashboard/widgets/more_gauges.dart
 lib/features/dashboard/widgets/reading_chart_card.dart
 lib/features/dashboard/widgets/voltage_delta_card.dart
 lib/features/dashboard/widgets/voltage_difference_card.dart

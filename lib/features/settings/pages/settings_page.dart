@@ -123,6 +123,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       'sporty' => l.styleSporty,
       'segments' => l.styleSegments,
       'sweeper' => l.styleSweeper,
+      'ring' => l.styleRing,
+      'led' => l.styleLed,
+      'needle' => l.styleNeedle,
+      'orb' => l.styleOrb,
+      'combo' => l.styleCombo,
       _ => l.styleCards,
     };
   }

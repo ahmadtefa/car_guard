@@ -25,7 +25,7 @@ import '../widgets/dashboard_gauges.dart';
 import '../widgets/device_controls_card.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
-import '../widgets/module_limits_card.dart';
+import '../widgets/more_gauges.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/voltage_delta_card.dart';
 
@@ -104,6 +104,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ('sporty', Icons.donut_large_outlined, l.styleSporty),
       ('segments', Icons.view_week_outlined, l.styleSegments),
       ('sweeper', Icons.linear_scale_outlined, l.styleSweeper),
+      ('ring', Icons.album_outlined, l.styleRing),
+      ('led', Icons.lightbulb_outline, l.styleLed),
+      ('needle', Icons.speed_outlined, l.styleNeedle),
+      ('orb', Icons.water_drop_outlined, l.styleOrb),
+      ('combo', Icons.data_usage_rounded, l.styleCombo),
     ];
 
     showModalBottomSheet<void>(
@@ -288,6 +293,136 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ? AppColors.neonRed
                   : AppColors.neonGreen,
               onTap: () => _openHud('volt'),
+            ),
+          ],
+        );
+
+      case 'ring':
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: NeonRingGauge(
+                label: l.engineTempLabel,
+                value: temperature,
+                unit: '°C',
+                percent: tempPercent,
+                danger: tempWarning,
+                onTap: () => _openHud('temp'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: NeonRingGauge(
+                label: l.batteryVoltLabel,
+                value: voltage,
+                unit: 'V',
+                percent: voltPercent,
+                danger: voltWarning,
+                onTap: () => _openHud('volt'),
+              ),
+            ),
+          ],
+        );
+
+      case 'led':
+        return Column(
+          children: [
+            LedStripGauge(
+              label: l.engineTempLabel,
+              value: temperature,
+              unit: '°C',
+              percent: tempPercent,
+              danger: tempWarning,
+              onTap: () => _openHud('temp'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            LedStripGauge(
+              label: l.batteryVoltLabel,
+              value: voltage,
+              unit: 'V',
+              percent: voltPercent,
+              danger: voltWarning,
+              onTap: () => _openHud('volt'),
+            ),
+          ],
+        );
+
+      case 'needle':
+        return Column(
+          children: [
+            NeedleMeterGauge(
+              label: l.engineTempLabel,
+              value: temperature,
+              unit: '°C',
+              percent: tempPercent,
+              danger: tempWarning,
+              onTap: () => _openHud('temp'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            NeedleMeterGauge(
+              label: l.batteryVoltLabel,
+              value: voltage,
+              unit: 'V',
+              percent: voltPercent,
+              danger: voltWarning,
+              onTap: () => _openHud('volt'),
+            ),
+          ],
+        );
+
+      case 'orb':
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: LiquidOrbGauge(
+                label: l.engineTempLabel,
+                value: temperature,
+                unit: '°C',
+                percent: tempPercent,
+                danger: tempWarning,
+                onTap: () => _openHud('temp'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: LiquidOrbGauge(
+                label: l.batteryVoltLabel,
+                value: voltage,
+                unit: 'V',
+                percent: voltPercent,
+                danger: voltWarning,
+                onTap: () => _openHud('volt'),
+              ),
+            ),
+          ],
+        );
+
+      case 'combo':
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: DigitalClusterGauge(
+                label: l.engineTempLabel,
+                value: temperature,
+                unit: '°C',
+                percent: tempPercent,
+                danger: tempWarning,
+                onTap: () => _openHud('temp'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: DigitalClusterGauge(
+                label: l.batteryVoltLabel,
+                value: voltage,
+                unit: 'V',
+                percent: voltPercent,
+                danger: voltWarning,
+                onTap: () => _openHud('volt'),
+              ),
             ),
           ],
         );
