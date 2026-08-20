@@ -94,8 +94,9 @@ class AlertsNotifier extends Notifier<AlertsState> {
     state = AlertsState(active: alerts, history: history);
   }
 
-  /// Starts/stops the in-app siren based on active alerts and the user's
-  /// alarm-sound preference (kept from the local settings).
+  /// Starts/stops the in-app alarm based on active alerts and the user's
+  /// alarm-sound preference (kept from the local settings). Engine
+  /// temperature alerts use their dedicated urgent sound.
   Future<void> _updateSiren(
     List<DeviceAlert> alerts,
     AppSettings local,
@@ -105,9 +106,19 @@ class AlertsNotifier extends Notifier<AlertsState> {
     final audible =
         alerts.any((alert) => alert.severity != AlertSeverity.info);
 
-    if (audible && local.alarmSoundEnabled && !alarm.isPlaying) {
-      await alarm.start();
-    } else if ((!audible || !local.alarmSoundEnabled) && alarm.isPlaying) {
+    if (audible && local.alarmSoundEnabled) {
+      final engineAlert = alerts.any(
+        (alert) => alert.id == 'engine_overheat' || alert.id == 'engine_temp_high',
+      );
+
+      final asset = engineAlert
+          ? AlarmSounds.engineOverheat
+          : AlarmSounds.siren;
+
+      // start() is a no-op when the same asset is already looping and
+      // switches seamlessly when the cause changed.
+      await alarm.start(asset: asset);
+    } else if (alarm.isPlaying) {
       await alarm.stop();
     }
   }
