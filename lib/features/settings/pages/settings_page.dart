@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -56,7 +57,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       debugPrint('BG TOGGLE: notifications granted=$granted');
 
-      if (!granted) {
+      // Belt & suspenders: ask through permission_handler too — some
+      // Android 13+ builds only register the grant this way.
+      final permissionStatus = await Permission.notification.request();
+      debugPrint('BG TOGGLE: permission_handler status=$permissionStatus');
+
+      if (!granted && !permissionStatus.isGranted) {
         _showError(l.notificationsRequired);
         return;
       }

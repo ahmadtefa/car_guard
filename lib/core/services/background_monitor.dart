@@ -260,11 +260,13 @@ abstract final class BackgroundMonitor {
 
       debugPrint('BG MONITOR: calling startService…');
 
-      await FlutterForegroundTask.startService(
+      final result = await FlutterForegroundTask.startService(
         callback: backgroundMonitorCallback,
         notificationTitle: 'Car Guard',
         notificationText: 'Monitoring vehicle readings…',
       );
+
+      debugPrint('BG MONITOR: result=${result.runtimeType} ($result)');
 
       // Give the service a moment to bind before verifying.
       await Future<void>.delayed(const Duration(milliseconds: 800));

@@ -43,6 +43,13 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Android 14+: foreground services must be declared with their
+             type explicitly or startForeground() is rejected. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Android Auto front-end: live readings on the head unit.
              Personal/sideload use — vehicle monitoring is not a
              Play-Store-distributable Android Auto category. -->
