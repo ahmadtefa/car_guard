@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,8 +49,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final l = ref.read(l10nProvider);
 
     if (value) {
+      debugPrint('BG TOGGLE: initializing notifications…');
+
       final granted =
           await ref.read(notificationServiceProvider).initialize();
+
+      debugPrint('BG TOGGLE: notifications granted=$granted');
 
       if (!granted) {
         _showError(l.notificationsRequired);
@@ -60,8 +65,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       final started = await BackgroundMonitor.start();
 
+      debugPrint('BG TOGGLE: service started=$started '
+          '(error: ${BackgroundMonitor.lastError})');
+
       if (!started) {
-        _showError(l.serviceStartFailed);
+        final detail = BackgroundMonitor.lastError;
+        _showError(
+          detail == null ? l.serviceStartFailed : '${l.serviceStartFailed}\n$detail',
+        );
         return;
       }
     } else {

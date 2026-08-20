@@ -235,14 +235,30 @@ abstract final class BackgroundMonitor {
     );
   }
 
+  /// Last startup failure details, surfaced to the UI for diagnosis.
+  static String? lastError;
+
   /// Starts the monitoring service; returns whether it is now running.
   static Future<bool> start() async {
-    if (!_supported) return false;
+    lastError = null;
+
+    debugPrint('BG MONITOR: start() — supported=$_supported');
+
+    if (!_supported) {
+      lastError = 'Not supported on this platform';
+      return false;
+    }
 
     try {
       _init();
+      debugPrint('BG MONITOR: init OK');
 
-      if (await FlutterForegroundTask.isRunningService) return true;
+      if (await FlutterForegroundTask.isRunningService) {
+        debugPrint('BG MONITOR: already running');
+        return true;
+      }
+
+      debugPrint('BG MONITOR: calling startService…');
 
       await FlutterForegroundTask.startService(
         callback: backgroundMonitorCallback,
@@ -250,9 +266,21 @@ abstract final class BackgroundMonitor {
         notificationText: 'Monitoring vehicle readings…',
       );
 
-      return await FlutterForegroundTask.isRunningService;
+      // Give the service a moment to bind before verifying.
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+
+      final running = await FlutterForegroundTask.isRunningService;
+
+      debugPrint('BG MONITOR: startService done, running=$running');
+
+      if (!running) {
+        lastError = 'Service did not start (see logs)';
+      }
+
+      return running;
     } catch (e) {
-      debugPrint('BACKGROUND MONITOR START FAILED: $e');
+      debugPrint('BG MONITOR: START FAILED: $e');
+      lastError = e.toString();
       return false;
     }
   }
