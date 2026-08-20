@@ -35,6 +35,11 @@ class Esp8266Repository implements DeviceRepository {
   bool _connected = false;
   bool _usingHttpFallback = false;
 
+  /// True while the repository is intentionally torn down; prevents the
+  /// WebSocket onDone/onError callbacks from restarting the HTTP fallback
+  /// after [disconnect] already cancelled every timer.
+  bool _stopped = true;
+
   Stream<bool> get connectionStream =>
       _connectionController.stream;
 
