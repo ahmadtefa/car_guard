@@ -153,6 +153,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onPressed: settings.demoModeEnabled ? null : _testFan,
               child: Text(l.testFan),
             ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
+              onPressed: () => context.push('/ota-update'),
+              child: Text(l.otaUpdate),
+            ),
             const SizedBox(height: AppSpacing.xl),
 
             SectionTitle(title: l.dashboardStyle),

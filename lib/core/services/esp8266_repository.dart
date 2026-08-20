@@ -479,6 +479,41 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Uploads a firmware image to the module OTA page (`/update`).
+  ///
+  /// The multipart field name matches ESP8266HTTPUpdateServer's form
+  /// ('firmware'). The module flashes and reboots on success.
+  Future<bool> updateFirmware(String filePath) async {
+
+    try {
+
+      final uri = Uri.parse(
+        "http://$_activeHost${DeviceEndpoints.otaUpdate}",
+      );
+
+      final request = http.MultipartRequest("POST", uri)
+        ..files.add(await http.MultipartFile.fromPath("firmware", filePath));
+
+      final response = await request
+          .send()
+          .timeout(const Duration(seconds: 120));
+
+      return response.statusCode == 200;
+
+    } catch (e) {
+
+      debugPrint(
+        "OTA UPLOAD FAILED : $e",
+      );
+
+      return false;
+
+    }
+
+  }
+
+
+
   /// Reads the Wi-Fi credentials stored on the module
   /// (`/getwifisettings`).
   Future<({String ssid, String password})?> getWifiSettings() async {

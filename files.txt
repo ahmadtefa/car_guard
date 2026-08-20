@@ -89,6 +89,7 @@ lib/features/device/models/device_data.dart
 lib/features/device/models/device_settings.dart
 lib/features/device/pages/advanced_settings_page.dart
 lib/features/device/pages/device_settings_page.dart
+lib/features/device/pages/ota_update_page.dart
 lib/features/settings/pages/settings_page.dart
 lib/features/settings/providers/settings_provider.dart
 lib/main.dart

@@ -81,6 +81,31 @@ class AppL10n {
   String notChargingV(String volt) =>
       isAr ? 'لا يشحن ($volt فولت)' : 'Not charging ($volt V)';
 
+  // ---------- OTA update ----------
+  String get otaUpdate => isAr ? 'تحديث الجهاز (OTA)' : 'Update device (OTA)';
+  String get otaInfo => isAr
+      ? 'اختر ملف الفيرموير (.bin) الخاص بالجهاز وارفعه — أثناء التحديث لا تغلق التطبيق.'
+      : 'Pick the module firmware file (.bin) and upload it — keep the app open during the update.';
+  String get otaCodeLabel => isAr ? 'كود التحديث' : 'Update code';
+  String get enterOtaCode => isAr
+      ? 'أدخل كود التحديث للمتابعة.'
+      : 'Enter the update code to continue.';
+  String get selectFirmware => isAr
+      ? 'اختيار ملف الفيرموير' : 'Select firmware file';
+  String get noFileSelected => isAr ? 'لم يتم اختيار ملف' : 'No file selected';
+  String get uploadAndFlash => isAr ? 'رفع وتحديث الجهاز' : 'Upload & flash';
+  String get uploading => isAr ? 'جاري رفع الفيرموير...' : 'Uploading firmware…';
+  String get otaPickFirst => isAr
+      ? 'اختر ملف الفيرموير أولاً.' : 'Pick the firmware file first.';
+  String get otaInvalidFile => isAr
+      ? 'الملف لازم يكون بامتداد .bin' : 'The file must have a .bin extension.';
+  String get otaSuccess => isAr
+      ? 'تم التحديث! الجهاز بيعيد التشغيل خلال ثوانٍ.'
+      : 'Updated! The module is rebooting in a few seconds.';
+  String get otaFailed => isAr
+      ? 'فشل التحديث — تأكد من الملف والاتصال بالجهاز.'
+      : 'Update failed — check the file and the connection.';
+
   // ---------- Module limits / sync ----------
   String get moduleLimits => isAr ? 'حدود الإنذار على الجهاز' : 'Module alarm limits';
   String get moduleLimitsInfo => isAr

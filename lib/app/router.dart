@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/device/pages/advanced_settings_page.dart';
 import '../features/device/pages/device_settings_page.dart';
+import '../features/device/pages/ota_update_page.dart';
 import '../features/settings/pages/settings_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -28,6 +29,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'device-settings',
         builder: (context, state) =>
             const DeviceSettingsPage(),
+      ),
+
+      GoRoute(
+        path: '/ota-update',
+        name: 'ota-update',
+        builder: (context, state) =>
+            const OtaUpdatePage(),
       ),
 
       GoRoute(
