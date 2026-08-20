@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:car_guard/core/models/app_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -47,7 +45,7 @@ void main() {
     });
 
     test('missing JSON fields fall back to defaults', () {
-      final restored = AppSettings.fromJson(jsonDecode('{}') as Map);
+      final restored = AppSettings.fromJson(<String, dynamic>{});
 
       expect(restored.deviceHost, '192.168.4.1');
       expect(restored.devicePort, 81);

@@ -41,7 +41,9 @@ class NotificationServiceImpl implements NotificationService {
         macOS: DarwinInitializationSettings(),
       );
 
-      final result = await _plugin.initialize(initializationSettings);
+      final result = await _plugin.initialize(
+        settings: initializationSettings,
+      );
       _initialized = result ?? false;
 
       // Android 13+ requires a runtime permission for notifications.
@@ -81,7 +83,12 @@ class NotificationServiceImpl implements NotificationService {
       iOS: DarwinNotificationDetails(),
     );
 
-    await _plugin.show(_nextId++, title, body, notificationDetails);
+    await _plugin.show(
+      id: _nextId++,
+      title: title,
+      body: body,
+      details: notificationDetails,
+    );
   }
 
   @override

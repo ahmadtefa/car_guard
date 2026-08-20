@@ -24,7 +24,10 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 
   /// Updates the in-memory settings and persists them.
-  Future<void> update(AppSettings settings) async {
+  ///
+  /// Named `save` because Riverpod's [AsyncNotifier] already owns an `update`
+  /// method with a different signature.
+  Future<void> save(AppSettings settings) async {
     // Apply the value immediately; persistence failure must not break the
     // running session, so the in-memory state stays authoritative.
     state = AsyncData(settings);

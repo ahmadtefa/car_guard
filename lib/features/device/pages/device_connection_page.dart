@@ -26,13 +26,13 @@ class _DeviceConnectionPageState
 
     // Prefill with the last address the user saved in settings.
     final settings =
-        ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+        ref.read(settingsProvider).value ?? const AppSettings();
 
     _hostController = TextEditingController(text: settings.deviceHost);
   }
 
   AppSettings get _settings =>
-      ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+      ref.read(settingsProvider).value ?? const AppSettings();
 
   Future<void> _connect() async {
     final host = _hostController.text.trim();
@@ -58,7 +58,7 @@ class _DeviceConnectionPageState
       );
 
       // Remember the address so the next launch reconnects automatically.
-      await ref.read(settingsProvider.notifier).update(
+      await ref.read(settingsProvider.notifier).save(
             _settings.copyWith(deviceHost: host),
           );
 

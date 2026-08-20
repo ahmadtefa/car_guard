@@ -29,7 +29,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     super.initState();
 
     final settings =
-        ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+        ref.read(settingsProvider).value ?? const AppSettings();
 
     _hostController = TextEditingController(text: settings.deviceHost);
     _portController = TextEditingController(
@@ -45,10 +45,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   AppSettings get _current =>
-      ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+      ref.read(settingsProvider).value ?? const AppSettings();
 
   Future<void> _save(AppSettings settings) async {
-    await ref.read(settingsProvider.notifier).update(settings);
+    await ref.read(settingsProvider.notifier).save(settings);
 
     if (!mounted) return;
 
@@ -96,7 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settings =
-        ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
+        ref.watch(settingsProvider).value ?? const AppSettings();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),

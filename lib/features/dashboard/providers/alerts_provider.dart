@@ -56,7 +56,7 @@ class AlertsNotifier extends Notifier<AlertsState> {
     }
 
     final settings =
-        ref.read(settingsProvider).valueOrNull ?? const AppSettings();
+        ref.read(settingsProvider).value ?? const AppSettings();
 
     if (!settings.alertsEnabled) {
       state = AlertsState(active: const [], history: state.history);
