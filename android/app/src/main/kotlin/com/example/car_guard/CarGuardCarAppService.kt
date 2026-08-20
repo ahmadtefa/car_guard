@@ -9,7 +9,6 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.Session
 import androidx.car.app.model.CarColor
-import androidx.car.app.model.CarText
 import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
@@ -88,13 +87,10 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         })
     }
 
-    private fun coloredText(text: String, color: CarColor): CarText =
-        CarText.Builder(text).setCarColor(color).build()
-
-    private fun row(title: String, value: String, color: CarColor): Row =
+    private fun row(title: String, value: String): Row =
         Row.Builder()
             .setTitle(title)
-            .addText(coloredText(value, color))
+            .addText(value)
             .build()
 
     override fun onGetTemplate(): Template {
@@ -102,43 +98,44 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         val current = reading
 
         if (current == null) {
-            listBuilder.addItem(row("Car Guard", "Connecting to module…", CarColor.DEFAULT))
+            listBuilder.addItem(row("Car Guard", "Connecting to module…"))
         } else if (!current.connected) {
-            listBuilder.addItem(row("Status", "Disconnected", CarColor.RED))
-            listBuilder.addItem(row("Module address", host, CarColor.DEFAULT))
+            listBuilder.addItem(row("Status", "🔴 Disconnected"))
+            listBuilder.addItem(row("Module address", host))
         } else {
-            val tempColor = when {
-                current.temp >= current.maxTemp -> CarColor.RED
-                current.temp >= current.maxTemp - 5 -> CarColor.YELLOW
-                else -> CarColor.GREEN
+            // Emoji status dots: colored text needs API variants that differ
+            // across library versions, dots are portable everywhere.
+            val tempStatus = when {
+                current.temp >= current.maxTemp -> "🔴"
+                current.temp >= current.maxTemp - 5 -> "🟡"
+                else -> "🟢"
             }
 
-            val voltColor = when {
-                current.volt < current.minVolt || current.volt > current.maxVolt -> CarColor.RED
-                else -> CarColor.GREEN
+            val voltStatus = when {
+                current.volt < current.minVolt || current.volt > current.maxVolt -> "🔴"
+                else -> "🟢"
             }
 
             listBuilder.addItem(
-                row("Engine temperature", String.format(Locale.US, "%.1f °C", current.temp), tempColor),
+                row("Engine temperature", "$tempStatus ${String.format(Locale.US, "%.1f °C", current.temp)}"),
             )
 
             listBuilder.addItem(
-                row("Battery voltage", String.format(Locale.US, "%.2f V", current.volt), voltColor),
+                row("Battery voltage", "$voltStatus ${String.format(Locale.US, "%.2f V", current.volt)}"),
             )
 
             listBuilder.addItem(
-                row("Radiator fan", if (current.fanOn) "ON" else "OFF", if (current.fanOn) CarColor.GREEN else CarColor.DEFAULT),
+                row("Radiator fan", if (current.fanOn) "🟢 ON" else "⚪ OFF"),
             )
 
             listBuilder.addItem(
                 row(
                     "Module alarm",
                     when {
-                        current.alarm -> "ACTIVE!"
-                        current.muted -> "Muted"
-                        else -> "OK"
+                        current.alarm -> "🔴 ACTIVE!"
+                        current.muted -> "🔕 Muted"
+                        else -> "🟢 OK"
                     },
-                    if (current.alarm) CarColor.RED else CarColor.DEFAULT,
                 ),
             )
         }
