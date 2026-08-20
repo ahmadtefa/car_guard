@@ -205,8 +205,10 @@ class _ArcGaugePainter extends CustomPainter {
     final progress = ((reading - min) / total).clamp(0.0, 1.0);
 
     // Bright value arc with a sweep gradient over the zones.
+    // The shader rect is the gauge circle, so centering the sweep on it
+    // aligns the gradient with the arc angles.
     final gradient = SweepGradient(
-      center: center,
+      center: Alignment.center,
       startAngle: startAngle,
       endAngle: startAngle + sweep,
       colors: [
@@ -221,7 +223,6 @@ class _ArcGaugePainter extends CustomPainter {
         critFraction.clamp(0.02, 0.999),
         1,
       ],
-      transform: const GradientRotation(-math.pi / 2),
     );
 
     final valuePaint =
