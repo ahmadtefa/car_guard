@@ -16,10 +16,8 @@ import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
-import '../providers/alerts_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
-import '../widgets/alerts_banner.dart';
 import '../widgets/battery_voltage_card.dart';
 import '../widgets/compact_status_row.dart';
 import '../widgets/dashboard_gauges.dart';
@@ -28,6 +26,7 @@ import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/more_gauges.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
+import '../widgets/system_status_card.dart';
 import '../widgets/voltage_delta_card.dart';
 
 /// Full-screen dashboard.
@@ -613,7 +612,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
-    final activeAlerts = ref.watch(alertsProvider).active;
 
     final l = ref.watch(l10nProvider);
 
@@ -634,11 +632,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (activeAlerts.isNotEmpty) ...[
-                      AlertsBanner(alerts: activeAlerts),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-
                     // Gauges live at the very top of the screen.
                     _buildGaugeArea(
                       settings: settings,
@@ -663,6 +656,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     const SizedBox(height: AppSpacing.md),
 
                     const FanAlternatorRow(),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    const SystemStatusCard(),
 
                     const SizedBox(height: AppSpacing.xl),
 
