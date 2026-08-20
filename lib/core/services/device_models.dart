@@ -1,4 +1,4 @@
-// Strongly typed domain models for the ESP8266 communication layer.
+// Strongly typed domain models for the Car Guard communication layer.
 /// Alarm limits reported by the module inside its live stream.
 ///
 /// Every field is nullable: the firmware may omit values, in which case the
@@ -228,7 +228,7 @@ class DeviceControlData {
 }
 
 
-/// Settings stored on the ESP8266 module itself, loaded via `/getallsettings`.
+/// Settings stored on the Car Guard module itself, loaded via `/getallsettings`.
 class DeviceModuleSettings {
   const DeviceModuleSettings({
     this.maxTemp = 95.0,

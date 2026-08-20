@@ -8,7 +8,7 @@ import 'device_provider.dart';
 /// Streams live device readings.
 ///
 /// When demo mode is enabled in settings the stream comes from the built-in
-/// simulator instead of the ESP8266 repository, letting the whole app (cards,
+/// simulator instead of the device repository, letting the whole app (cards,
 /// charts, alerts, notifications) run without physical hardware.
 final deviceStatusProvider = StreamProvider<DeviceStatus>((ref) {
   final demoEnabled = ref.watch(

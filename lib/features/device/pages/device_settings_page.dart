@@ -11,7 +11,7 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
 
-/// Reads and edits the settings stored on the ESP8266 module itself
+/// Reads and edits the settings stored on the Car Guard module itself
 /// (`/getallsettings`, `/saveallsettings`) and provisions its Wi-Fi
 /// (`/savewifi`).
 class DeviceSettingsPage extends ConsumerStatefulWidget {

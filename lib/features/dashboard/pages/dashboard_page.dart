@@ -322,14 +322,6 @@ class DashboardPage extends ConsumerWidget {
         ],
       ),
 
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          context.push('/connection');
-        },
-        icon: const Icon(Icons.wifi),
-        label: Text(l.deviceConnection),
-      ),
-
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(

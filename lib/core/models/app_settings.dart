@@ -3,11 +3,11 @@ import 'dart:convert';
 /// User-configurable application settings persisted on the device.
 ///
 /// A single instance holds everything the app needs to remember between runs:
-/// the address of the Car Guard ESP8266 module and the thresholds that drive
+/// the address of the Car Guard module and the thresholds that drive
 /// dashboard alerts and local notifications.
 class AppSettings {
   /// Creates a settings snapshot with sensible defaults for a stock
-  /// ESP8266 Car Guard module.
+  /// Car Guard monitoring module.
   const AppSettings({
     this.deviceHost = '192.168.4.1',
     this.devicePort = 81,
@@ -45,7 +45,7 @@ class AppSettings {
   /// Storage key used to persist the serialized settings.
   static const String storageKey = 'app_settings';
 
-  /// Address of the ESP8266 module (IP or mDNS host name).
+  /// Address of the Car Guard module (IP or mDNS host name).
   final String deviceHost;
 
   /// WebSocket port used for live updates (HTTP falls back to port 80).

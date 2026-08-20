@@ -7,8 +7,6 @@ import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/services/background_monitor.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
 import '../providers/settings_provider.dart';
@@ -25,29 +23,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  late final TextEditingController _hostController;
-  late final TextEditingController _portController;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final settings =
-        ref.read(settingsProvider).value ?? const AppSettings();
-
-    _hostController = TextEditingController(text: settings.deviceHost);
-    _portController = TextEditingController(
-      text: settings.devicePort.toString(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _hostController.dispose();
-    _portController.dispose();
-    super.dispose();
-  }
-
   AppSettings get _current =>
       ref.read(settingsProvider).value ?? const AppSettings();
 
@@ -63,36 +38,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  Future<void> _saveDeviceAddress() async {
-    final l = ref.read(l10nProvider);
-
-    final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text.trim());
-
-    if (host.isEmpty) {
-      _showError(l.enterAddressFirst);
-      return;
-    }
-
-    if (port == null || port < 1 || port > 65535) {
-      _showError(l.portRangeError);
-      return;
-    }
-
-    await _save(
-      _current.copyWith(deviceHost: host, devicePort: port),
-    );
-  }
-
   Future<void> _resetToDefaults() async {
-    const defaults = AppSettings();
-
-    _hostController.text = defaults.deviceHost;
-    _portController.text = defaults.devicePort.toString();
-
     await BackgroundMonitor.stop();
 
-    await _save(defaults);
+    await _save(const AppSettings());
   }
 
   Future<void> _toggleBackground(bool value) async {
@@ -159,25 +108,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         child: ListView(
           padding: AppSpacing.padding,
           children: [
-            SectionTitle(title: l.device, subtitle: l.deviceAddressInfo),
-            AppTextField(
-              controller: _hostController,
-              labelText: l.deviceAddress,
-              hintText: '192.168.4.1',
-              prefixIcon: const Icon(Icons.router_outlined),
+            SectionTitle(
+              title: l.advancedSection,
+              subtitle: l.advancedSectionInfo,
             ),
-            AppTextField(
-              controller: _portController,
-              labelText: l.wsPort,
-              hintText: '81',
-              keyboardType: TextInputType.number,
-              prefixIcon: const Icon(Icons.numbers_outlined),
-            ),
-            PrimaryButton(
-              onPressed: _saveDeviceAddress,
-              child: Text(l.saveDevice),
-            ),
-            const SizedBox(height: AppSpacing.md),
             SecondaryButton(
               onPressed: () => context.push('/advanced-settings'),
               child: Text(l.advancedModuleSettings),

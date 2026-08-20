@@ -179,13 +179,6 @@ class AppL10n {
 
   // ---------- Settings page ----------
   String get settings => isAr ? 'الإعدادات' : 'Settings';
-  String get device => isAr ? 'الجهاز' : 'Device';
-  String get deviceAddressInfo => isAr
-      ? 'عنوان وحدة الحارس ESP8266.'
-      : 'Address of the Car Guard ESP8266 module.';
-  String get deviceAddress => isAr ? 'عنوان الجهاز' : 'Device address';
-  String get wsPort => isAr ? 'منفذ WebSocket' : 'WebSocket port';
-  String get saveDevice => isAr ? 'حفظ الجهاز' : 'Save device';
   String get advancedModuleSettings =>
       isAr ? 'الإعدادات المتقدمة للجهاز' : 'Advanced module settings';
   String get appearance => isAr ? 'المظهر' : 'Appearance';
@@ -230,26 +223,8 @@ class AppL10n {
       isAr ? 'إرجاع الإعدادات الافتراضية' : 'Reset to defaults';
   String get settingsSaved =>
       isAr ? 'تم حفظ الإعدادات' : 'Settings saved';
-  String get enterAddressFirst =>
-      isAr ? 'أدخل عنوان الجهاز أولاً.' : 'Enter the device address first.';
-  String get portRangeError =>
-      isAr ? 'المنفذ رقم بين 1 و 65535.' : 'Port must be a number between 1 and 65535.';
 
   // ---------- Connection page ----------
-  String get deviceConnection =>
-      isAr ? 'اتصال الجهاز' : 'Device Connection';
-  String get connecting => isAr ? 'جاري الاتصال...' : 'Connecting...';
-  String get disconnectedMsg =>
-      isAr ? 'تم قطع الاتصال' : 'Disconnected';
-  String get reconnecting => isAr ? 'إعادة الاتصال...' : 'Reconnecting...';
-  String get connectionError => isAr ? 'خطأ اتصال' : 'Connection Error';
-  String get deviceLabel => isAr ? 'الجهاز' : 'Device';
-  String get lastUpdateLabel => isAr ? 'آخر تحديث' : 'Last Update';
-  String get portLabel => isAr ? 'المنفذ' : 'Port';
-  String get deviceIpLabel => isAr ? 'عنوان IP للجهاز' : 'Device IP Address';
-  String get connectAction => isAr ? 'اتصال' : 'Connect';
-  String get disconnectAction => isAr ? 'قطع الاتصال' : 'Disconnect';
-  String get reconnectAction => isAr ? 'إعادة اتصال' : 'Reconnect';
 
   // ---------- Module settings page ----------
   String get moduleInfo => isAr ? 'بيانات الجهاز' : 'Module info';

@@ -1,6 +1,6 @@
 import 'device_models.dart';
 
-/// Abstract contract for the ESP8266 communication repository.
+/// Abstract contract for the device communication repository.
 ///
 /// This repository is intentionally infrastructure-focused and does not contain
 /// UI or feature-specific business logic. It provides a stable interface for

@@ -101,7 +101,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             listBuilder.addItem(row("Car Guard", "Connecting to module…"))
         } else if (!current.connected) {
             listBuilder.addItem(row("Status", "🔴 Disconnected"))
-            listBuilder.addItem(row("Module address", host))
         } else {
             // Emoji status dots: colored text needs API variants that differ
             // across library versions, dots are portable everywhere.
