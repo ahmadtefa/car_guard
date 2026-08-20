@@ -7,6 +7,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../models/dashboard_state.dart';
 import '../providers/alerts_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
