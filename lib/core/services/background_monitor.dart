@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_l10n.dart';
 import '../models/app_settings.dart';
+import '../models/device_alert.dart';
 import 'alert_evaluator.dart';
 import 'device_models.dart';
 import 'notification_service.dart';
@@ -30,8 +31,13 @@ class BackgroundMonitorHandler extends TaskHandler {
   bool _everConnected = false;
 
   @override
-  void onStart(DateTime timestamp) {
-    _notifications.initialize();
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    await _notifications.initialize();
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {
+    // Nothing to clean up; the notification is managed by the service.
   }
 
   @override
@@ -123,7 +129,7 @@ class BackgroundMonitorHandler extends TaskHandler {
     );
   }
 
-  DeviceStatus _statusFromCsv(String raw) {
+  DeviceStatus? _statusFromCsv(String raw) {
     // Reference protocol: temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,
     // maxVolt,offset
     final parts = raw.split(',');
@@ -208,27 +214,20 @@ abstract final class BackgroundMonitor {
   static bool get _supported =>
       !kIsWeb && Platform.isAndroid;
 
-  static Future<void> _init() async {
-    await FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
+  static void _init() {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: const AndroidNotificationOptions(
         channelId: 'car_guard_background',
         channelName: 'Car Guard Background Monitoring',
         channelDescription:
             'Keeps watching vehicle readings while the screen is off.',
         priority: NotificationPriority.LOW,
-        iconData: const NotificationIconData(
-          resType: ResourceType.mipmap,
-          resPrefix: ResourcePrefix.ic,
-          name: 'launcher',
-        ),
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
       ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(
-          const Duration(seconds: 5),
-        ),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot: true,
         allowWakeLock: true,
         allowWifiLock: true,
@@ -241,17 +240,17 @@ abstract final class BackgroundMonitor {
     if (!_supported) return false;
 
     try {
-      await _init();
+      _init();
 
       if (await FlutterForegroundTask.isRunningService) return true;
 
-      final result = await FlutterForegroundTask.startService(
+      await FlutterForegroundTask.startService(
         callback: backgroundMonitorCallback,
         notificationTitle: 'Car Guard',
         notificationText: 'Monitoring vehicle readings…',
       );
 
-      return result.success;
+      return await FlutterForegroundTask.isRunningService;
     } catch (e) {
       debugPrint('BACKGROUND MONITOR START FAILED: $e');
       return false;

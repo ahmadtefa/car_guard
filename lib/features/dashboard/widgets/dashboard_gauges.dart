@@ -487,6 +487,10 @@ class _SweeperPainter extends CustomPainter {
   final List<Color> gradientColors;
 
   Path _trapezoid(double w, double h, double fillWidth) {
+    // The painter runs once with zero width during the first layout pass;
+    // clamp(18, 0) would throw, so bail out until real constraints exist.
+    if (w < 40 || h <= 0) return Path();
+
     final right = fillWidth.clamp(18.0, w);
 
     return Path()
@@ -501,6 +505,8 @@ class _SweeperPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
+
+    if (w < 40 || h <= 0) return;
 
     final full = _trapezoid(w, h, w);
 

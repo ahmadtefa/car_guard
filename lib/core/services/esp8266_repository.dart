@@ -157,9 +157,22 @@ class Esp8266Repository implements DeviceRepository {
       );
 
 
-      _channel!.sink.add(
-        "hello",
-      );
+      try {
+
+        _channel!.sink.add(
+          "hello",
+        );
+
+      } catch (e) {
+
+        // Writing to a freshly-closed socket throws; the onDone/onError
+        // handlers take over from here.
+
+        debugPrint(
+          "WS HELLO FAILED $e",
+        );
+
+      }
 
 
       _wsTimeoutTimer?.cancel();
