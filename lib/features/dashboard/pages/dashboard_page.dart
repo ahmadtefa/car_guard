@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,22 +16,65 @@ import '../providers/alerts_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
 import '../widgets/alerts_banner.dart';
-import '../widgets/alternator_status_card.dart';
 import '../widgets/battery_voltage_card.dart';
-import '../widgets/connection_status_card.dart';
+import '../widgets/compact_status_row.dart';
 import '../widgets/dashboard_gauges.dart';
 import '../widgets/device_controls_card.dart';
 import '../widgets/engine_temperature_card.dart';
-import '../widgets/fan_status_card.dart';
-import '../widgets/voltage_delta_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
+import '../widgets/voltage_delta_card.dart';
 
-class DashboardPage extends ConsumerWidget {
+/// Full-screen dashboard.
+///
+/// Layout rules (design pass 3):
+/// - The gauges live at the very top of the screen — nothing sits above
+///   them except the floating control bar.
+/// - The floating bar (language, connection state, style, settings) shows
+///   on launch, auto-hides after 5 seconds and reappears on any touch.
+/// - The small connection icon in the bar is the only connection status
+///   indicator (green = connected, red = disconnected).
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
-  void _openHud(BuildContext context, String type) {
+  @override
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  static const Duration _hideAfter = Duration(seconds: 5);
+
+  bool _barVisible = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(_hideAfter, () {
+      if (mounted) setState(() => _barVisible = false);
+    });
+  }
+
+  void _onScreenTouched() {
+    if (!_barVisible) {
+      setState(() => _barVisible = true);
+    }
+    _scheduleHide();
+  }
+
+  void _openHud(String type) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
@@ -38,9 +83,10 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  void _showStylePicker(BuildContext context, WidgetRef ref, AppL10n l) {
-    final settings =
-        ref.read(settingsProvider).value ?? const AppSettings();
+  void _showStylePicker() {
+    final l = ref.read(l10nProvider);
+
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
 
     final options = <(String, IconData, String)>[
       ('cards', Icons.dashboard_outlined, l.styleCards),
@@ -95,9 +141,7 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildGaugeArea(
-    BuildContext context,
-    WidgetRef ref, {
+  Widget _buildGaugeArea({
     required AppSettings settings,
     required DashboardState state,
     required AppL10n l,
@@ -127,7 +171,7 @@ class DashboardPage extends ConsumerWidget {
               unit: '°C',
               percent: tempPercent,
               warning: tempWarning,
-              onTap: () => _openHud(context, 'temp'),
+              onTap: () => _openHud('temp'),
             ),
             const SizedBox(height: AppSpacing.md),
             RacingGauge(
@@ -136,7 +180,7 @@ class DashboardPage extends ConsumerWidget {
               unit: 'V',
               percent: voltPercent,
               warning: voltWarning,
-              onTap: () => _openHud(context, 'volt'),
+              onTap: () => _openHud('volt'),
             ),
           ],
         );
@@ -154,7 +198,7 @@ class DashboardPage extends ConsumerWidget {
                 redlineValue: settings.engineTempCritical,
                 unit: '°C',
                 warning: tempWarning,
-                onTap: () => _openHud(context, 'temp'),
+                onTap: () => _openHud('temp'),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -167,7 +211,7 @@ class DashboardPage extends ConsumerWidget {
                 redlineValue: settings.maxBatteryVoltage,
                 unit: 'V',
                 warning: voltWarning,
-                onTap: () => _openHud(context, 'volt'),
+                onTap: () => _openHud('volt'),
               ),
             ),
           ],
@@ -184,7 +228,7 @@ class DashboardPage extends ConsumerWidget {
                 unit: '°C',
                 activeCount: (tempPercent * 12).round(),
                 danger: tempWarning,
-                onTap: () => _openHud(context, 'temp'),
+                onTap: () => _openHud('temp'),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -195,7 +239,7 @@ class DashboardPage extends ConsumerWidget {
                 unit: 'V',
                 activeCount: (voltPercent * 12).round(),
                 danger: voltWarning,
-                onTap: () => _openHud(context, 'volt'),
+                onTap: () => _openHud('volt'),
               ),
             ),
           ],
@@ -217,7 +261,7 @@ class DashboardPage extends ConsumerWidget {
               accentColor: tempWarning
                   ? AppColors.neonRed
                   : AppColors.neonMagenta,
-              onTap: () => _openHud(context, 'temp'),
+              onTap: () => _openHud('temp'),
             ),
             const SizedBox(height: AppSpacing.md),
             AudiSweeperGauge(
@@ -233,7 +277,7 @@ class DashboardPage extends ConsumerWidget {
               accentColor: voltWarning
                   ? AppColors.neonRed
                   : AppColors.neonGreen,
-              onTap: () => _openHud(context, 'volt'),
+              onTap: () => _openHud('volt'),
             ),
           ],
         );
@@ -262,8 +306,110 @@ class DashboardPage extends ConsumerWidget {
     }
   }
 
+  Widget _buildFloatingBar({
+    required bool connected,
+    required bool demoEnabled,
+    required AppL10n l,
+    required String languageName,
+  }) {
+    return AnimatedOpacity(
+      opacity: _barVisible ? 1 : 0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: IgnorePointer(
+        ignoring: !_barVisible,
+        child: Container(
+          margin: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.sm,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerLow.withAlpha(225),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: AppColors.neonCyan.withAlpha((255 * 0.25).round()),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: l.language,
+                visualDensity: VisualDensity.compact,
+                icon: Text(
+                  languageName == 'ar' ? 'EN' : 'ع',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () {
+                  final local =
+                      ref.read(settingsProvider).value ??
+                      const AppSettings();
+
+                  ref
+                      .read(settingsProvider.notifier)
+                      .save(
+                        local.copyWith(
+                          languageName:
+                              local.languageName == 'ar' ? 'en' : 'ar',
+                        ),
+                      );
+                },
+              ),
+
+              // Compact connection indicator — the only connection
+              // status on the screen.
+              Tooltip(
+                message: connected ? l.connected : l.disconnected,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(
+                    connected
+                        ? Icons.sensors_rounded
+                        : Icons.sensors_off_rounded,
+                    size: 22,
+                    color: connected
+                        ? AppColors.neonGreen
+                        : AppColors.neonRed,
+                  ),
+                ),
+              ),
+
+              if (demoEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(left: 2, right: 2),
+                  child: Text(
+                    'DEMO',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+              IconButton(
+                tooltip: l.dashboardStyle,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.palette_outlined),
+                onPressed: _showStylePicker,
+              ),
+              IconButton(
+                tooltip: l.settings,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: () => context.push('/settings'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
     final activeAlerts = ref.watch(alertsProvider).active;
     final history = ref.watch(readingsHistoryProvider);
@@ -271,148 +417,104 @@ class DashboardPage extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
 
     final local = ref.watch(settingsProvider).value ?? const AppSettings();
-    // Thresholds may be overridden by limits reported by the module.
     final settings = ref.watch(effectiveSettingsProvider);
 
-    final demoEnabled = local.demoModeEnabled;
     final connected = state.connectionStatus == 'Connected';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+      body: Listener(
+        // Any touch — tap or scroll — reveals the floating bar again.
+        onPointerDown: (_) => _onScreenTouched(),
+        child: Stack(
           children: [
-            Text(l.appName),
-            if (demoEnabled) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withAlpha((255 * 0.15).round()),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'DEMO',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.warning),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: AppSpacing.padding,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (activeAlerts.isNotEmpty) ...[
+                      AlertsBanner(alerts: activeAlerts),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+
+                    // Gauges live at the very top of the screen.
+                    _buildGaugeArea(
+                      settings: settings,
+                      state: state,
+                      l: l,
+                    ),
+
+                    const SizedBox(height: AppSpacing.xs),
+
+                    Center(
+                      child: Text(
+                        '${l.lastUpdated}: ${state.lastUpdated}',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    const FanAlternatorRow(),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    const ModuleLimitsCard(),
+
+                    const SizedBox(height: AppSpacing.xl),
+
+                    ReadingChartCard(
+                      title: l.engineTemperature,
+                      values: history
+                          .map((sample) => sample.engineTemperature)
+                          .toList(),
+                      unit: '°C',
+                      color: AppColors.danger,
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    ReadingChartCard(
+                      title: l.batteryVoltage,
+                      values: history
+                          .map((sample) => sample.batteryVoltage)
+                          .toList(),
+                      unit: 'V',
+                      color: AppColors.success,
+                    ),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    const DeviceControlsCard(),
+                  ],
                 ),
               ),
-            ],
-          ],
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: l.language,
-            icon: Text(
-              local.languageName == 'ar' ? 'EN' : 'ع',
-              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            onPressed: () {
-              ref.read(settingsProvider.notifier).save(
-                local.copyWith(
-                  languageName: local.languageName == 'ar' ? 'en' : 'ar',
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: l.dashboardStyle,
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: () => _showStylePicker(context, ref, l),
-          ),
-          IconButton(
-            tooltip: l.settings,
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.push('/settings'),
-          ),
-        ],
-      ),
 
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: AppSpacing.padding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (activeAlerts.isNotEmpty) ...[
-                  AlertsBanner(alerts: activeAlerts),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-
-                ConnectionStatusCard(statusText: state.connectionStatus),
-
-                const SizedBox(height: AppSpacing.md),
-
-                _buildGaugeArea(
-                  context,
-                  ref,
-                  settings: settings,
-                  state: state,
+            // Floating control bar over the gauges.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                top: true,
+                bottom: false,
+                minimum: const EdgeInsets.only(top: AppSpacing.xs),
+                child: _buildFloatingBar(
+                  connected: connected,
+                  demoEnabled: local.demoModeEnabled,
                   l: l,
+                  languageName: local.languageName,
                 ),
-
-                const SizedBox(height: AppSpacing.xs),
-
-                Center(
-                  child: Text(
-                    '${l.lastUpdated}: ${state.lastUpdated}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                FanStatusCard(
-                  value: state.fanStatus,
-                  statusText: connected ? l.liveReading : l.noData,
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                const AlternatorStatusCard(),
-
-                const SizedBox(height: AppSpacing.md),
-
-                const ModuleLimitsCard(),
-
-                const SizedBox(height: AppSpacing.xl),
-
-                ReadingChartCard(
-                  title: l.engineTemperature,
-                  values: history
-                      .map((sample) => sample.engineTemperature)
-                      .toList(),
-                  unit: '°C',
-                  color: AppColors.danger,
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                ReadingChartCard(
-                  title: l.batteryVoltage,
-                  values: history
-                      .map((sample) => sample.batteryVoltage)
-                      .toList(),
-                  unit: 'V',
-                  color: AppColors.success,
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                const DeviceControlsCard(),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -71,16 +71,14 @@ lib/features/dashboard/providers/voltage_delta_provider.dart
 lib/features/dashboard/repositories/dashboard_repository.dart
 lib/features/dashboard/services/dashboard_service.dart
 lib/features/dashboard/widgets/alerts_banner.dart
-lib/features/dashboard/widgets/alternator_status_card.dart
 lib/features/dashboard/widgets/base_dashboard_card.dart
 lib/features/dashboard/widgets/battery_voltage_card.dart
-lib/features/dashboard/widgets/connection_status_card.dart
+lib/features/dashboard/widgets/compact_status_row.dart
 lib/features/dashboard/widgets/coolant_level_card.dart
 lib/features/dashboard/widgets/dashboard_gauges.dart
 lib/features/dashboard/widgets/dashboard_placeholder.dart
 lib/features/dashboard/widgets/device_controls_card.dart
 lib/features/dashboard/widgets/engine_temperature_card.dart
-lib/features/dashboard/widgets/fan_status_card.dart
 lib/features/dashboard/widgets/fullscreen_hud_page.dart
 lib/features/dashboard/widgets/mini_gauges.dart
 lib/features/dashboard/widgets/module_limits_card.dart
@@ -99,4 +97,5 @@ test/core/services/alert_evaluator_test.dart
 test/core/services/demo_device_service_test.dart
 test/core/services/device_module_settings_test.dart
 test/features/dashboard/providers/dashboard_provider_test.dart
+test/features/dashboard/providers/voltage_delta_provider_test.dart
 test/widget_test.dart

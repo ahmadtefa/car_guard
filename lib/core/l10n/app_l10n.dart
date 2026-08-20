@@ -67,6 +67,7 @@ class AppL10n {
   String get coolantReservoirInfo =>
       isAr ? 'حالة خزان الردييتر' : 'Coolant reservoir status';
   String get radiatorFan => isAr ? 'مروحة الردييتر' : 'Radiator Fan';
+  String get fanShort => isAr ? 'المروحة' : 'Fan';
   String get fanSystemInfo =>
       isAr ? 'حالة مروحة التبريد' : 'Cooling system fan status';
   String fanOnAt(String temp) =>
