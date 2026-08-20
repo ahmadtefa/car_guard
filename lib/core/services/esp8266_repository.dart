@@ -24,6 +24,7 @@ class Esp8266Repository implements DeviceRepository {
 
   WebSocketChannel? _channel;
   Timer? _httpTimer;
+  Timer? _wsTimeoutTimer;
 
   final StreamController<DeviceStatus> _statusController =
       StreamController<DeviceStatus>.broadcast();
@@ -49,6 +50,10 @@ class Esp8266Repository implements DeviceRepository {
     _activePort = wsPort;
 
     await disconnect();
+
+    // disconnect() flagged the repository as stopped; clear the flag because
+    // connect() is about to establish a brand new session.
+    _stopped = false;
 
 
     debugPrint(
@@ -93,6 +98,10 @@ class Esp8266Repository implements DeviceRepository {
             "WS CLOSED",
           );
 
+          if (_stopped) {
+            return;
+          }
+
           _setDisconnected();
 
           _startHttpFallback(host);
@@ -105,6 +114,10 @@ class Esp8266Repository implements DeviceRepository {
           debugPrint(
             "WS ERROR $error",
           );
+
+          if (_stopped) {
+            return;
+          }
 
           _setDisconnected();
 
@@ -123,11 +136,13 @@ class Esp8266Repository implements DeviceRepository {
       );
 
 
-      Future.delayed(
+      _wsTimeoutTimer?.cancel();
+
+      _wsTimeoutTimer = Timer(
         const Duration(seconds: 3),
         () {
 
-          if (!_connected) {
+          if (!_connected && !_stopped) {
 
             debugPrint(
               "WS TIMEOUT -> HTTP FALLBACK",
@@ -161,7 +176,7 @@ class Esp8266Repository implements DeviceRepository {
     String host,
   ) {
 
-    if (_usingHttpFallback) {
+    if (_stopped || _usingHttpFallback) {
       return;
     }
 
@@ -441,11 +456,17 @@ class Esp8266Repository implements DeviceRepository {
   @override
   Future<void> disconnect() async {
 
+    // Flag first so the WebSocket onDone/onError callbacks triggered by
+    // closing the sink below cannot restart the HTTP fallback timer.
+    _stopped = true;
 
     _httpTimer?.cancel();
 
     _httpTimer = null;
 
+    _wsTimeoutTimer?.cancel();
+
+    _wsTimeoutTimer = null;
 
     await _channel?.sink.close();
 
