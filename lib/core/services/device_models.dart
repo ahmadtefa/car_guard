@@ -196,15 +196,25 @@ class DeviceControlData {
   const DeviceControlData({
     this.fanRunning = false,
     this.buzzerActive = false,
+    this.muted = false,
   });
 
   final bool fanRunning;
+
+  /// Whether the module's own alarm (buzzer) is currently firing.
   final bool buzzerActive;
+
+  /// Whether the module buzzer is muted from the app or the module side.
+  final bool muted;
 
   factory DeviceControlData.fromJson(Map<String, dynamic> json) {
     return DeviceControlData(
       fanRunning: json['fanRunning'] as bool? ?? false,
-      buzzerActive: json['buzzerActive'] as bool? ?? false,
+      buzzerActive:
+          json['buzzerActive'] as bool? ??
+          json['alarm'] == 1 ||
+          json['alarm'] == true,
+      muted: json['muted'] == 1 || json['muted'] == true,
     );
   }
 
@@ -212,6 +222,7 @@ class DeviceControlData {
     return {
       'fanRunning': fanRunning,
       'buzzerActive': buzzerActive,
+      'muted': muted,
     };
   }
 }

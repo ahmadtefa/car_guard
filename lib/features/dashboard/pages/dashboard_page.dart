@@ -17,14 +17,13 @@ import '../widgets/alerts_banner.dart';
 import '../widgets/alternator_status_card.dart';
 import '../widgets/battery_voltage_card.dart';
 import '../widgets/connection_status_card.dart';
-import '../widgets/coolant_level_card.dart';
 import '../widgets/dashboard_gauges.dart';
 import '../widgets/device_controls_card.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fan_status_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
+import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
-import '../widgets/voltage_difference_card.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -370,22 +369,6 @@ class DashboardPage extends ConsumerWidget {
 
                 const SizedBox(height: AppSpacing.md),
 
-                VoltageDifferenceCard(
-                  value: state.voltageDifference,
-                  statusText: connected ? l.liveReading : l.noData,
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                CoolantLevelCard(
-                  value: state.coolantLevel,
-                  statusText: state.coolantLevel == 'Low'
-                      ? l.needsAttention
-                      : l.normal,
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
                 FanStatusCard(
                   value: state.fanStatus,
                   statusText: connected ? l.liveReading : l.noData,
@@ -394,6 +377,10 @@ class DashboardPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
 
                 const AlternatorStatusCard(),
+
+                const SizedBox(height: AppSpacing.md),
+
+                const ModuleLimitsCard(),
 
                 const SizedBox(height: AppSpacing.xl),
 

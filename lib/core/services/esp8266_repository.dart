@@ -479,6 +479,52 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Reads the Wi-Fi credentials stored on the module
+  /// (`/getwifisettings`).
+  Future<({String ssid, String password})?> getWifiSettings() async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.getWifiSettings}",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return (
+        ssid: decoded['ssid'] as String? ?? '',
+        password: decoded['password'] as String? ?? '',
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        "GET WIFI SETTINGS FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
   /// Runs the on-module voltage calibration wizard (`/calibratevoltage`).
   ///
   /// The firmware replies with `OK,<newFactor>`; the new factor is returned
@@ -661,6 +707,10 @@ class Esp8266Repository implements DeviceRepository {
                 json["alarm"] == 1 ||
                 json["alarmState"] == 1,
 
+            muted:
+                json["muted"] == 1 ||
+                json["muted"] == true,
+
           ),
 
 
@@ -738,7 +788,11 @@ class Esp8266Repository implements DeviceRepository {
                 parts[2].trim() == "1" ||
                     parts[2].trim().toLowerCase() == "true",
 
-            buzzerActive: false,
+            // temp,volt,fanState,?,...,offset,alarm,muted
+            buzzerActive:
+                parts.length > 9 ? parts[9].trim() == "1" : false,
+
+            muted: parts.length > 10 ? parts[10].trim() == "1" : false,
 
           ),
 

@@ -80,6 +80,18 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
       _loaded = settings;
       _loading = false;
     });
+
+    // Prefill the Wi-Fi card with the credentials stored on the module.
+    final wifi = await ref
+        .read(esp8266RepositoryProvider)
+        .getWifiSettings();
+
+    if (!mounted || wifi == null) return;
+
+    setState(() {
+      _ssid.text = wifi.ssid;
+      _password.text = wifi.password;
+    });
   }
 
   void _snack(String message) {
@@ -113,6 +125,15 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
         fanOnTemp == null ||
         minVolt == null ||
         maxVolt == null) {
+      return;
+    }
+
+    // Ranges enforced by the firmware itself (handleSaveAllSettings).
+    if (alarmTemp < 50 || alarmTemp > 150 ||
+        fanOnTemp < 40 || fanOnTemp > 140 ||
+        minVolt < 8 || minVolt > 14 ||
+        maxVolt < 12 || maxVolt > 18) {
+      _snack(l.valueOutOfRange(l.alarmLimits));
       return;
     }
 

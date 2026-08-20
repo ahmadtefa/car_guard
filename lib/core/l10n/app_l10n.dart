@@ -72,6 +72,27 @@ class AppL10n {
   String notChargingV(String volt) =>
       isAr ? 'لا يشحن ($volt فولت)' : 'Not charging ($volt V)';
 
+  // ---------- Module limits / sync ----------
+  String get moduleLimits => isAr ? 'حدود الإنذار على الجهاز' : 'Module alarm limits';
+  String get moduleLimitsInfo => isAr
+      ? 'كما هي محفوظة على الوحدة نفسها.'
+      : 'As stored on the module itself.';
+  String get notReported => isAr
+      ? 'الجهاز لم يبلغ عنها بعد.'
+      : 'Not reported by the module yet.';
+  String get alarmTempShort => isAr ? 'درجة الإنذار' : 'Alarm temp';
+  String get fanOnShort => isAr ? 'تشغيل المروحة' : 'Fan ON';
+  String get minVoltShort => isAr ? 'أقل جهد' : 'Min volt';
+  String get maxVoltShort => isAr ? 'أقصى جهد' : 'Max volt';
+  String get moduleAlarmActive =>
+      isAr ? 'إنذار الجهاز شغال الآن!' : 'Module alarm is firing!';
+  String get moduleMuted => isAr ? 'صفارة الجهاز مكتومة' : 'Module buzzer muted';
+  String valueOutOfRange(String label) =>
+      isAr ? '$label خارج النطاق المسموح من الجهاز.' : '$label is outside the range allowed by the module.';
+  String get wifiLoadFailed => isAr
+      ? 'تعذر قراءة إعدادات الواي فاي من الجهاز.'
+      : 'Could not load Wi-Fi settings from the module.';
+
   // ---------- Style picker ----------
   String get dashboardStyle => isAr ? 'شكل الداشبورد' : 'Dashboard style';
   String get styleCards => isAr ? 'كروت كلاسيك' : 'Classic cards';

@@ -123,6 +123,8 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
   }
 
   Future<void> _save() async {
+    final l10n = ref.read(l10nProvider);
+
     final offset = _parseField(_offset, 'Temperature offset');
     final voltCalib = _parseField(_voltCalib, 'Voltage calibration');
     final r1 = _parseField(_r1, 'R1');
@@ -137,13 +139,25 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
       return;
     }
 
-    if (voltCalib <= 0) {
-      _snack('Voltage calibration must be greater than zero.');
+    // Ranges enforced by the firmware (handleSaveAdvancedSettings).
+    if (voltCalib < 0.1 || voltCalib > 10.0) {
+      _snack(l10n.valueOutOfRange(l10n.voltCalibLabel));
       return;
     }
 
-    if (r1 <= 0 || r2 <= 0 || pullUp <= 0) {
-      _snack('Resistances must be greater than zero.');
+    if (r1 <= 0 || r1 >= 100000 || r2 <= 0 || r2 >= 100000 || pullUp <= 0 || pullUp >= 100000) {
+      _snack(l10n.valueOutOfRange(l10n.r1Label));
+      return;
+    }
+
+    if (offset < -10 || offset > 10) {
+      _snack(l10n.valueOutOfRange(l10n.tempOffsetLabel));
+      return;
+    }
+
+    final installDateText = _installDate.text.trim();
+    if (installDateText.length < 8 || installDateText.length > 16) {
+      _snack(l10n.valueOutOfRange(l10n.installDateLabel));
       return;
     }
 
@@ -158,7 +172,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
             r1: r1,
             r2: r2,
             sensorPullUp: pullUp,
-            installDate: _installDate.text.trim(),
+            installDate: installDateText,
           ),
         );
 

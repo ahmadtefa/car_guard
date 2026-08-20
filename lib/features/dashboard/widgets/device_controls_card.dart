@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../settings/providers/settings_provider.dart';
 import 'base_dashboard_card.dart';
+
 
 /// Dashboard card exposing direct commands to the physical module plus the
 /// in-app alarm mute toggle.
@@ -62,6 +65,25 @@ class DeviceControlsCard extends ConsumerWidget {
 
     final demoEnabled = settings.demoModeEnabled;
 
+    final control = ref.watch(deviceStatusProvider).value?.controlData;
+
+    final Widget? statusLine = (control == null)
+        ? null
+        : control.buzzerActive
+        ? Text(
+            l.moduleAlarmActive,
+            style: const TextStyle(
+              color: AppColors.neonRed,
+              fontWeight: FontWeight.bold,
+            ),
+          )
+        : control.muted
+        ? Text(
+            l.moduleMuted,
+            style: const TextStyle(color: AppColors.neonAmber),
+          )
+        : null;
+
     return BaseDashboardCard(
       title: l.deviceControls,
       value: '',
@@ -70,6 +92,10 @@ class DeviceControlsCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (statusLine != null) ...[
+            statusLine,
+            const SizedBox(height: AppSpacing.md),
+          ],
           Row(
             children: [
               Expanded(
