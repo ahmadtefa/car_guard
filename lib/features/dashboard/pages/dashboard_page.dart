@@ -26,6 +26,7 @@ import '../widgets/dashboard_gauges.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/more_gauges.dart';
+import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/voltage_delta_card.dart';
 
