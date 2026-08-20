@@ -153,8 +153,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   /// Overlays small corner badges (fan / alternator) on any gauge widget.
-  Widget _badged(
-    Widget child, {
+  Widget _badged({
+    required Widget child,
     Widget? topRight,
     Widget? topLeft,
   }) {
