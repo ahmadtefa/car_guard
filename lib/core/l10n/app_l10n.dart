@@ -81,6 +81,10 @@ class AppL10n {
   String notChargingV(String volt) =>
       isAr ? 'لا يشحن ($volt فولت)' : 'Not charging ($volt V)';
 
+  String get readingsAndCharts => isAr
+      ? 'القراءات والرسوم البيانية'
+      : 'Readings & charts';
+
   // ---------- OTA update ----------
   String get otaUpdate => isAr ? 'تحديث الجهاز (OTA)' : 'Update device (OTA)';
   String get otaInfo => isAr

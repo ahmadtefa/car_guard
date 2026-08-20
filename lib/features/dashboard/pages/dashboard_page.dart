@@ -11,6 +11,7 @@ import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/secondary_button.dart';
+import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -22,7 +23,6 @@ import '../widgets/alerts_banner.dart';
 import '../widgets/battery_voltage_card.dart';
 import '../widgets/compact_status_row.dart';
 import '../widgets/dashboard_gauges.dart';
-import '../widgets/device_controls_card.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/more_gauges.dart';
@@ -75,6 +75,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       setState(() => _barVisible = true);
     }
     _scheduleHide();
+  }
+
+  void _showDataSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _DataSheet(),
+    );
+  }
+
+  Future<void> _toggleAlarmSound() async {
+    final local = ref.read(settingsProvider).value ?? const AppSettings();
+
+    final next = !local.alarmSoundEnabled;
+
+    await ref
+        .read(settingsProvider.notifier)
+        .save(local.copyWith(alarmSoundEnabled: next));
+
+    if (!next) {
+      await ref.read(alarmServiceProvider).stop();
+
+      if (!local.demoModeEnabled) {
+        // Best-effort: also silence the module buzzer.
+        await ref.read(esp8266RepositoryProvider).muteBuzzer();
+      }
+    }
   }
 
   void _showModuleInfo() {
@@ -153,6 +180,29 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _roundIconButton({
+    required String tooltip,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withAlpha((255 * 0.14).round()),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withAlpha((255 * 0.55).round())),
+          ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+      ),
     );
   }
 
@@ -541,6 +591,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 onPressed: _showModuleInfo,
               ),
               IconButton(
+                tooltip: l.readingsAndCharts,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.insights_rounded),
+                onPressed: _showDataSheet,
+              ),
+              IconButton(
                 tooltip: l.dashboardStyle,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.palette_outlined),
@@ -557,7 +613,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(dashboardProvider);
     final activeAlerts = ref.watch(alertsProvider).active;
-    final history = ref.watch(readingsHistoryProvider);
 
     final l = ref.watch(l10nProvider);
 
@@ -608,35 +663,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     const FanAlternatorRow(),
 
-                    const SizedBox(height: AppSpacing.md),
-
-                    const ModuleLimitsCard(),
-
                     const SizedBox(height: AppSpacing.xl),
 
-                    ReadingChartCard(
-                      title: l.engineTemperature,
-                      values: history
-                          .map((sample) => sample.engineTemperature)
-                          .toList(),
-                      unit: '°C',
-                      color: AppColors.danger,
+                    // Icon-only controls: mute + settings.
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _roundIconButton(
+                          tooltip: local.alarmSoundEnabled
+                              ? l.muteAlarm
+                              : l.enableAlarm,
+                          icon: local.alarmSoundEnabled
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                          color: local.alarmSoundEnabled
+                              ? AppColors.neonAmber
+                              : AppColors.textSecondary,
+                          onTap: _toggleAlarmSound,
+                        ),
+                        const SizedBox(width: AppSpacing.lg),
+                        _roundIconButton(
+                          tooltip: l.settings,
+                          icon: Icons.settings_outlined,
+                          color: AppColors.neonCyan,
+                          onTap: () => context.push('/settings'),
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    ReadingChartCard(
-                      title: l.batteryVoltage,
-                      values: history
-                          .map((sample) => sample.batteryVoltage)
-                          .toList(),
-                      unit: 'V',
-                      color: AppColors.success,
-                    ),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    const DeviceControlsCard(),
                   ],
                 ),
               ),
@@ -772,6 +825,78 @@ class _ModuleInfoSheetState extends ConsumerState<_ModuleInfoSheet> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet holding the module limits, the live charts and the
+/// module-settings shortcut — everything that used to clutter the
+/// main screen.
+class _DataSheet extends ConsumerWidget {
+  const _DataSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
+    final history = ref.watch(readingsHistoryProvider);
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      child: SafeArea(
+        child: ListView(
+          padding: AppSpacing.padding,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.insights_rounded, color: AppColors.neonCyan),
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  l.readingsAndCharts,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            const ModuleLimitsCard(),
+
+            const SizedBox(height: AppSpacing.md),
+
+            ReadingChartCard(
+              title: l.engineTemperature,
+              values: history
+                  .map((sample) => sample.engineTemperature)
+                  .toList(),
+              unit: '°C',
+              color: AppColors.danger,
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            ReadingChartCard(
+              title: l.batteryVoltage,
+              values: history
+                  .map((sample) => sample.batteryVoltage)
+                  .toList(),
+              unit: 'V',
+              color: AppColors.success,
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            SecondaryButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/device-settings');
+              },
+              child: Text(l.moduleSettings),
+            ),
+          ],
+        ),
       ),
     );
   }

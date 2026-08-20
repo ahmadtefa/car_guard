@@ -117,6 +117,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  Future<void> _restartDevice() async {
+    final l = ref.read(l10nProvider);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l.restartModuleQ),
+        content: Text(l.restartConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l.restart),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final ok = await ref.read(esp8266RepositoryProvider).restartDevice();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? l.restartMsg : l.restartFailed)),
+    );
+  }
+
   String _styleLabel(String name, AppL10n l) {
     return switch (name) {
       'racing' => l.styleRacing,
@@ -162,6 +194,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             SecondaryButton(
               onPressed: () => context.push('/ota-update'),
               child: Text(l.otaUpdate),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
+              onPressed: settings.demoModeEnabled ? null : _restartDevice,
+              child: Text(l.restartDevice),
             ),
             const SizedBox(height: AppSpacing.xl),
 
