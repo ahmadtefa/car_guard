@@ -82,6 +82,10 @@ class AppL10n {
       isAr ? 'لا يشحن ($volt فولت)' : 'Not charging ($volt V)';
 
   String get systemOk => isAr ? 'النظام يعمل' : 'System OK';
+  String get fullscreenGauges => isAr
+      ? 'العدادات بالشاشة الكاملة'
+      : 'Fullscreen gauges';
+  String get close => isAr ? 'إغلاق' : 'Close';
   String get readingsAndCharts => isAr
       ? 'القراءات والرسوم البيانية'
       : 'Readings & charts';

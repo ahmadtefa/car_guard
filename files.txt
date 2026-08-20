@@ -78,7 +78,9 @@ lib/features/dashboard/widgets/coolant_level_card.dart
 lib/features/dashboard/widgets/dashboard_gauges.dart
 lib/features/dashboard/widgets/dashboard_placeholder.dart
 lib/features/dashboard/widgets/engine_temperature_card.dart
+lib/features/dashboard/widgets/fullscreen_gauges_page.dart
 lib/features/dashboard/widgets/fullscreen_hud_page.dart
+lib/features/dashboard/widgets/gauge_area.dart
 lib/features/dashboard/widgets/mini_gauges.dart
 lib/features/dashboard/widgets/module_limits_card.dart
 lib/features/dashboard/widgets/more_gauges.dart

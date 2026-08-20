@@ -18,16 +18,13 @@ import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
-import '../widgets/battery_voltage_card.dart';
 import '../widgets/compact_status_row.dart';
-import '../widgets/dashboard_gauges.dart';
-import '../widgets/engine_temperature_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
-import '../widgets/more_gauges.dart';
+import '../widgets/fullscreen_gauges_page.dart';
+import '../widgets/gauge_area.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/system_status_card.dart';
-import '../widgets/voltage_delta_card.dart';
 
 /// Full-screen dashboard.
 ///
@@ -206,301 +203,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _buildGaugeArea({
-    required AppSettings settings,
-    required DashboardState state,
-    required AppL10n l,
-  }) {
-    final device = ref.watch(deviceStatusProvider).value;
-
-    final connected = device?.connected ?? false;
-    final temperature = device?.temperatureData.engineTemperature ?? 0;
-    final voltage = device?.batteryData.voltage ?? 0;
-
-    final tempPercent = (temperature / 180).clamp(0.0, 1.0);
-    final voltPercent = ((voltage - 10) / 6).clamp(0.0, 1.0);
-
-    final tempWarning = connected && temperature >= settings.engineTempCritical;
-    final voltWarning =
-        connected &&
-        (voltage <= settings.minBatteryVoltage ||
-            voltage > settings.maxBatteryVoltage);
-
-    switch (settings.dashboardStyleName) {
-      case 'racing':
-        return Column(
-          children: [
-            RacingGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              warning: tempWarning,
-              onTap: () => _openHud('temp'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            RacingGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              warning: voltWarning,
-              onTap: () => _openHud('volt'),
-            ),
-          ],
-        );
-
-      case 'sporty':
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SportyGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                min: 0,
-                max: 180,
-                redlineValue: settings.engineTempCritical,
-                unit: '°C',
-                warning: tempWarning,
-                onTap: () => _openHud('temp'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: SportyGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                min: 10,
-                max: 16,
-                redlineValue: settings.maxBatteryVoltage,
-                unit: 'V',
-                warning: voltWarning,
-                onTap: () => _openHud('volt'),
-              ),
-            ),
-          ],
-        );
-
-      case 'segments':
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SegmentedGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                unit: '°C',
-                activeCount: (tempPercent * 12).round(),
-                danger: tempWarning,
-                onTap: () => _openHud('temp'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: SegmentedGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                unit: 'V',
-                activeCount: (voltPercent * 12).round(),
-                danger: voltWarning,
-                onTap: () => _openHud('volt'),
-              ),
-            ),
-          ],
-        );
-
-      case 'sweeper':
-        return Column(
-          children: [
-            AudiSweeperGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              gradientColors: [
-                AppColors.neonCyan,
-                AppColors.neonAmber,
-                AppColors.neonRed,
-              ],
-              accentColor: tempWarning
-                  ? AppColors.neonRed
-                  : AppColors.neonMagenta,
-              onTap: () => _openHud('temp'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AudiSweeperGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              gradientColors: [
-                AppColors.neonRed,
-                AppColors.neonGreen,
-                AppColors.neonGreen,
-              ],
-              accentColor: voltWarning
-                  ? AppColors.neonRed
-                  : AppColors.neonGreen,
-              onTap: () => _openHud('volt'),
-            ),
-          ],
-        );
-
-      case 'ring':
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: NeonRingGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                unit: '°C',
-                percent: tempPercent,
-                danger: tempWarning,
-                onTap: () => _openHud('temp'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: NeonRingGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                unit: 'V',
-                percent: voltPercent,
-                danger: voltWarning,
-                onTap: () => _openHud('volt'),
-              ),
-            ),
-          ],
-        );
-
-      case 'led':
-        return Column(
-          children: [
-            LedStripGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              danger: tempWarning,
-              onTap: () => _openHud('temp'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            LedStripGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              danger: voltWarning,
-              onTap: () => _openHud('volt'),
-            ),
-          ],
-        );
-
-      case 'needle':
-        return Column(
-          children: [
-            NeedleMeterGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              danger: tempWarning,
-              onTap: () => _openHud('temp'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            NeedleMeterGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              danger: voltWarning,
-              onTap: () => _openHud('volt'),
-            ),
-          ],
-        );
-
-      case 'orb':
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: LiquidOrbGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                unit: '°C',
-                percent: tempPercent,
-                danger: tempWarning,
-                onTap: () => _openHud('temp'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: LiquidOrbGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                unit: 'V',
-                percent: voltPercent,
-                danger: voltWarning,
-                onTap: () => _openHud('volt'),
-              ),
-            ),
-          ],
-        );
-
-      case 'combo':
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: DigitalClusterGauge(
-                label: l.engineTempLabel,
-                value: temperature,
-                unit: '°C',
-                percent: tempPercent,
-                danger: tempWarning,
-                onTap: () => _openHud('temp'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: DigitalClusterGauge(
-                label: l.batteryVoltLabel,
-                value: voltage,
-                unit: 'V',
-                percent: voltPercent,
-                danger: voltWarning,
-                onTap: () => _openHud('volt'),
-              ),
-            ),
-          ],
-        );
-
-      default:
-        return Column(
-          children: [
-            EngineTemperatureCard(
-              value: state.engineTemperature,
-              temperature: connected ? temperature : null,
-              warnValue: settings.engineTempWarning,
-              criticalValue: settings.engineTempCritical,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            BatteryVoltageCard(
-              value: state.batteryVoltage,
-              statusText: connected ? l.liveReading : l.noData,
-              voltage: connected ? voltage : null,
-              lowValue: settings.minBatteryVoltage,
-              highValue: settings.maxBatteryVoltage,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const VoltageDeltaCard(),
-          ],
-        );
-    }
-  }
-
   Widget _buildFloatingBar({
     required bool connected,
     required bool demoEnabled,
@@ -597,6 +299,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 onPressed: _showDataSheet,
               ),
               IconButton(
+                tooltip: l.fullscreenGauges,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.fullscreen_rounded),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => const FullscreenGaugesPage(),
+                    ),
+                  );
+                },
+              ),
+              IconButton(
                 tooltip: l.dashboardStyle,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.palette_outlined),
@@ -633,10 +348,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Gauges live at the very top of the screen.
-                    _buildGaugeArea(
+                    buildGaugeArea(
+                      context,
+                      ref,
                       settings: settings,
                       state: state,
                       l: l,
+                      onOpenHud: _openHud,
                     ),
 
                     const SizedBox(height: AppSpacing.xs),
