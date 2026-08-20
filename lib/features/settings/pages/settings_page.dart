@@ -222,49 +222,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             const SizedBox(height: AppSpacing.xl),
 
-            SectionTitle(title: l.appearance, subtitle: l.chooseLook),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: SegmentedButton<String>(
-                segments: [
-                  ButtonSegment(
-                    value: 'system',
-                    icon: const Icon(Icons.brightness_auto_outlined),
-                    label: Text(l.auto),
-                  ),
-                  ButtonSegment(
-                    value: 'light',
-                    icon: const Icon(Icons.light_mode_outlined),
-                    label: Text(l.light),
-                  ),
-                  ButtonSegment(
-                    value: 'dark',
-                    icon: const Icon(Icons.dark_mode_outlined),
-                    label: Text(l.dark),
-                  ),
-                ],
-                selected: {settings.themeModeName},
-                onSelectionChanged: (selection) => _save(
-                  settings.copyWith(themeModeName: selection.first),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: SegmentedButton<String>(
-                segments: [
-                  ButtonSegment(value: 'en', label: const Text('English')),
-                  ButtonSegment(value: 'ar', label: const Text('العربية')),
-                ],
-                selected: {settings.languageName},
-                onSelectionChanged: (selection) => _save(
-                  settings.copyWith(languageName: selection.first),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-
             SectionTitle(title: l.demoMode, subtitle: l.demoModeInfo),
             SwitchListTile(
               title: Text(l.simulatedDevice),

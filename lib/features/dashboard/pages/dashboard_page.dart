@@ -681,6 +681,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         ),
                         const SizedBox(width: AppSpacing.lg),
                         _roundIconButton(
+                          tooltip: switch (local.themeModeName) {
+                            'light' => l.light,
+                            'dark' => l.dark,
+                            _ => l.auto,
+                          },
+                          icon: switch (local.themeModeName) {
+                            'light' => Icons.light_mode_outlined,
+                            'dark' => Icons.dark_mode_outlined,
+                            _ => Icons.brightness_auto_outlined,
+                          },
+                          color: AppColors.neonAmber,
+                          onTap: () {
+                            final next = switch (local.themeModeName) {
+                              'system' => 'light',
+                              'light' => 'dark',
+                              _ => 'system',
+                            };
+
+                            ref
+                                .read(settingsProvider.notifier)
+                                .save(
+                                  local.copyWith(themeModeName: next),
+                                );
+                          },
+                        ),
+                        const SizedBox(width: AppSpacing.lg),
+                        _roundIconButton(
                           tooltip: l.settings,
                           icon: Icons.settings_outlined,
                           color: AppColors.neonCyan,
