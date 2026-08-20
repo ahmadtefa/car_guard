@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/models/app_settings.dart';
@@ -134,6 +135,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             PrimaryButton(
               onPressed: _saveDeviceAddress,
               child: const Text('Save device'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
+              onPressed: () => context.push('/advanced-settings'),
+              child: const Text('Advanced module settings'),
             ),
             const SizedBox(height: AppSpacing.xl),
 

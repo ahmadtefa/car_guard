@@ -312,17 +312,18 @@ class _DeviceSettingsPageState extends ConsumerState<DeviceSettingsPage> {
                 onPressed: _saving ? null : _saveWifi,
                 child: const Text('Save Wi-Fi'),
               ),
-              const SizedBox(height: AppSpacing.xl),
-
-              SectionTitle(
-                title: 'Advanced',
-                subtitle: 'Password-protected calibration tools.',
-              ),
-              SecondaryButton(
-                onPressed: () => context.push('/advanced-settings'),
-                child: const Text('Advanced settings'),
-              ),
             ],
+
+            // Always reachable, even when the module itself is not.
+            const SizedBox(height: AppSpacing.xl),
+            SectionTitle(
+              title: 'Advanced',
+              subtitle: 'Password-protected calibration tools.',
+            ),
+            SecondaryButton(
+              onPressed: () => context.push('/advanced-settings'),
+              child: const Text('Advanced settings'),
+            ),
           ],
         ),
       ),
