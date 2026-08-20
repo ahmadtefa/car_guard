@@ -16,6 +16,7 @@ class AppTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.enabled = true,
+    this.onSubmitted,
   });
 
   /// Optional controller for the underlying text field.
