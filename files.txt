@@ -18,8 +18,10 @@ lib/core/models/connection_status.dart
 lib/core/models/device_alert.dart
 lib/core/models/device_data.dart
 lib/core/models/operation_state.dart
+lib/core/models/reading_sample.dart
 lib/core/models/result.dart
 lib/core/providers/connectivity_provider.dart
+lib/core/providers/demo_device_provider.dart
 lib/core/providers/device_provider.dart
 lib/core/providers/device_status_provider.dart
 lib/core/providers/http_provider.dart
@@ -31,6 +33,7 @@ lib/core/providers/websocket_provider.dart
 lib/core/providers/wifi_provider.dart
 lib/core/services/alert_evaluator.dart
 lib/core/services/connectivity_service.dart
+lib/core/services/demo_device_service.dart
 lib/core/services/device_models.dart
 lib/core/services/device_repository.dart
 lib/core/services/esp8266_repository.dart
@@ -57,6 +60,7 @@ lib/features/dashboard/pages/dashboard_page.dart
 lib/features/dashboard/pages/home_page.dart
 lib/features/dashboard/providers/alerts_provider.dart
 lib/features/dashboard/providers/dashboard_provider.dart
+lib/features/dashboard/providers/readings_history_provider.dart
 lib/features/dashboard/repositories/dashboard_repository.dart
 lib/features/dashboard/services/dashboard_service.dart
 lib/features/dashboard/widgets/alerts_banner.dart
@@ -65,8 +69,10 @@ lib/features/dashboard/widgets/battery_voltage_card.dart
 lib/features/dashboard/widgets/connection_status_card.dart
 lib/features/dashboard/widgets/coolant_level_card.dart
 lib/features/dashboard/widgets/dashboard_placeholder.dart
+lib/features/dashboard/widgets/device_controls_card.dart
 lib/features/dashboard/widgets/engine_temperature_card.dart
 lib/features/dashboard/widgets/fan_status_card.dart
+lib/features/dashboard/widgets/reading_chart_card.dart
 lib/features/dashboard/widgets/voltage_difference_card.dart
 lib/features/device/models/device_data.dart
 lib/features/device/models/device_settings.dart
@@ -74,3 +80,8 @@ lib/features/device/pages/device_connection_page.dart
 lib/features/settings/pages/settings_page.dart
 lib/features/settings/providers/settings_provider.dart
 lib/main.dart
+test/core/models/app_settings_test.dart
+test/core/services/alert_evaluator_test.dart
+test/core/services/demo_device_service_test.dart
+test/features/dashboard/providers/dashboard_provider_test.dart
+test/widget_test.dart

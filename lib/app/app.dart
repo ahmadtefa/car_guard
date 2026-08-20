@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
+import '../features/settings/providers/settings_provider.dart';
 import 'router.dart';
 
 /// Root application widget for Car Guard.
@@ -12,7 +13,15 @@ class CarGuardApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
-    final themeMode = ref.watch(themeModeProvider);
+
+    final themeModeName =
+        ref.watch(settingsProvider).value?.themeModeName ?? 'system';
+
+    final themeMode = switch (themeModeName) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
 
     return MaterialApp.router(
       title: 'Car Guard',

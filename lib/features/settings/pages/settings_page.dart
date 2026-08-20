@@ -188,6 +188,55 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ],
             const SizedBox(height: AppSpacing.xl),
+
+            SectionTitle(
+              title: 'Appearance',
+              subtitle: 'Choose how the app looks.',
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'system',
+                    icon: Icon(Icons.brightness_auto_outlined),
+                    label: Text('Auto'),
+                  ),
+                  ButtonSegment(
+                    value: 'light',
+                    icon: Icon(Icons.light_mode_outlined),
+                    label: Text('Light'),
+                  ),
+                  ButtonSegment(
+                    value: 'dark',
+                    icon: Icon(Icons.dark_mode_outlined),
+                    label: Text('Dark'),
+                  ),
+                ],
+                selected: {settings.themeModeName},
+                onSelectionChanged: (selection) => _save(
+                  settings.copyWith(themeModeName: selection.first),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            SectionTitle(
+              title: 'Demo mode',
+              subtitle: 'Simulate a Car Guard device to explore the app '
+                  'without hardware.',
+            ),
+            SwitchListTile(
+              title: const Text('Simulated device'),
+              subtitle: const Text(
+                'Feeds realistic readings so cards, charts and alerts work '
+                'without the module.',
+              ),
+              value: settings.demoModeEnabled,
+              onChanged: (value) =>
+                  _save(settings.copyWith(demoModeEnabled: value)),
+            ),
+            const SizedBox(height: AppSpacing.xl),
             SecondaryButton(
               onPressed: _resetToDefaults,
               child: const Text('Reset to defaults'),

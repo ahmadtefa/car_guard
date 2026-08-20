@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../constants/device_endpoints.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
 
@@ -266,6 +267,52 @@ class Esp8266Repository implements DeviceRepository {
     _statusController.add(DeviceStatus.disconnected());
 
   }
+
+
+
+  /// Sends a raw GET command to the connected module and reports whether it
+  /// acknowledged the request.
+  Future<bool> sendDeviceCommand(String endpoint) async {
+
+    if (_stopped) {
+      return false;
+    }
+
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse("http://$_activeHost$endpoint"),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+      return response.statusCode == 200;
+
+    } catch (e) {
+
+      debugPrint(
+        "DEVICE COMMAND FAILED $endpoint : $e",
+      );
+
+      return false;
+
+    }
+
+  }
+
+
+
+  /// Silences the module buzzer (`/mute`).
+  Future<bool> muteBuzzer() => sendDeviceCommand(DeviceEndpoints.mute);
+
+  /// Runs the radiator fan test (`/testfan`).
+  Future<bool> testFan() => sendDeviceCommand(DeviceEndpoints.testFan);
+
+  /// Reboots the module (`/restart`).
+  Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
 
 
 

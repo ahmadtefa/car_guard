@@ -13,6 +13,8 @@ void main() {
       expect(settings.engineTempCritical, 110);
       expect(settings.minBatteryVoltage, 12.2);
       expect(settings.alertCooldown, const Duration(minutes: 5));
+      expect(settings.demoModeEnabled, isFalse);
+      expect(settings.themeModeName, 'system');
     });
 
     test('round-trips through JSON', () {
@@ -26,6 +28,8 @@ void main() {
         engineTempCritical: 105,
         minBatteryVoltage: 12.5,
         alertCooldown: Duration(minutes: 10),
+        demoModeEnabled: true,
+        themeModeName: 'dark',
       );
 
       final restored = AppSettings.fromRaw(settings.encode());
@@ -42,6 +46,8 @@ void main() {
       expect(restored.engineTempCritical, settings.engineTempCritical);
       expect(restored.minBatteryVoltage, settings.minBatteryVoltage);
       expect(restored.alertCooldown, settings.alertCooldown);
+      expect(restored.demoModeEnabled, settings.demoModeEnabled);
+      expect(restored.themeModeName, settings.themeModeName);
     });
 
     test('missing JSON fields fall back to defaults', () {
@@ -50,6 +56,14 @@ void main() {
       expect(restored.deviceHost, '192.168.4.1');
       expect(restored.devicePort, 81);
       expect(restored.engineTempCritical, 110);
+    });
+
+    test('invalid theme names fall back to system', () {
+      final restored = AppSettings.fromJson(<String, dynamic>{
+        'themeModeName': 'neon',
+      });
+
+      expect(restored.themeModeName, 'system');
     });
 
     test('corrupted payloads fall back to defaults', () {

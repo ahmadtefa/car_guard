@@ -18,7 +18,12 @@ class AppSettings {
     this.engineTempCritical = 110,
     this.minBatteryVoltage = 12.2,
     this.alertCooldown = const Duration(minutes: 5),
+    this.demoModeEnabled = false,
+    this.themeModeName = 'system',
   });
+
+  /// Theme preference names accepted by [themeModeName].
+  static const List<String> themeModeNames = ['system', 'light', 'dark'];
 
   /// Storage key used to persist the serialized settings.
   static const String storageKey = 'app_settings';
@@ -50,6 +55,12 @@ class AppSettings {
   /// Minimum delay before the same alert id may notify again.
   final Duration alertCooldown;
 
+  /// When true, readings come from the built-in device simulator.
+  final bool demoModeEnabled;
+
+  /// Theme preference: 'system', 'light' or 'dark'.
+  final String themeModeName;
+
   /// Returns a copy of this settings with the given fields replaced.
   AppSettings copyWith({
     String? deviceHost,
@@ -61,6 +72,8 @@ class AppSettings {
     double? engineTempCritical,
     double? minBatteryVoltage,
     Duration? alertCooldown,
+    bool? demoModeEnabled,
+    String? themeModeName,
   }) {
     return AppSettings(
       deviceHost: deviceHost ?? this.deviceHost,
@@ -73,6 +86,8 @@ class AppSettings {
       engineTempCritical: engineTempCritical ?? this.engineTempCritical,
       minBatteryVoltage: minBatteryVoltage ?? this.minBatteryVoltage,
       alertCooldown: alertCooldown ?? this.alertCooldown,
+      demoModeEnabled: demoModeEnabled ?? this.demoModeEnabled,
+      themeModeName: themeModeName ?? this.themeModeName,
     );
   }
 
@@ -88,6 +103,8 @@ class AppSettings {
       'engineTempCritical': engineTempCritical,
       'minBatteryVoltage': minBatteryVoltage,
       'alertCooldownMinutes': alertCooldown.inMinutes,
+      'demoModeEnabled': demoModeEnabled,
+      'themeModeName': themeModeName,
     };
   }
 
@@ -110,6 +127,11 @@ class AppSettings {
       alertCooldown: Duration(
         minutes: json['alertCooldownMinutes'] as int? ?? 5,
       ),
+      demoModeEnabled: json['demoModeEnabled'] as bool? ?? false,
+      themeModeName:
+          themeModeNames.contains(json['themeModeName'] as String?)
+          ? json['themeModeName'] as String
+          : 'system',
     );
   }
 

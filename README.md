@@ -19,7 +19,14 @@ status streamed straight to your phone over Wi-Fi.
   everything is persisted on the phone and restored on the next launch.
 - **Auto reconnect** — the app reconnects to the last saved device address on
   startup.
-- **Dark & light themes** following the system setting.
+- **Live charts** — engine temperature and battery voltage sparklines for the
+  last five minutes (dependency-free CustomPainter).
+- **Device controls** — mute the buzzer, run the fan test, or reboot the
+  module straight from the dashboard (`/mute`, `/testfan`, `/restart`).
+- **Demo mode** — simulate a full device (thermostat cycles, alternator
+  voltage swings, low-coolant windows) to explore the app without hardware.
+- **Theme choice** — Auto / Light / Dark, persisted with the rest of the
+  settings.
 
 ## Architecture
 
@@ -101,6 +108,5 @@ flutter test
 
 - [ ] Device settings screen backed by `/getallsettings` & `/saveallsettings`
 - [ ] OTA firmware updates from the app (`/update`)
-- [ ] Readings history with charts
-- [ ] Mute/buzzer control from the dashboard (`/mute`, `/testfan`)
+- [ ] Persist readings history across sessions (currently in-memory)
 - [ ] Localization (Arabic + English)
