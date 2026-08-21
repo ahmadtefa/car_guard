@@ -15,7 +15,6 @@ import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
-import '../models/dashboard_state.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
 import '../widgets/compact_status_row.dart';

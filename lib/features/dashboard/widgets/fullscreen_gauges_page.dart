@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../../../core/providers/device_status_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
-import '../models/dashboard_state.dart';
 import '../providers/dashboard_provider.dart';
 import 'fullscreen_hud_page.dart';
 import 'gauge_area.dart';

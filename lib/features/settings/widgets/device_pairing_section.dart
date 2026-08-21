@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/services/esp8266_repository.dart';
