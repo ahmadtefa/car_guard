@@ -59,7 +59,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
     companion object {
         private const val DEFAULT_HOST = "192.168.4.1"
-        private const val POLL_INTERVAL_MS = 5000L
+        private const val POLL_INTERVAL_MS = 2500L
     }
 
     private var reading: CarReading? = null
@@ -99,48 +99,56 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
         if (current == null) {
             listBuilder.addItem(row("Car Guard", "Connecting to module…"))
+            listBuilder.addItem(row("Tip", "افتح التطبيق مرة واحدة لتحفظ عنوان الجهاز"))
         } else if (!current.connected) {
-            listBuilder.addItem(row("Status", "🔴 Disconnected"))
+            listBuilder.addItem(row("Status", "🔴 غير متصل - تأكد من WiFi CarGuard"))
+            listBuilder.addItem(row("Host", host))
+            listBuilder.addItem(row("Tip", "الويدجت يعرض آخر قراءة حتى بدون فتح التطبيق"))
         } else {
-            // Emoji status dots: colored text needs API variants that differ
-            // across library versions, dots are portable everywhere.
+            // حالة الحرارة - نفس منطق التطبيق بعد التعديل الأخير (بدون -5)
             val tempStatus = when {
-                current.temp >= current.maxTemp -> "🔴"
-                current.temp >= current.maxTemp - 5 -> "🟡"
-                else -> "🟢"
+                current.temp >= current.maxTemp -> "🔴 حرج!"
+                else -> "🟢 طبيعي"
             }
 
             val voltStatus = when {
+                current.volt == 0.0 -> "⚪"
                 current.volt < current.minVolt || current.volt > current.maxVolt -> "🔴"
                 else -> "🟢"
             }
 
+            // سطر الحرارة كبير وواضح للقيادة
             listBuilder.addItem(
-                row("Engine temperature", "$tempStatus ${String.format(Locale.US, "%.1f °C", current.temp)}"),
+                row("🌡️ حرارة المحرك", "$tempStatus ${String.format(Locale.US, "%.1f °C", current.temp)} / ${String.format(Locale.US, "%.0f°C", current.maxTemp)}"),
             )
 
             listBuilder.addItem(
-                row("Battery voltage", "$voltStatus ${String.format(Locale.US, "%.2f V", current.volt)}"),
+                row("🔋 البطارية", "$voltStatus ${String.format(Locale.US, "%.2f V", current.volt)} (${String.format(Locale.US, "%.1f-%.1fV", current.minVolt, current.maxVolt)})"),
             )
 
             listBuilder.addItem(
-                row("Radiator fan", if (current.fanOn) "🟢 ON" else "⚪ OFF"),
+                row("🌀 المروحة", if (current.fanOn) "🟢 شغالة" else "⚪ متوقفة"),
             )
 
             listBuilder.addItem(
                 row(
-                    "Module alarm",
+                    "🔔 الإنذار",
                     when {
-                        current.alarm -> "🔴 ACTIVE!"
-                        current.muted -> "🔕 Muted"
-                        else -> "🟢 OK"
+                        current.alarm -> "🔴 شغال!"
+                        current.muted -> "🔕 مكتوم"
+                        else -> "🟢 هادئ"
                     },
                 ),
+            )
+
+            // ويدجت الشاشة الرئيسية - تذكير
+            listBuilder.addItem(
+                row("🏠 الويدجت", "اضغط مطولاً على الشاشة الرئيسية → ويدجتس → Car Guard 2×1"),
             )
         }
 
         return ListTemplate.Builder()
-            .setTitle("Car Guard")
+            .setTitle("Car Guard • ${if (reading?.connected == true) "متصل 🟢" else "غير متصل 🔴"}")
             .setSingleList(listBuilder.build())
             .build()
     }

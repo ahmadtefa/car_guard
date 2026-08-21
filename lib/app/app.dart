@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/l10n/app_l10n.dart';
+import '../core/providers/widget_updater_provider.dart';
 import '../core/theme/app_theme.dart';
 import '../features/settings/providers/settings_provider.dart';
 import 'router.dart';
@@ -15,6 +16,8 @@ class CarGuardApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // يفعّل تحديث ويدجت الشاشة الرئيسية تلقائياً مع كل قراءة
+    ref.watch(widgetUpdaterProvider);
     final router = ref.watch(appRouterProvider);
 
     final settings = ref.watch(settingsProvider).value;

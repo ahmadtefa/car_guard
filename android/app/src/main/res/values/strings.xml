@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Car Guard</string>
+    <string name="widget_description">يعرض حرارة المحرك والبطارية وحالة المروحة بدون فتح التطبيق — 2×1</string>
+</resources>
