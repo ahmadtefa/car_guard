@@ -26,6 +26,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            // لتشغيل التصغير لاحقاً بعد ما أول build ينجح، غيرهم لـ true
         }
     }
 }
