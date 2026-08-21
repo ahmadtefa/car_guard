@@ -163,6 +163,13 @@ class AppL10n {
   String get testFan => isAr ? 'تجربة المروحة' : 'Test fan';
   String get restartDevice => isAr ? 'إعادة تشغيل الجهاز' : 'Restart device';
   String get moduleSettings => isAr ? 'إعدادات الجهاز' : 'Module settings';
+  String get deviceConnection => isAr ? 'الاتصال بالجهاز' : 'Device connection';
+  String get deviceAddressLabel => isAr ? 'عنوان الجهاز (IP)' : 'Device address (IP)';
+  String get deviceAddressInfo => isAr
+      ? 'الافتراضي 192.168.4.1 لما الموبايل بيشبك على شبكة الجهاز مباشرة. غيّره بس لو الجهاز اتنقل لشبكة تانية (زي هوتسبوت الموبايل).'
+      : 'Default 192.168.4.1 when the phone joins the module Wi-Fi directly. Change it only if the module joined another network (like the phone hotspot).';
+  String get applyAndReconnect =>
+      isAr ? 'حفظ وإعادة الاتصال' : 'Save & reconnect';
   String get buzzerMuted =>
       isAr ? 'تم كتم الصفارة على الجهاز' : 'Buzzer muted on the module';
   String get fanTestStarted =>

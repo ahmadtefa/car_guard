@@ -13,6 +13,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/device_address_section.dart';
 import '../widgets/module_settings_section.dart';
 
 /// The single place for every setting in the app: module alarm limits and
@@ -260,6 +261,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         child: ListView(
           padding: AppSpacing.padding,
           children: [
+            const DeviceAddressSection(),
+            const SizedBox(height: AppSpacing.xl),
+
             const ModuleSettingsSection(),
             const SizedBox(height: AppSpacing.xl),
 
