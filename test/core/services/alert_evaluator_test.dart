@@ -85,6 +85,19 @@ void main() {
       expect(alerts, isEmpty);
     });
 
+    test('a near-zero but real reading (0.1 V) does raise the alarm', () {
+      // Regression test: the old "> 1 V" guard swallowed genuinely dead /
+      // disconnected batteries that read below 1 volt.
+      final alerts = AlertEvaluator.evaluate(
+        _status(voltage: 0.1),
+        const AppSettings(),
+        moduleLimits: const ModuleLimits(minVolt: 12.0),
+      );
+
+      expect(alerts, hasLength(1));
+      expect(alerts.single.id, 'battery_low');
+    });
+
     test('high battery voltage raises a critical alert', () {
       final alerts = AlertEvaluator.evaluate(
         _status(voltage: 15.6),

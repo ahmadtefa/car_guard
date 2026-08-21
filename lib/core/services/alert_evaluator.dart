@@ -87,9 +87,10 @@ abstract final class AlertEvaluator {
     final voltage = status.batteryData.voltage;
     final minVolt = moduleLimits?.minVolt;
 
-    // The > 1 V guard ignores the default 0.0 reading so a fresh or flaky
-    // connection never raises a bogus low-battery alert.
-    if (minVolt != null && voltage > 1 && voltage <= minVolt) {
+    // Only an exact 0.0 is treated as "no reading" (firmware placeholder or
+    // missing field). Any real below-limit value — including near-zero
+    // readings like 0.1 V from a disconnected battery lead — must alarm.
+    if (minVolt != null && voltage > 0 && voltage <= minVolt) {
       alerts.add(
         DeviceAlert(
           id: 'battery_low',
@@ -106,7 +107,7 @@ abstract final class AlertEvaluator {
 
     final maxVolt = moduleLimits?.maxVolt;
 
-    if (maxVolt != null && voltage > 1 && voltage > maxVolt) {
+    if (maxVolt != null && voltage > 0 && voltage > maxVolt) {
       alerts.add(
         DeviceAlert(
           id: 'battery_high',
