@@ -226,7 +226,21 @@ class _ModuleSettingsSectionState
     final ssid = _staSsid.text.trim();
     final password = _staPassword.text;
 
-    if (ssid.isEmpty) return;
+    if (ssid.isEmpty) {
+      _snack(l.ssidTooShort);
+      return;
+    }
+    if (ssid.length > 32) {
+      _snack(l.ssidTooShort);
+      return;
+    }
+    // باسوورد الهوت سبوت الخارجي ممكن يكون فاضي (شبكة مفتوحة) أو 8-63 حرف
+    // لا نرفض القصير هنا — الجهاز هو اللي هيجرب الاتصال ويقول OK أو فشل
+    // فقط نمنع الطول الغير منطقي >63
+    if (password.length > 63) {
+      _snack(l.passwordTooShort);
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -247,19 +261,25 @@ class _ModuleSettingsSectionState
     final ssid = _ssid.text.trim();
     final password = _password.text;
 
-    if (ssid.length < 4) {
+    if (ssid.length < 1 || ssid.length > 32) {
       _snack(l.ssidTooShort);
       return;
     }
 
-    if (password.length < 8) {
+    // باسوورد نقطة وصول الجهاز نفسه: مفتوحة (0) أو WPA2 (8-63)
+    // القديم كان يرفض <8 ويمنع الشبكات المفتوحة أو الباسوورد القصير
+    if (password.isNotEmpty && password.length < 8) {
+      _snack(l.passwordTooShort);
+      return;
+    }
+    if (password.length > 63) {
       _snack(l.passwordTooShort);
       return;
     }
 
     setState(() => _saving = true);
 
-    await ref
+    final ok = await ref
         .read(esp8266RepositoryProvider)
         .saveWifiSettings(ssid: ssid, password: password);
 
@@ -269,7 +289,7 @@ class _ModuleSettingsSectionState
 
     // The module restarts its access point right after saving, so a missing
     // "OK" reply is not necessarily a failure — mirror the original UX.
-    _snack(l.wifiSent(ssid));
+    _snack(ok ? l.wifiSent(ssid) : l.wifiSent(ssid));
   }
 
   Future<void> _saveSpeedLimit() async {

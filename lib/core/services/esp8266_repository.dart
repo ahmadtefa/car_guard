@@ -686,36 +686,52 @@ class Esp8266Repository implements DeviceRepository {
   ///
   /// The module usually restarts its access point right after replying, so a
   /// network failure after the request was sent is expected.
+  /// يرسل كل من `password` و `pass` لضمان التوافق مع كل نسخ الفيرموير.
   Future<bool> saveWifiSettings({
     required String ssid,
     required String password,
   }) async {
-
+    // إرسال الاثنين معاً لتوافق الفيرموير القديم (pass) والجديد (password)
+    final encodedSsid = Uri.encodeComponent(ssid);
+    final encodedPass = Uri.encodeComponent(password);
     return _getExpectsOk(
       "${DeviceEndpoints.saveWifiSettings}"
-      "?ssid=${Uri.encodeComponent(ssid)}"
-      "&password=${Uri.encodeComponent(password)}",
+      "?ssid=$encodedSsid"
+      "&password=$encodedPass"
+      "&pass=$encodedPass",
     );
-
   }
-
-
 
   /// [STA+mDNS] Tells the module to join another network (phone hotspot or
   /// home router) in addition to its own AP (`/joinwifi`). The credentials
   /// persist on the module, so it re-joins by itself after every boot and
   /// mDNS lets the app find it back automatically.
+  /// يرسل `pass` و `password` معاً + يحاول بدائل الفيرموير المختلفة.
   Future<bool> joinExternalWifi({
     required String ssid,
     required String password,
   }) async {
+    final encodedSsid = Uri.encodeComponent(ssid);
+    final encodedPass = Uri.encodeComponent(password);
 
-    return _getExpectsOk(
+    // جرّب أولاً بصيغة pass (الأصلية)، لو فشل جرّب password
+    // بعض نسخ النود تستخدم pass والبعض password
+    var ok = await _getExpectsOk(
       "${DeviceEndpoints.joinWifi}"
-      "?ssid=${Uri.encodeComponent(ssid)}"
-      "&pass=${Uri.encodeComponent(password)}",
+      "?ssid=$encodedSsid"
+      "&pass=$encodedPass"
+      "&password=$encodedPass",
     );
+    if (ok) return true;
 
+    // محاولة بديلة: بعض الفيرموير يستخدم /savewifi حتى للـ STA
+    debugPrint("JOINWIFI RETRY via /savewifi");
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveWifiSettings}"
+      "?ssid=$encodedSsid"
+      "&password=$encodedPass"
+      "&pass=$encodedPass",
+    );
   }
 
 
