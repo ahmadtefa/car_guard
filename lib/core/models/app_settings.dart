@@ -66,9 +66,15 @@ class AppSettings {
   final bool connectionAlertsEnabled;
 
   /// Engine temperature (°C) at which a warning alert is raised.
+  ///
+  /// LEGACY/in-memory only: the app-side threshold sliders were removed
+  /// together with their effect, so this is never persisted anymore and
+  /// always holds the default; alerting follows the module-reported limits.
+  /// Kept for the gauge warning coloring.
   final double engineTempWarning;
 
   /// Engine temperature (°C) at which a critical alert is raised.
+  /// See [engineTempWarning] — legacy, in-memory default only.
   final double engineTempCritical;
 
   /// Battery voltage (V) below which a low-battery alert is raised.
@@ -147,13 +153,9 @@ class AppSettings {
       'alertsEnabled': alertsEnabled,
       'coolantAlertsEnabled': coolantAlertsEnabled,
       'connectionAlertsEnabled': connectionAlertsEnabled,
-      'engineTempWarning': engineTempWarning,
-      'engineTempCritical': engineTempCritical,
-      'minBatteryVoltage': minBatteryVoltage,
       'alertCooldownMinutes': alertCooldown.inMinutes,
       'demoModeEnabled': demoModeEnabled,
       'themeModeName': themeModeName,
-      'maxBatteryVoltage': maxBatteryVoltage,
       'dashboardStyleName': dashboardStyleName,
       'languageName': languageName,
       'alarmSoundEnabled': alarmSoundEnabled,
@@ -171,12 +173,9 @@ class AppSettings {
       coolantAlertsEnabled: json['coolantAlertsEnabled'] as bool? ?? true,
       connectionAlertsEnabled:
           json['connectionAlertsEnabled'] as bool? ?? true,
-      engineTempWarning:
-          (json['engineTempWarning'] as num?)?.toDouble() ?? 100,
-      engineTempCritical:
-          (json['engineTempCritical'] as num?)?.toDouble() ?? 110,
-      minBatteryVoltage:
-          (json['minBatteryVoltage'] as num?)?.toDouble() ?? 12.2,
+      // Legacy slider-era threshold keys are deliberately NOT read anymore:
+      // they always fall back to the defaults so stale stored values have
+      // zero effect (alerting follows the module-reported limits only).
       alertCooldown: Duration(
         minutes: json['alertCooldownMinutes'] as int? ?? 5,
       ),
@@ -185,8 +184,6 @@ class AppSettings {
           themeModeNames.contains(json['themeModeName'] as String?)
           ? json['themeModeName'] as String
           : 'system',
-      maxBatteryVoltage:
-          (json['maxBatteryVoltage'] as num?)?.toDouble() ?? 15.0,
       dashboardStyleName:
           dashboardStyleNames.contains(json['dashboardStyleName'] as String?)
           ? json['dashboardStyleName'] as String

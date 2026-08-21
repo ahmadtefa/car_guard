@@ -52,13 +52,16 @@ void main() {
         restored.connectionAlertsEnabled,
         settings.connectionAlertsEnabled,
       );
-      expect(restored.engineTempWarning, settings.engineTempWarning);
-      expect(restored.engineTempCritical, settings.engineTempCritical);
-      expect(restored.minBatteryVoltage, settings.minBatteryVoltage);
+      // Legacy slider thresholds are never persisted anymore: they always
+      // come back as defaults even when a custom value was encoded
+      // (alerting/gauges follow the module-reported limits).
+      expect(restored.engineTempWarning, 100);
+      expect(restored.engineTempCritical, 110);
+      expect(restored.minBatteryVoltage, 12.2);
       expect(restored.alertCooldown, settings.alertCooldown);
       expect(restored.demoModeEnabled, settings.demoModeEnabled);
       expect(restored.themeModeName, settings.themeModeName);
-      expect(restored.maxBatteryVoltage, settings.maxBatteryVoltage);
+      expect(restored.maxBatteryVoltage, 15.0);
       expect(restored.dashboardStyleName, settings.dashboardStyleName);
       expect(restored.languageName, settings.languageName);
       expect(restored.alarmSoundEnabled, settings.alarmSoundEnabled);
