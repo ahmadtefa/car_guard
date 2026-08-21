@@ -130,6 +130,16 @@ class _DeviceAddressSectionState
       return;
     }
 
+    // Android 10-12 additionally refuses Wi-Fi pairing when Location
+    // services are off (even with the permission granted).
+    if (await NetworkBindingService.androidSdkLevel() < 33) {
+      final gps = await Permission.location.serviceStatus;
+      if (!gps.isEnabled) {
+        _snack(l.pairingNeedsGps);
+        return;
+      }
+    }
+
     final ssid = _ssidController.text.trim();
     final password = _passController.text;
 

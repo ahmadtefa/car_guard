@@ -186,6 +186,9 @@ class AppL10n {
   String get pairingUnsupported => isAr
       ? 'الميزة دي محتاجة أندرويد 10 أو أحدث.'
       : 'This needs Android 10 or newer.';
+  String get pairingNeedsGps => isAr
+      ? 'شغّل خدمة الموقع (GPS) الأول — أندرويد مش بيسمح بالاتصال المباشر وهي مقفولة.'
+      : 'Turn on Location services first — Android blocks direct pairing while they are off.';
   String get buzzerMuted =>
       isAr ? 'تم كتم الصفارة على الجهاز' : 'Buzzer muted on the module';
   String get fanTestStarted =>
