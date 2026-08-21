@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/app_settings.dart';
@@ -47,6 +49,21 @@ class AlertsNotifier extends Notifier<AlertsState> {
 
     ref.listen(deviceStatusProvider, (previous, next) {
       next.whenData((status) => _handleStatus(status));
+    });
+
+    // GPS speed ticks come on their own stream — re-evaluate immediately on
+    // every fix against the latest module status so speeding never waits
+    // for (or depends on) module traffic.
+    ref.listen(tripProvider, (previous, next) {
+      if (previous?.hasFix == next.hasFix &&
+          previous?.speedKmh == next.speedKmh) {
+        return;
+      }
+
+      final status = ref.read(deviceStatusProvider).value;
+      if (status != null) {
+        unawaited(_handleStatus(status));
+      }
     });
 
     return const AlertsState();

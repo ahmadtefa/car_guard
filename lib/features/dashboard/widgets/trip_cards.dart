@@ -118,14 +118,19 @@ class _TripCard extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: value,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(color: color),
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 34,
+                          height: 1.0,
+                        ),
                   ),
                   TextSpan(
                     text: ' $unit',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: color.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ],
               ),

@@ -102,41 +102,57 @@ class TripNotifier extends Notifier<TripState> {
   }
 
   void _onFix(Position position) {
-    // Reject hopeless fixes: >25 m accuracy reads as noise, not motion.
-    if (position.accuracy > 25 || position.accuracy <= 0) return;
-
-    double deltaKm = 0;
-    double speed = position.speed * 3.6; // m/s -> km/h
+    // Reject hopeless fixes: >30 m accuracy reads as noise, not motion.
+    if (position.accuracy > 30 || position.accuracy <= 0) return;
 
     final last = _last;
 
+    double deltaMeters = 0;
+    double dtSeconds = 0;
+
     if (last != null) {
-      final dt = position.timestamp.difference(last.timestamp).inMilliseconds;
-      final d = Geolocator.distanceBetween(
-        last.latitude,
-        last.longitude,
-        position.latitude,
-        position.longitude,
-      );
+      dtSeconds =
+          position.timestamp.difference(last.timestamp).inMilliseconds / 1000.0;
 
-      // Ignore sub-meter jitter and absurd jumps (teleport): a car cannot
-      // cover >300 m between two consecutive fixes.
-      if (d >= 1 && d < 300 && dt > 0) deltaKm = d / 1000.0;
+      if (dtSeconds > 0) {
+        deltaMeters = Geolocator.distanceBetween(
+          last.latitude,
+          last.longitude,
+          position.latitude,
+          position.longitude,
+        );
 
-      // Some devices report -1 speed; fall back to distance/time.
-      if (speed < 0 && dt > 0) {
-        speed = deltaKm * 3.6 * 1000 / dt;
+        // Ignore sub-meter jitter and absurd jumps (teleport): a car cannot
+        // cover >300 m between two consecutive fixes.
+        if (deltaMeters < 1 || deltaMeters > 300) deltaMeters = 0;
       }
     }
 
+    // Reported ground speed first — BUT many Android devices keep reporting
+    // 0.0 (or -1) while moving, so when the reported speed looks dead yet
+    // the ground delta over time clearly shows real motion, compute it
+    // from position/time instead.
+    double metersPerSecond = position.speed;
+
+    final computed =
+        dtSeconds > 0 ? deltaMeters / dtSeconds : 0.0;
+
+    if (!metersPerSecond.isFinite ||
+        metersPerSecond < 0 ||
+        (metersPerSecond < 0.5 && computed > 1.0)) {
+      metersPerSecond = computed;
+    }
+
+    double kmh = metersPerSecond * 3.6;
+
     _last = position;
 
-    // GPS speed jitter under ~1.5 km/h reads as standing still.
-    if (speed < 1.5) speed = 0;
+    // GPS jitter under ~1.5 km/h reads as standing still.
+    if (kmh < 1.5) kmh = 0;
 
     state = state.copyWith(
-      speedKmh: speed.clamp(0, 400),
-      distanceKm: state.distanceKm + deltaKm,
+      speedKmh: kmh.clamp(0, 400),
+      distanceKm: state.distanceKm + deltaMeters / 1000.0,
       hasFix: true,
     );
   }
