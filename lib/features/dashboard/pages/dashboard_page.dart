@@ -105,34 +105,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Future<void> _toggleDrivingMode() async {
     final isEnabled = ref.read(drivingModeProvider);
     await ref.read(drivingModeProvider.notifier).setEnabled(!isEnabled);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              !isEnabled ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                !isEnabled
-                    ? '🚗 وضع القيادة مفعل - الشاشة ستبقى مضاءة'
-                    : 'وضع القيادة متوقف',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: !isEnabled ? AppColors.neonCyan : Colors.grey[800],
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
   }
 
   void _showModuleInfo() {
@@ -417,45 +389,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     // GPS speed + trip distance, side by side.
                     const TripCards(),
-
-                    const SizedBox(height: AppSpacing.md),
-
-                    // بانر وضع القيادة - يظهر فقط عند التفعيل
-                    if (ref.watch(drivingModeProvider))
-                      Container(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.neonCyan.withAlpha(30),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.neonCyan.withAlpha(80),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.visibility,
-                              color: AppColors.neonCyan,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '🚗 وضع القيادة مفعل - الشاشة ستبقى مضاءة',
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
-                                color: AppColors.neonCyan,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
 
                     const SizedBox(height: AppSpacing.md),
 
