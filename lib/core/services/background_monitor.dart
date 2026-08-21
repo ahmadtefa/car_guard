@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_l10n.dart';
+import '../providers/effective_settings_provider.dart' show applyModuleLimits;
 import '../models/app_settings.dart';
 import '../models/device_alert.dart';
 import 'alert_evaluator.dart';
@@ -61,9 +62,13 @@ class BackgroundMonitorHandler extends TaskHandler {
 
     _everConnected = true;
 
+    // The module-borne limits win over the local (legacy) thresholds,
+    // exactly like the foreground app.
+    final effective = applyModuleLimits(settings, status.moduleLimits);
+
     final alerts = AlertEvaluator.evaluate(
       status,
-      settings,
+      effective,
       hadConnectionBefore: true,
     );
 

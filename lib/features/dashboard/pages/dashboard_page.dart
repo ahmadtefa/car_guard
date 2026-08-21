@@ -558,14 +558,6 @@ class _ModuleInfoSheetState extends ConsumerState<_ModuleInfoSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            SecondaryButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                context.push('/settings');
-              },
-              child: Text(l.settings),
-            ),
           ],
         ],
       ),
