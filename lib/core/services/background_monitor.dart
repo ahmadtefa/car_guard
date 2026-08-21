@@ -24,11 +24,19 @@ void backgroundMonitorCallback() {
 }
 
 class BackgroundMonitorHandler extends TaskHandler {
-  final Map<String, DateTime> _lastNotifiedAt = {};
+  /// Ids of alerts currently ringing. A notification only fires when an id
+  /// enters the set (quiet -> ringing), so an hour-long disconnection pings
+  /// exactly once instead of every poll.
+  final Set<String> _activeAlertIds = {};
 
   final NotificationService _notifications = NotificationServiceImpl();
 
   bool _everConnected = false;
+
+  /// True after the offline alarm has rung for the current disconnection
+  /// streak; reset to false on the next successful read so a fresh drop
+  /// rings again (once).
+  bool _offlineNotified = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -68,6 +76,9 @@ class BackgroundMonitorHandler extends TaskHandler {
     }
 
     _everConnected = true;
+    // Back online after a fetchable read: re-arm the offline notifier so
+    // the next *new* drop rings exactly once.
+    _offlineNotified = false;
 
     // Sensor alerts follow the module's own limits only — the removed
     // app-side sliders no longer participate anywhere (foreground behaves
@@ -201,16 +212,32 @@ class BackgroundMonitorHandler extends TaskHandler {
     List<DeviceAlert> alerts,
     AppSettings settings,
   ) async {
-    final now = DateTime.now();
-
+    final entered = <DeviceAlert>[];
     for (final alert in alerts) {
-      final last = _lastNotifiedAt[alert.id];
+      if (!_activeAlertIds.contains(alert.id)) {
+        entered.add(alert);
+        _activeAlertIds.add(alert.id);
+      }
+    }
 
-      if (last != null && now.difference(last) < settings.alertCooldown) {
+    // If nothing cleared, keep the gates open — subsequent polls compare
+    // against this set.
+    if (entered.isEmpty && alerts.isEmpty) {
+      _activeAlertIds.clear(); // everything cleared: next ring is a new event
+      return;
+    }
+
+    try {
+      final existing = alerts.map((a) => a.id).toSet();
+      _activeAlertIds
+        ..retainWhere(existing.contains)
+        ..addAll(entered.map((a) => a.id));
+    } catch (_) {}
+
+    for (final alert in entered) {
+      if (alert.id == 'connection_lost' && !settings.connectionAlertsEnabled) {
         continue;
       }
-
-      _lastNotifiedAt[alert.id] = now;
 
       try {
         await _notifications.show(title: alert.title, body: alert.message);
@@ -223,14 +250,11 @@ class BackgroundMonitorHandler extends TaskHandler {
   Future<void> _maybeNotifyConnectionLost(AppSettings settings) async {
     if (!settings.connectionAlertsEnabled || !_everConnected) return;
 
-    final now = DateTime.now();
-    final last = _lastNotifiedAt['connection_lost'];
-
-    if (last != null && now.difference(last) < settings.alertCooldown) {
-      return;
-    }
-
-    _lastNotifiedAt['connection_lost'] = now;
+    // Edge-triggered like the foreground notifier: a continuous offline
+    // streak rings ONCE, and the next ring only happens after a recovery
+    // puts us back online (re-arm) — never one notification per poll.
+    if (_offlineNotified) return;
+    _offlineNotified = true;
 
     final l = AppL10n(settings.languageName);
 

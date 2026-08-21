@@ -39,12 +39,16 @@ final alertsProvider = NotifierProvider<AlertsNotifier, AlertsState>(
 class AlertsNotifier extends Notifier<AlertsState> {
   static const int _maxHistory = 50;
 
-  final Map<String, DateTime> _lastNotifiedAt = {};
+  /// Ids of alerts active on the last evaluation. A notification fires only
+  /// when an alert ENTERS this set (transition: quiet -> ringing), so a
+  /// continuous condition notifies once, and only a fresh change re-fires.
+  final Set<String> _activeAlertIds = {};
+
   bool _everConnected = false;
 
   @override
   AlertsState build() {
-    _lastNotifiedAt.clear();
+    _activeAlertIds.clear();
     _everConnected = false;
 
     ref.listen(deviceStatusProvider, (previous, next) {
@@ -97,7 +101,22 @@ class AlertsNotifier extends Notifier<AlertsState> {
       hadConnectionBefore: _everConnected,
     );
 
-    await _notifyNewAlerts(alerts, local);
+    final currentIds = alerts.map((a) => a.id).toSet();
+
+    // Edge-triggered notifications: only alerts that were NOT active on the
+    // previous reading produce a notification. A 1-hour disconnection rings
+    // exactly once; the next ring happens only after it recovered and got
+    // lost again.
+    final entered = <DeviceAlert>[];
+    for (final alert in alerts) {
+      if (!_activeAlertIds.contains(alert.id)) entered.add(alert);
+    }
+
+    _activeAlertIds
+      ..clear()
+      ..addAll(currentIds);
+
+    await _notifyNewAlerts(entered, local);
     await _updateSiren(alerts, local);
 
     // Prepend alerts to the history while avoiding flooding it with the same
@@ -149,20 +168,11 @@ class AlertsNotifier extends Notifier<AlertsState> {
     List<DeviceAlert> alerts,
     AppSettings settings,
   ) async {
-    final now = DateTime.now();
+    if (alerts.isEmpty) return;
+
     final notifications = ref.read(notificationServiceProvider);
 
     for (final alert in alerts) {
-      final lastNotified = _lastNotifiedAt[alert.id];
-
-      final isDue =
-          lastNotified == null ||
-          now.difference(lastNotified) >= settings.alertCooldown;
-
-      if (!isDue) continue;
-
-      _lastNotifiedAt[alert.id] = now;
-
       try {
         await notifications.show(title: alert.title, body: alert.message);
       } catch (_) {
