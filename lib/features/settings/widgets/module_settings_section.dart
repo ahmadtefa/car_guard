@@ -14,10 +14,13 @@ import '../../../core/widgets/section_title.dart';
 import '../providers/settings_provider.dart';
 
 /// Settings that live on the Car Guard module itself: the alarm limits
-/// (`/getallsettings` + `/saveallsettings`) plus a read-only info
+/// (`/getallsettings` + `/saveallsettings`) and the module Wi-Fi
+/// provisioning (`/getwifisettings` + `/savewifi`), plus a read-only info
 /// card (serial / install date).
 ///
-/// تم إلغاء قسم الواي فاي والهوت سبوت حسب طلب المستخدم.
+/// Rendered as a section inside the single Settings page — the separate
+/// `/device-settings` screen was removed so every setting lives in one
+/// place.
 class ModuleSettingsSection extends ConsumerStatefulWidget {
   const ModuleSettingsSection({super.key});
 
@@ -32,6 +35,8 @@ class _ModuleSettingsSectionState
   final _alarmTemp = TextEditingController();
   final _minVolt = TextEditingController();
   final _maxVolt = TextEditingController();
+  final _ssid = TextEditingController();
+  final _password = TextEditingController();
   final _speedLimit = TextEditingController();
 
   DeviceModuleSettings? _loaded;
@@ -52,6 +57,8 @@ class _ModuleSettingsSectionState
     _alarmTemp.dispose();
     _minVolt.dispose();
     _maxVolt.dispose();
+    _ssid.dispose();
+    _password.dispose();
     _speedLimit.dispose();
     super.dispose();
   }
@@ -83,6 +90,18 @@ class _ModuleSettingsSectionState
     setState(() {
       _loaded = settings;
       _loading = false;
+    });
+
+    // Prefill the Wi-Fi card with the credentials stored on the module.
+    final wifi = await ref
+        .read(esp8266RepositoryProvider)
+        .getWifiSettings();
+
+    if (!mounted || wifi == null) return;
+
+    setState(() {
+      _ssid.text = wifi.ssid;
+      _password.text = wifi.password;
     });
   }
 
@@ -196,6 +215,43 @@ class _ModuleSettingsSectionState
     setState(() => _saving = false);
 
     _snack(ok ? l.factoryResetDone : l.joinNetworkFailed);
+  }
+
+  Future<void> _saveWifi() async {
+    final l = ref.read(l10nProvider);
+
+    final ssid = _ssid.text.trim();
+    final password = _password.text;
+
+    if (ssid.length < 1 || ssid.length > 32) {
+      _snack(l.ssidTooShort);
+      return;
+    }
+
+    // باسوورد نقطة وصول الجهاز نفسه: مفتوحة (0) أو WPA2 (8-63)
+    // القديم كان يرفض <8 ويمنع الشبكات المفتوحة أو الباسوورد القصير
+    if (password.isNotEmpty && password.length < 8) {
+      _snack(l.passwordTooShort);
+      return;
+    }
+    if (password.length > 63) {
+      _snack(l.passwordTooShort);
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final ok = await ref
+        .read(esp8266RepositoryProvider)
+        .saveWifiSettings(ssid: ssid, password: password);
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    // The module restarts its access point right after saving, so a missing
+    // "OK" reply is not necessarily a failure — mirror the original UX.
+    _snack(ok ? l.wifiSent(ssid) : l.wifiSent(ssid));
   }
 
   Future<void> _saveSpeedLimit() async {
@@ -354,6 +410,27 @@ class _ModuleSettingsSectionState
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+
+          SectionTitle(
+            title: l.moduleWifi,
+            subtitle: l.moduleWifiInfo,
+          ),
+          AppTextField(
+            controller: _ssid,
+            labelText: l.ssidLabel,
+            hintText: 'CarGuard',
+          ),
+          AppTextField(
+            controller: _password,
+            labelText: l.passwordLabel,
+            hintText: '12345678',
+            obscureText: true,
+          ),
+          PrimaryButton(
+            onPressed: _saving ? null : _saveWifi,
+            child: Text(l.saveWifi),
           ),
           const SizedBox(height: AppSpacing.xl),
 
