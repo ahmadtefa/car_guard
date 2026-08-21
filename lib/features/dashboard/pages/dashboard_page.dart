@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/providers/driving_mode_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/driving_mode_button.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/battery_voltage_card.dart';
 import '../widgets/connection_status_card.dart';
@@ -17,13 +20,45 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(dashboardProvider);
+    final isDark = ref.watch(themeModeProvider.notifier).isDark(context);
+    final isDrivingMode = ref.watch(drivingModeProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Car Guard'),
         centerTitle: false,
-      ),
+        actions: [
+          // 1) زرار وضع القيادة - يحافظ على الشاشة شغالة
+          const DrivingModeButton(),
+          const SizedBox(width: 2),
 
+          // 2) زرار الوضع الليلي/النهاري
+          IconButton(
+            tooltip: isDark ? 'الوضع النهاري' : 'الوضع الليلي',
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Icon(
+                isDark ? Icons.light_mode : Icons.dark_mode,
+                key: ValueKey(isDark),
+              ),
+            ),
+            onPressed: () {
+              ref.read(themeModeProvider.notifier).toggle();
+            },
+          ),
+          const SizedBox(width: 2),
+
+          // 3) زرار الإعدادات
+          IconButton(
+            tooltip: 'الإعدادات',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              context.push('/connection');
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           context.push('/connection');
@@ -31,7 +66,6 @@ class DashboardPage extends ConsumerWidget {
         icon: const Icon(Icons.wifi),
         label: const Text('Connection'),
       ),
-
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -39,6 +73,9 @@ class DashboardPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // بانر وضع القيادة يظهر فقط عند التفعيل
+                const DrivingModeBanner(),
+
                 ConnectionStatusCard(
                   statusText: state.connectionStatus,
                 ),
@@ -76,6 +113,33 @@ class DashboardPage extends ConsumerWidget {
                   value: state.fanStatus,
                   statusText: state.connectionStatus,
                 ),
+
+                // كارت إضافي لتوضيح حالة وضع القيادة في الأسفل (اختياري)
+                if (isDrivingMode) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Card(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'نصيحة: ثبّت الموبايل على حامل السيارة أثناء وضع القيادة',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

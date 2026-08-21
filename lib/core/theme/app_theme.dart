@@ -22,5 +22,44 @@ abstract final class AppTheme {
   );
 }
 
-/// Riverpod provider for switching the app theme mode.
-final themeModeProvider = Provider<ThemeMode>((ref) => ThemeMode.system);
+/// Riverpod notifier للتحكم في وضع الإضاءة (نهاري/ليلي)
+final themeModeProvider =
+    NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
+
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => ThemeMode.system;
+
+  /// التبديل بين النهاري والليلي
+  void toggle() {
+    switch (state) {
+      case ThemeMode.light:
+        state = ThemeMode.dark;
+        break;
+      case ThemeMode.dark:
+        state = ThemeMode.light;
+        break;
+      case ThemeMode.system:
+        // لو كان system، حوّل حسب سطوع الجهاز الحالي
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        state =
+            brightness == Brightness.dark ? ThemeMode.light : ThemeMode.dark;
+        break;
+    }
+  }
+
+  void setMode(ThemeMode mode) => state = mode;
+
+  /// هل الوضع الحالي ليلي؟
+  bool isDark(BuildContext context) {
+    switch (state) {
+      case ThemeMode.light:
+        return false;
+      case ThemeMode.dark:
+        return true;
+      case ThemeMode.system:
+        return MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    }
+  }
+}
