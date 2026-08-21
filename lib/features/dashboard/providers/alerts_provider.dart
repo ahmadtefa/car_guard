@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/models/device_alert.dart';
 import '../../../core/providers/device_status_provider.dart';
-import '../../../core/providers/effective_settings_provider.dart';
 import '../../../core/services/alarm_service.dart';
 import '../../../core/services/alert_evaluator.dart';
 import '../../../core/services/device_models.dart';
@@ -60,22 +59,22 @@ class AlertsNotifier extends Notifier<AlertsState> {
     final local =
         ref.read(settingsProvider).value ?? const AppSettings();
 
-    // Thresholds may be overridden by limits reported by the module itself.
-    final settings = ref.read(effectiveSettingsProvider);
-
     if (!local.alertsEnabled) {
       state = AlertsState(active: const [], history: state.history);
       await _updateSiren(const [], local);
       return;
     }
 
+    // Sensor alerts follow the limits reported by the module itself — the
+    // removed app-side sliders no longer participate anywhere.
     final alerts = AlertEvaluator.evaluate(
       status,
-      settings,
+      local,
+      moduleLimits: status.moduleLimits,
       hadConnectionBefore: _everConnected,
     );
 
-    await _notifyNewAlerts(alerts, settings);
+    await _notifyNewAlerts(alerts, local);
     await _updateSiren(alerts, local);
 
     // Prepend alerts to the history while avoiding flooding it with the same

@@ -1,21 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/settings/providers/settings_provider.dart';
 import '../models/app_settings.dart';
 import '../services/device_models.dart';
 import 'device_status_provider.dart';
 
-/// Merges the locally configured settings with the alarm limits the module
-/// reports in its live stream, mirroring the original Kayan dashboard where
-/// device-borne limits win over the saved ones.
+/// Thresholds used by the gauges/HUD to draw redlines and color warnings.
 ///
-/// When the module does not send any limits (or nothing is connected) the
-/// local settings are returned untouched. Shares its logic with the
-/// background monitor through [mergeModuleLimits].
+/// The app-side threshold sliders were removed *together with their effect*:
+/// the base is always a default [AppSettings] (never the user's stored
+/// values), overlaid with the limits the module reports in its live stream.
+/// Actual alerting is evaluated against the module limits directly — see
+/// [AlertEvaluator].
 final effectiveSettingsProvider = Provider<AppSettings>((ref) {
-  final local = ref.watch(settingsProvider).value ?? const AppSettings();
-
   final limits = ref.watch(deviceStatusProvider).value?.moduleLimits;
 
-  return mergeModuleLimits(local, limits);
+  return mergeModuleLimits(const AppSettings(), limits);
 });

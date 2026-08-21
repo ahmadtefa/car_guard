@@ -27,17 +27,23 @@ void main() {
       final alerts = AlertEvaluator.evaluate(
         _status(),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(
+          maxTemp: 110,
+          minVolt: 12.0,
+          maxVolt: 15.0,
+        ),
         hadConnectionBefore: true,
       );
 
       expect(alerts, isEmpty);
     });
 
-    test('critical alert once engine temperature reaches critical threshold',
+    test('critical alert once engine temperature reaches the module limit',
         () {
       final alerts = AlertEvaluator.evaluate(
         _status(temperature: 110.5),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(maxTemp: 110),
       );
 
       expect(alerts, hasLength(1));
@@ -45,10 +51,11 @@ void main() {
       expect(alerts.single.severity, AlertSeverity.critical);
     });
 
-    test('warning alert between warning and critical thresholds', () {
+    test('warning alert within 5 degrees below the module limit', () {
       final alerts = AlertEvaluator.evaluate(
         _status(temperature: 104),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(maxTemp: 105),
       );
 
       expect(alerts, hasLength(1));
@@ -60,6 +67,7 @@ void main() {
       final alerts = AlertEvaluator.evaluate(
         _status(voltage: 11.9),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(minVolt: 12.0),
       );
 
       expect(alerts, hasLength(1));
@@ -71,6 +79,7 @@ void main() {
       final alerts = AlertEvaluator.evaluate(
         _status(voltage: 0),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(minVolt: 12.0),
       );
 
       expect(alerts, isEmpty);
@@ -80,6 +89,7 @@ void main() {
       final alerts = AlertEvaluator.evaluate(
         _status(voltage: 15.6),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(maxVolt: 15.0),
       );
 
       expect(alerts, hasLength(1));
@@ -87,10 +97,36 @@ void main() {
       expect(alerts.single.severity, AlertSeverity.critical);
     });
 
-    test('voltage inside the configured range raises no alert', () {
+    test('voltage inside the module range raises no alert', () {
       final alerts = AlertEvaluator.evaluate(
         _status(voltage: 14.2),
         const AppSettings(),
+        moduleLimits: const ModuleLimits(minVolt: 12.0, maxVolt: 15.0),
+      );
+
+      expect(alerts, isEmpty);
+    });
+
+    test('without module limits no sensor alert ever fires', () {
+      // Even readings far beyond the old default thresholds stay silent:
+      // the removed app-side sliders no longer have any effect.
+      final alerts = AlertEvaluator.evaluate(
+        _status(temperature: 150, voltage: 16.5),
+        const AppSettings(),
+      );
+
+      expect(alerts, isEmpty);
+    });
+
+    test('stale app-side thresholds stored from the slider era are ignored',
+        () {
+      final alerts = AlertEvaluator.evaluate(
+        _status(temperature: 110, voltage: 11.5),
+        const AppSettings(
+          engineTempCritical: 90,
+          minBatteryVoltage: 13.0,
+        ),
+        moduleLimits: const ModuleLimits(maxTemp: 120, minVolt: 11.0),
       );
 
       expect(alerts, isEmpty);
@@ -139,6 +175,7 @@ void main() {
       final alerts = AlertEvaluator.evaluate(
         _status(connected: false, temperature: 115, voltage: 11),
         const AppSettings(connectionAlertsEnabled: false),
+        moduleLimits: const ModuleLimits(maxTemp: 100, minVolt: 12.0),
         hadConnectionBefore: true,
       );
 

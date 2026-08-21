@@ -42,6 +42,14 @@ class DemoDeviceState {
         fanRunning: fanRunning,
         buzzerActive: buzzerActive,
       ),
+      // The demo reports fixed module limits (like real firmware) so
+      // temperature/voltage alerts and gauge redlines stay explorable.
+      moduleLimits: const ModuleLimits(
+        maxTemp: 95,
+        fanOnTemp: 85,
+        minVolt: 12.0,
+        maxVolt: 15.0,
+      ),
       lastUpdated: DateTime.now(),
     );
   }

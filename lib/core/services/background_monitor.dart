@@ -61,21 +61,17 @@ class BackgroundMonitorHandler extends TaskHandler {
 
     _everConnected = true;
 
-    // Overlay the limits reported by the module, exactly like the
-    // foreground does through effectiveSettingsProvider. Previously the
-    // background service evaluated the raw saved settings, so stale
-    // slider-era thresholds could raise alarms the module itself (and the
-    // foreground UI) would never raise.
-    final effectiveSettings =
-        mergeModuleLimits(settings, status.moduleLimits);
-
+    // Sensor alerts follow the module's own reported limits only — the
+    // removed app-side sliders no longer participate anywhere (foreground
+    // behaves the same way through alerts_provider).
     final alerts = AlertEvaluator.evaluate(
       status,
-      effectiveSettings,
+      settings,
+      moduleLimits: status.moduleLimits,
       hadConnectionBefore: true,
     );
 
-    await _notifyAlerts(alerts, effectiveSettings);
+    await _notifyAlerts(alerts, settings);
 
     try {
       await FlutterForegroundTask.updateService(

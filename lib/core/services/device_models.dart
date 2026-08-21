@@ -323,14 +323,12 @@ class DeviceModuleSettings {
   }
 }
 
-/// Overlays the module-reported [limits] on top of the locally saved
-/// [local] settings — limits stored on the module win, mirroring the
-/// original Kayan dashboard.
+/// Overlays the module-reported [limits] on top of [local] settings —
+/// limits stored on the module win, mirroring the original Kayan dashboard.
 ///
-/// Used by the foreground (effectiveSettingsProvider) and by the background
-/// monitor so both evaluate alerts with the exact same thresholds; without
-/// this the background service compared readings against stale local values
-/// and could raise alarms below the real limit.
+/// Used by [effectiveSettingsProvider] for gauge redlines/coloring only;
+/// actual alerting evaluates the module limits directly (see
+/// [AlertEvaluator]), so app-side slider values never fire alarms.
 AppSettings mergeModuleLimits(AppSettings local, ModuleLimits? limits) {
   if (limits == null || limits.isEmpty) {
     return local;
