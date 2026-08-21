@@ -17,10 +17,16 @@ android {
 
     defaultConfig {
         applicationId = "com.example.car_guard"
-        minSdk = flutter.minSdkVersion
+        // The AndroidX Car App Library requires minSdk >= 23.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    buildFeatures {
+        // Used by the Android Auto service to pick the host validator strategy.
+        buildConfig = true
     }
 
     buildTypes {
@@ -38,6 +44,11 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+
+    // Android Auto support (Android for Cars App Library - template app).
+    implementation("androidx.car.app:app:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
 
 flutter {

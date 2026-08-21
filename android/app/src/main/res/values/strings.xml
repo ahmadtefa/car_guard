@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android Auto (car screen) strings. The phone UI keeps its own strings
+         inside the Dart code; these are only used by the car templates. -->
+    <string name="car_app_title">كار جارد</string>
+    <string name="car_loading">بيحمّل بيانات الجهاز…</string>
+    <string name="car_refresh">تحديث</string>
+    <string name="car_disconnected_title">الجهاز غير متصل</string>
+    <string name="car_disconnected_message">وصّل الموبايل بشبكة الـ Wi-Fi بتاعة جهاز Car Guard، وافتح التطبيق على الموبايل الأول، وبعدين اضغط تحديث.</string>
+
+    <string name="car_row_connection">الاتصال</string>
+    <string name="car_connected">متصل</string>
+    <string name="car_row_battery">فولت البطارية</string>
+    <string name="car_row_volt_diff">الفرق</string>
+    <string name="car_row_temp">حرارة المحرك</string>
+    <string name="car_row_coolant">ماء التبريد</string>
+    <string name="car_row_fan">المروحة</string>
+    <string name="car_row_alarm">الإنذار</string>
+
+    <string name="car_coolant_ok">موجودة</string>
+    <string name="car_coolant_low">ناقصة!</string>
+    <string name="car_fan_on">شغالة</string>
+    <string name="car_fan_off">واقفة</string>
+    <string name="car_alarm_on">شغّال!</string>
+
+    <string name="car_action_mute">كتم الإنذار</string>
+    <string name="car_toast_mute_ok">تم إرسال أمر كتم الإنذار</string>
+    <string name="car_toast_mute_failed">مش قادر أوصل للجهاز</string>
+</resources>

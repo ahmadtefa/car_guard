@@ -1,6 +1,14 @@
 # car_guard
 
-A new Flutter project.
+A Flutter companion app for the ESP8266-based Car Guard device (battery
+voltage, engine temperature, coolant level and fan monitoring).
+
+## Android Auto
+
+The app ships an Android Auto experience (car dashboard screen with live
+readings and a mute-alarm action) built with the official Android for Cars
+App Library. See [docs/android_auto.md](docs/android_auto.md) for setup,
+developer-mode testing and Play Store notes.
 
 ## Getting Started
 

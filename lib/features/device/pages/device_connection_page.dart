@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/services/storage_service.dart';
 
 class DeviceConnectionPage extends ConsumerStatefulWidget {
   const DeviceConnectionPage({super.key});
@@ -28,8 +29,16 @@ class _DeviceConnectionPageState
       final repository =
           ref.read(esp8266RepositoryProvider);
 
+      final host = _hostController.text.trim();
+
+      // Persist the host so other surfaces (e.g. the Android Auto screen)
+      // can reach the same device without the phone UI being open.
+      await ref
+          .read(storageServiceProvider)
+          .write('device_host', host);
+
       await repository.connect(
-        host: _hostController.text.trim(),
+        host: host,
       );
 
       if (!mounted) return;
