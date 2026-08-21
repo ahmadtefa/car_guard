@@ -853,7 +853,9 @@ class Esp8266Repository implements DeviceRepository {
             buzzerActive:
                 parts.length > 9 ? parts[9].trim() == "1" : false,
 
-            muted: parts.length > 10 ? parts[10].trim
+            muted: parts.length > 10 ? parts[10].trim() == "1" : false,
+
+          ),
 
 
           moduleLimits: ModuleLimits(
