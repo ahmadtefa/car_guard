@@ -241,13 +241,13 @@ class Esp8266Repository implements DeviceRepository {
       _wsTimeoutTimer?.cancel();
 
       _wsTimeoutTimer = Timer(
-        const Duration(seconds: 3),
+        const Duration(milliseconds: 1500),
         () {
 
           if (!_connected && !_stopped) {
 
             debugPrint(
-              "WS TIMEOUT -> HTTP FALLBACK",
+              "WS TIMEOUT -> HTTP FALLBACK (1.5s)",
             );
 
             _startHttpFallback(host);
@@ -284,7 +284,7 @@ class Esp8266Repository implements DeviceRepository {
 
 
     debugPrint(
-      "START HTTP FALLBACK",
+      "START HTTP FALLBACK (fast)",
     );
 
 
@@ -293,61 +293,40 @@ class Esp8266Repository implements DeviceRepository {
 
     _httpTimer?.cancel();
 
+    // محاولة فورية بدون انتظار ثانية، ثم كل 800ms لإعادة الاتصال أسرع
+    // لما الموبايل لسه على شبكة الجهاز
+    Future<void> doPoll() async {
+      if (_stopped || !_usingHttpFallback) return;
+      try {
+        final response = await http
+            .get(
+              Uri.parse("http://$host/data"),
+            )
+            .timeout(const Duration(seconds: 2));
+
+        if (response.statusCode == 200) {
+          // نجاح فوري -> الغي مؤقت الـ WS وأعد الاتصال
+          _wsTimeoutTimer?.cancel();
+          _wsReconnectTimer?.cancel();
+          _wsReconnectAttempts = 0;
+
+          _connected = true;
+          _connectionController.add(true);
+
+          _handleData(response.body);
+        }
+      } catch (e) {
+        // الخطأ لا يقطع الـ polling — سيُعاد في الدورة التالية
+        // debugPrint("HTTP POLL ERROR $e");
+      }
+    }
+
+    // أول محاولة فورية
+    unawaited(doPoll());
 
     _httpTimer = Timer.periodic(
-
-      const Duration(seconds: 1),
-
-      (_) async {
-
-        try {
-
-          final response =
-              await http.get(
-
-            Uri.parse(
-              "http://$host/data",
-            ),
-
-          );
-
-
-          if (response.statusCode == 200) {
-
-
-            debugPrint(
-              "HTTP DATA = ${response.body}",
-            );
-
-
-            _connected = true;
-
-            _connectionController.add(true);
-
-
-            _handleData(
-              response.body,
-            );
-
-
-          }
-
-
-        } catch (e) {
-
-
-          debugPrint(
-            "HTTP ERROR $e",
-          );
-
-
-          _setDisconnected();
-
-
-        }
-
-      },
-
+      const Duration(milliseconds: 800),
+      (_) => doPoll(),
     );
 
   }
@@ -374,7 +353,10 @@ class Esp8266Repository implements DeviceRepository {
     _wsReconnectAttempts++;
 
 
-    final delaySeconds = 3 * _wsReconnectAttempts.clamp(1, 5);
+    // تسريع: 1s, 1.5s, 2s, 3s, 5s بدل 3,6,9,12,15
+    final delays = [1, 1, 2, 3, 5];
+    final idx = (_wsReconnectAttempts - 1).clamp(0, delays.length - 1);
+    final delaySeconds = delays[idx];
 
     debugPrint(
       "WS RECONNECT IN ${delaySeconds}s (attempt $_wsReconnectAttempts/$_maxWsReconnectAttempts)",
@@ -382,13 +364,21 @@ class Esp8266Repository implements DeviceRepository {
 
 
     _wsReconnectTimer = Timer(
-      Duration(seconds: delaySeconds),
+      Duration(milliseconds: (delaySeconds * 1000).toInt()),
       () {
 
         _wsReconnectTimer = null;
 
         if (_stopped || _connected) {
           return;
+        }
+
+        // عند إعادة المحاولة بسرعة، لا ننتظر mDNS دقيقة كاملة
+        // نسمح باكتشاف جديد إذا فات 10 ثواني فقط
+        if (_lastMdnsLookup != null &&
+            DateTime.now().difference(_lastMdnsLookup!) >
+                const Duration(seconds: 10)) {
+          _lastMdnsLookup = null;
         }
 
         connect(
