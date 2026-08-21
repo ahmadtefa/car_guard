@@ -262,6 +262,9 @@ class AppL10n {
       isAr ? 'أقل جهد للبطارية' : 'Minimum battery voltage';
   String get maxBatteryVoltageLabel =>
       isAr ? 'أعلى جهد للبطارية' : 'Maximum battery voltage';
+  String get moduleLimitsNote => isAr
+      ? 'ملحوظة: أثناء الاتصال بالوحدة، حدود الإنذار المحفوظة عليها (قسم إعدادات الجهاز فوق) بتغلب القيم دي.'
+      : 'Note: while connected, the limits saved on the module (Module settings above) override these values.';
   String get coolantAlerts => isAr ? 'تنبيهات المياه' : 'Coolant alerts';
   String get coolantAlertsInfo =>
       isAr ? 'تنبيه عند نقص مياه الردييتر.' : 'Notify when the coolant level is low.';

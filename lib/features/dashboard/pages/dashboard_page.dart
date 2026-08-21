@@ -634,9 +634,9 @@ class _DataSheet extends ConsumerWidget {
             SecondaryButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                context.push('/device-settings');
+                context.push('/settings');
               },
-              child: Text(l.moduleSettings),
+              child: Text(l.settings),
             ),
           ],
         ),

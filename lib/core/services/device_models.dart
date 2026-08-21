@@ -1,4 +1,6 @@
 // Strongly typed domain models for the Car Guard communication layer.
+import '../models/app_settings.dart';
+
 /// Alarm limits reported by the module inside its live stream.
 ///
 /// Every field is nullable: the firmware may omit values, in which case the
@@ -319,4 +321,39 @@ class DeviceModuleSettings {
       serial: json['serial'] as String? ?? '',
     );
   }
+}
+
+/// Overlays the module-reported [limits] on top of the locally saved
+/// [local] settings — limits stored on the module win, mirroring the
+/// original Kayan dashboard.
+///
+/// Used by the foreground (effectiveSettingsProvider) and by the background
+/// monitor so both evaluate alerts with the exact same thresholds; without
+/// this the background service compared readings against stale local values
+/// and could raise alarms below the real limit.
+AppSettings mergeModuleLimits(AppSettings local, ModuleLimits? limits) {
+  if (limits == null || limits.isEmpty) {
+    return local;
+  }
+
+  var effective = local;
+
+  if (limits.maxTemp != null) {
+    effective = effective.copyWith(
+      engineTempCritical: limits.maxTemp,
+      engineTempWarning: limits.maxTemp! - 5 < local.engineTempWarning
+          ? limits.maxTemp! - 5
+          : local.engineTempWarning,
+    );
+  }
+
+  if (limits.minVolt != null) {
+    effective = effective.copyWith(minBatteryVoltage: limits.minVolt);
+  }
+
+  if (limits.maxVolt != null) {
+    effective = effective.copyWith(maxBatteryVoltage: limits.maxVolt);
+  }
+
+  return effective;
 }

@@ -7,14 +7,20 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/services/background_monitor.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/module_settings_section.dart';
 
-/// Lets the user configure the device address and alert thresholds.
+/// The single place for every setting in the app: module alarm limits and
+/// Wi-Fi, app alert thresholds, appearance, demo and background monitoring.
+///
+/// (The standalone `/device-settings` screen was merged into this page so
+/// users no longer have to guess which "settings" entry edits what.)
 ///
 /// Every change is persisted immediately; text fields are persisted through
 /// the save button so half-typed addresses are never stored.
@@ -249,12 +255,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     final l = ref.watch(l10nProvider);
 
+    // When the module streams its own limits they win over the app-side
+    // values below (see effectiveSettingsProvider) — the note under the
+    // sliders tells the user exactly that.
+    final moduleLimits =
+        ref.watch(deviceStatusProvider).value?.moduleLimits;
+
     return Scaffold(
       appBar: AppBar(title: Text(l.settings)),
       body: SafeArea(
         child: ListView(
           padding: AppSpacing.padding,
           children: [
+            const ModuleSettingsSection(),
+            const SizedBox(height: AppSpacing.xl),
+
             SectionTitle(
               title: l.advancedSection,
               subtitle: l.advancedSectionInfo,
@@ -330,6 +345,57 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _save(settings.copyWith(alertsEnabled: value)),
             ),
             if (settings.alertsEnabled) ...[
+              _ThresholdSlider(
+                label: l.engineTempWarningLabel,
+                unit: '°C',
+                value: settings.engineTempWarning,
+                min: 70,
+                max: 130,
+                divisions: 60,
+                onChangedEnd: (value) =>
+                    _save(settings.copyWith(engineTempWarning: value)),
+              ),
+              _ThresholdSlider(
+                label: l.engineTempCriticalLabel,
+                unit: '°C',
+                value: settings.engineTempCritical,
+                min: 80,
+                max: 140,
+                divisions: 60,
+                onChangedEnd: (value) =>
+                    _save(settings.copyWith(engineTempCritical: value)),
+              ),
+              _ThresholdSlider(
+                label: l.minBatteryVoltageLabel,
+                unit: 'V',
+                value: settings.minBatteryVoltage,
+                min: 10,
+                max: 14,
+                divisions: 40,
+                onChangedEnd: (value) =>
+                    _save(settings.copyWith(minBatteryVoltage: value)),
+              ),
+              _ThresholdSlider(
+                label: l.maxBatteryVoltageLabel,
+                unit: 'V',
+                value: settings.maxBatteryVoltage,
+                min: 13,
+                max: 16.5,
+                divisions: 14,
+                onChangedEnd: (value) =>
+                    _save(settings.copyWith(maxBatteryVoltage: value)),
+              ),
+              if (moduleLimits != null && !moduleLimits.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Text(
+                    l.moduleLimitsNote,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               SwitchListTile(
                 title: Text(l.coolantAlerts),
                 subtitle: Text(l.coolantAlertsInfo),
@@ -353,6 +419,74 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Slider row used to pick a numeric alert threshold.
+///
+/// Tracks the drag locally so the thumb follows the finger, then reports the
+/// chosen value through [onChangedEnd] once the drag finishes.
+class _ThresholdSlider extends StatefulWidget {
+  const _ThresholdSlider({
+    required this.label,
+    required this.unit,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChangedEnd,
+  });
+
+  final String label;
+  final String unit;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChangedEnd;
+
+  @override
+  State<_ThresholdSlider> createState() => _ThresholdSliderState();
+}
+
+class _ThresholdSliderState extends State<_ThresholdSlider> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final value =
+        (_dragValue ?? widget.value).clamp(widget.min, widget.max).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: Text(widget.label)),
+              Text(
+                '${value.toStringAsFixed(1)} ${widget.unit}',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ],
+          ),
+        ),
+        Slider(
+          value: value,
+          min: widget.min,
+          max: widget.max,
+          divisions: widget.divisions,
+          label: value.toStringAsFixed(1),
+          onChanged: (newValue) => setState(() => _dragValue = newValue),
+          onChangeEnd: (newValue) {
+            setState(() => _dragValue = null);
+            widget.onChangedEnd(newValue);
+          },
+        ),
+      ],
     );
   }
 }

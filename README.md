@@ -15,8 +15,10 @@ status streamed straight to your phone over Wi-Fi.
   - the battery voltage drops below your minimum,
   - the coolant level runs low,
   - the device connection is lost.
-- **Settings page** — configure the device address and every alert threshold;
-  everything is persisted on the phone and restored on the next launch.
+- **One settings page** — module alarm limits & Wi-Fi, app alert thresholds
+  (sliders), gauge style, demo mode and background monitoring all live in a
+  single Settings screen; everything is persisted on the phone and restored
+  on the next launch.
 - **Auto reconnect** — the app reconnects to the last saved device address on
   startup.
 - **Live charts** — engine temperature and battery voltage sparklines for the
@@ -31,9 +33,9 @@ status streamed straight to your phone over Wi-Fi.
 - **Full-screen HUD** — tap any gauge to see one giant live reading.
 - **Alternator & fan cards** — charging status with live animations.
 - **High-voltage alert** — warns when charging voltage exceeds your maximum.
-- **Module settings screen** — read/edit the limits stored on the ESP8266
-  itself (`/getallsettings` + `/saveallsettings`), test fan, restart, and
-  provision the module Wi-Fi (`/savewifi`).
+- **Module settings (inside Settings)** — read/edit the limits stored on the
+  ESP8266 itself (`/getallsettings` + `/saveallsettings`), and provision the
+  module Wi-Fi (`/savewifi`).
 - **Theme choice** — Auto / Light / Dark, persisted with the rest of the
   settings.
 - **Arabic + English UI** — full translation with automatic RTL layout; quick
@@ -68,8 +70,8 @@ lib/
 │   └── widgets/            # Shared design-system widgets
 └── features/
     ├── dashboard/          # Live dashboard cards + alerts banner
-    ├── device/             # Device connection screen
-    └── settings/           # Device address & alert thresholds
+    ├── device/             # Advanced calibration & OTA update screens
+    └── settings/           # Single settings screen (app + module)
 ```
 
 Key components:
@@ -116,8 +118,7 @@ flutter test             # run the test suite
 ```
 
 Pair your phone with the ESP8266 access point (or the same network), then set
-the module address in **Connection** or **Settings**. The default is
-`192.168.4.1:81`.
+the module address from the dashboard. The default is `192.168.4.1:81`.
 
 ## Android Auto
 
