@@ -42,8 +42,10 @@ status streamed straight to your phone over Wi-Fi.
   toggle from the dashboard.
 - **Module-borne limits only** — temperature/voltage alerts are driven
   exclusively by the alarm limits stored on the module (Settings → Module
-  settings). The old app-side slider thresholds were removed *with* their
-  effect, so stale local values can never raise an alarm.
+  settings): taken from the live stream, or from the last `/getallsettings`
+  snapshot the app caches on the phone when the stream omits them. The old
+  app-side slider thresholds were removed *with* their effect, so stale
+  local values can never raise an alarm.
 - **Automatic WebSocket reconnect** — up to 10 attempts with growing delay,
   HTTP polling keeps running meanwhile.
 - **In-app alarm siren** — loops while a warning/critical alert is active,

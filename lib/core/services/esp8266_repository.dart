@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../constants/device_endpoints.dart';
@@ -35,6 +36,16 @@ class Esp8266Repository implements DeviceRepository {
 
   bool _connected = false;
   bool _usingHttpFallback = false;
+
+  /// Last settings the module itself reported (`/getallsettings`). Used to
+  /// fill limits the firmware does not stream, so voltage/temperature
+  /// alerts keep working on every hardware build.
+  DeviceModuleSettings? _lastModuleSettings;
+  bool _moduleLimitsRequested = false;
+
+  /// SharedPreferences key holding the cached module settings JSON so the
+  /// background monitor isolate can use the same fallback.
+  static const String moduleLimitsCacheKey = 'module_limits_cache';
 
   int _wsReconnectAttempts = 0;
   Timer? _wsReconnectTimer;
@@ -426,9 +437,13 @@ class Esp8266Repository implements DeviceRepository {
         return null;
       }
 
-      return DeviceModuleSettings.fromJson(
+      final settings = DeviceModuleSettings.fromJson(
         Map<String, dynamic>.from(decoded),
       );
+
+      _cacheModuleLimits(settings);
+
+      return settings;
 
     } catch (e) {
 
@@ -449,7 +464,7 @@ class Esp8266Repository implements DeviceRepository {
     DeviceModuleSettings settings,
   ) async {
 
-    return _getExpectsOk(
+    final ok = await _getExpectsOk(
       "${DeviceEndpoints.saveAllSettings}"
       "?maxTemp=${settings.maxTemp}"
       "&fanOnTemp=${settings.fanOnTemp}"
@@ -457,6 +472,12 @@ class Esp8266Repository implements DeviceRepository {
       "&maxVolt=${settings.maxVolt}"
       "&offset=${settings.offset}",
     );
+
+    if (ok) {
+      _cacheModuleLimits(settings);
+    }
+
+    return ok;
 
   }
 
@@ -662,6 +683,8 @@ class Esp8266Repository implements DeviceRepository {
     String data,
   ) {
 
+    _ensureModuleLimitsLoaded();
+
     try {
 
       DeviceStatus status;
@@ -688,7 +711,7 @@ class Esp8266Repository implements DeviceRepository {
           minVolt: (json["minVolt"] as num?)?.toDouble(),
           maxVolt: (json["maxVolt"] as num?)?.toDouble(),
           offset: (json["offset"] as num?)?.toDouble(),
-        );
+        ).fillFrom(_lastModuleSettings);
 
         status = DeviceStatus(
 
@@ -854,7 +877,7 @@ class Esp8266Repository implements DeviceRepository {
                 ? double.tryParse(parts[8].trim())
                 : null,
 
-          ),
+          ).fillFrom(_lastModuleSettings),
 
 
           lastUpdated:
@@ -1024,6 +1047,55 @@ class Esp8266Repository implements DeviceRepository {
       port: _activePort,
     );
 
+  }
+
+
+  /// Remembers the limits the module reported, and persists them so the
+  /// background monitor isolate can fall back to the same values.
+  void _cacheModuleLimits(DeviceModuleSettings settings) {
+    _lastModuleSettings = settings;
+
+    unawaited(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          moduleLimitsCacheKey,
+          jsonEncode(settings.toJson()),
+        );
+      } catch (_) {
+        // Best-effort cache only — the live stream stays authoritative.
+      }
+    }());
+  }
+
+
+  /// Fetches `/getallsettings` once after the first valid reading so the
+  /// module-borne limits are known even when the live stream omits them.
+  /// Falls back to the persisted cache when the module can't answer yet.
+  void _ensureModuleLimitsLoaded() {
+    if (_moduleLimitsRequested) return;
+    _moduleLimitsRequested = true;
+
+    unawaited(() async {
+      final fetched = await getDeviceSettings();
+      if (fetched != null || _lastModuleSettings != null) return;
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString(moduleLimitsCacheKey);
+
+        if (raw != null && raw.isNotEmpty) {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) {
+            _lastModuleSettings = DeviceModuleSettings.fromJson(
+              Map<String, dynamic>.from(decoded),
+            );
+          }
+        }
+      } catch (_) {
+        // No cache — sensor alerts wait until the module can be read.
+      }
+    }());
   }
 
 }

@@ -37,6 +37,25 @@ class ModuleLimits {
       offset: (json['offset'] as num?)?.toDouble(),
     );
   }
+
+  /// Fills limits missing from the live stream with the values the module
+  /// reported via `/getallsettings` (fresh or cached). Live values always
+  /// win; a null [stored] leaves everything untouched.
+  ///
+  /// Firmware builds differ in what they stream; without this fallback a
+  /// module that never streams min/max voltage would silently disable the
+  /// corresponding app alerts.
+  ModuleLimits fillFrom(DeviceModuleSettings? stored) {
+    if (stored == null) return this;
+
+    return ModuleLimits(
+      maxTemp: maxTemp ?? stored.maxTemp,
+      fanOnTemp: fanOnTemp ?? stored.fanOnTemp,
+      minVolt: minVolt ?? stored.minVolt,
+      maxVolt: maxVolt ?? stored.maxVolt,
+      offset: offset ?? stored.offset,
+    );
+  }
 }
 
 class DeviceStatus {
@@ -304,6 +323,22 @@ class DeviceModuleSettings {
       installDate: installDate ?? this.installDate,
       serial: serial,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'maxTemp': maxTemp,
+      'fanOnTemp': fanOnTemp,
+      'minVolt': minVolt,
+      'maxVolt': maxVolt,
+      'offset': offset,
+      'r1': r1,
+      'r2': r2,
+      'voltCalib': voltCalib,
+      'sensorPullUp': sensorPullUp,
+      'installDate': installDate,
+      'serial': serial,
+    };
   }
 
   factory DeviceModuleSettings.fromJson(Map<String, dynamic> json) {

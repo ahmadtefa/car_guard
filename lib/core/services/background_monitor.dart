@@ -61,13 +61,17 @@ class BackgroundMonitorHandler extends TaskHandler {
 
     _everConnected = true;
 
-    // Sensor alerts follow the module's own reported limits only — the
-    // removed app-side sliders no longer participate anywhere (foreground
-    // behaves the same way through alerts_provider).
+    // Sensor alerts follow the module's own limits only — the removed
+    // app-side sliders no longer participate anywhere (foreground behaves
+    // the same way through alerts_provider). Live stream values win; any
+    // limit the firmware omits falls back to the cached /getallsettings
+    // snapshot the app keeps in storage.
+    final cachedLimits = _cachedModuleSettings(prefs);
+
     final alerts = AlertEvaluator.evaluate(
       status,
       settings,
-      moduleLimits: status.moduleLimits,
+      moduleLimits: status.moduleLimits.fillFrom(cachedLimits),
       hadConnectionBefore: true,
     );
 
@@ -162,6 +166,25 @@ class BackgroundMonitorHandler extends TaskHandler {
       ),
       lastUpdated: DateTime.now(),
     );
+  }
+
+  /// Reads the module settings snapshot the app cached after its last
+  /// successful `/getallsettings` (foreground shares it via SharedPreferences
+  /// with the same key used by Esp8266Repository.moduleLimitsCacheKey).
+  DeviceModuleSettings? _cachedModuleSettings(SharedPreferences prefs) {
+    try {
+      final raw = prefs.getString('module_limits_cache');
+      if (raw == null || raw.isEmpty) return null;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+
+      return DeviceModuleSettings.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _notifyAlerts(

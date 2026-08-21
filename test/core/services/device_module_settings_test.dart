@@ -66,4 +66,37 @@ void main() {
       expect(updated.fanOnTemp, original.fanOnTemp);
     });
   });
+
+  group('ModuleLimits.fillFrom', () {
+    test('live stream values always win over stored module settings', () {
+      const live = ModuleLimits(maxTemp: 100);
+      const stored = DeviceModuleSettings(maxTemp: 95, minVolt: 12.3);
+
+      final merged = live.fillFrom(stored);
+
+      expect(merged.maxTemp, 100);
+      expect(merged.minVolt, 12.3);
+      expect(merged.maxVolt, 15.0);
+    });
+
+    test('missing live values fall back to the stored module settings', () {
+      const live = ModuleLimits();
+      const stored = DeviceModuleSettings(maxTemp: 97, minVolt: 12.1);
+
+      final merged = live.fillFrom(stored);
+
+      expect(merged.isEmpty, isFalse);
+      expect(merged.maxTemp, 97);
+      expect(merged.minVolt, 12.1);
+    });
+
+    test('a null stored snapshot leaves the live limits untouched', () {
+      const live = ModuleLimits(maxTemp: 100);
+
+      final merged = live.fillFrom(null);
+
+      expect(merged.maxTemp, 100);
+      expect(merged.minVolt, isNull);
+    });
+  });
 }
