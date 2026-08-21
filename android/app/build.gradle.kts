@@ -1,12 +1,26 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing from android/key.properties (never committed).
+// Falls back to the debug key until the release keystore exists — see
+// docs/play-store-checklist.md.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+
 android {
     namespace = "com.example.car_guard"
-    compileSdk = flutter.compileSdkVersion
+    // file_picker (via flutter_plugin_android_lifecycle) requires API 36.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -16,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.car_guard"
+        applicationId = "com.kayan.carguard"
         // The AndroidX Car App Library requires minSdk >= 23.
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
@@ -24,14 +38,24 @@ android {
         versionName = flutter.versionName
     }
 
-    buildFeatures {
-        // Used by the Android Auto service to pick the host validator strategy.
-        buildConfig = true
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
@@ -44,11 +68,10 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-
-    // Android Auto support (Android for Cars App Library - template app).
+    // Android Auto front-end (CarGuardCarAppService)
     implementation("androidx.car.app:app:1.4.0")
+    // DefaultLifecycleObserver used by the car screen lives here.
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
 
 flutter {

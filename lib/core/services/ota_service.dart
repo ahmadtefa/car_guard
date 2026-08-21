@@ -28,18 +28,18 @@ class OtaServiceImpl implements OtaService {
 
   @override
   Future<void> downloadUpdate() async {
-    // OTA firmware upload will be implemented with ESP8266 firmware integration.
+    // OTA firmware upload will be implemented with the module firmware integration.
   }
 
   @override
   Future<void> installUpdate() async {
-    // Installation is handled by the ESP8266 after upload.
+    // Installation is handled by the module after upload.
   }
 
   @override
   Future<void> rollback() async {
     throw UnsupportedError(
-      'Rollback is not supported by ESP8266 OTA.',
+      'Rollback is not supported by the module OTA.',
     );
   }
 }

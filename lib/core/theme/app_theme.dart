@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/app_colors.dart';
 
@@ -21,6 +20,3 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: AppColors.backgroundDark,
   );
 }
-
-/// Riverpod provider for switching the app theme mode.
-final themeModeProvider = Provider<ThemeMode>((ref) => ThemeMode.system);

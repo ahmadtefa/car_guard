@@ -26,7 +26,7 @@ class WiFiServiceImpl implements WiFiService {
     required String ssid,
     String? password,
   }) async {
-    // سيتم تنفيذ الاتصال الحقيقي مع ESP8266 لاحقًا.
+    // سيتم تنفيذ الاتصال الحقيقي مع الوحدة لاحقًا.
     _connected = true;
   }
 
