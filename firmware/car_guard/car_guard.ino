@@ -133,8 +133,12 @@ void maybeStartStaAndMdns() {
   WiFi.begin(settings.staSSID, settings.staPASS);
 }
 
-void maybeAdvertiseMdns() {
-  if (mdnsStarted || WiFi.status() != WL_CONNECTED) return;
+// [STA+mDNS] Runs once as soon as WiFi is up (AP is always up, so this
+// fires right after boot) AND also advertises the STA address once the
+// module joins a hotspot. The fixed host name "car_guard" lets the app
+// discover the module without any IP typing, on both paths.
+void advertiseMdns() {
+  if (mdnsStarted) return;
 
   if (MDNS.begin("car_guard")) {
     MDNS.addService("http",    "tcp", 80);
@@ -142,7 +146,10 @@ void maybeAdvertiseMdns() {
     MDNS.addService("carguard","tcp", 80);
     mdnsStarted = true;
 
-    Serial.print("📡 mDNS up: car_guard.local @ ");
+    Serial.println("📡 mDNS up: car_guard.local");
+    Serial.print("   AP ip:  ");
+    Serial.println(WiFi.softAPIP());
+    Serial.print("   STA ip: ");
     Serial.println(WiFi.localIP());
   }
 }
@@ -835,7 +842,15 @@ void handleRoot() {
 
 void handleNotFound() {
   sendCORS();
-  server.send(404, "text/plain", "NOT FOUND");
+  // [PORTAL] The module runs a wildcard DNS that points every hostname at
+  // itself, so Android/iOS/Windows connectivity probes (generate_204,
+  // hotspot-detect.html, connecttest.txt…) always land here. Answering
+  // with 302 -> / makes the OS classify the AP as a *captive portal*:
+  // it keeps the phone on 4G for internet and shows its one-shot
+  // "Sign in to network" notice instead of cutting data off — same
+  // behavior you get on a café WiFi.
+  server.sendHeader("Location", "/", true);
+  server.send(302, "text/plain", "Redirect to CarGuard");
 }
 
 // =========================================================
@@ -872,6 +887,10 @@ void setup() {
 
   dnsServer.start(53, "*", WiFi.softAPIP());
 
+  // [STA+mDNS] mDNS answers on the AP too — no need to wait for the STA
+  // link: discovery works identically in both topologies.
+  advertiseMdns();
+
   httpUpdater.setup(&server, "/update");
 
   webSocket.begin();
@@ -889,6 +908,14 @@ void setup() {
   server.on("/saveadvancedsettings",handleSaveAdvancedSettings);
   server.on("/getallsettings",      handleGetAllSettings);
   server.on("/calibratevoltage",    handleCalibrateVoltage);
+
+  // [PORTAL] Explicit OS connectivity-probe paths so they never fall
+  // through as 404s (handleNotFound now answers captive-portal style).
+  server.on("/generate_204",        handleNotFound);  // Android
+  server.on("/hotspot-detect.html", handleNotFound);  // iOS
+  server.on("/connecttest.txt",     handleNotFound);  // Windows
+  server.on("/ncsi.txt",            handleNotFound);  // Windows
+
   server.onNotFound(handleNotFound);
 
   server.begin();
@@ -918,20 +945,20 @@ void loop() {
   server.handleClient();
   webSocket.loop();
 
-  // [STA+mDNS] once the station link is up, bring mDNS online exactly once;
-  // if it drops later, just re-attempt the WiFi join quietly.
+  // [STA+mDNS] mandatory pump — the responder only serves queries while
+  // update() is being called from loop().
+  if (mdnsStarted) {
+    MDNS.update();
+  }
+
+  // [STA+mDNS] if the hotspot link drops, quietly re-attempt the join.
   if (settings.staSSID[0] != 0) {
-    if (!mdnsStarted && WiFi.status() == WL_CONNECTED) {
-      maybeAdvertiseMdns();
-    }
-    if (mdnsStarted) {
-      static unsigned long lastStaCheck = 0;
-      if (millis() - lastStaCheck > 15000) {
-        lastStaCheck = millis();
-        if (WiFi.status() != WL_CONNECTED) {
-          Serial.println("📡 STA lost — retrying join...");
-          WiFi.begin(settings.staSSID, settings.staPASS);
-        }
+    static unsigned long lastStaCheck = 0;
+    if (millis() - lastStaCheck > 15000) {
+      lastStaCheck = millis();
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("📡 STA lost — retrying join...");
+        WiFi.begin(settings.staSSID, settings.staPASS);
       }
     }
   }
