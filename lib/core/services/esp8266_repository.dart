@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../constants/device_endpoints.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
 
@@ -24,6 +25,7 @@ class Esp8266Repository implements DeviceRepository {
 
   WebSocketChannel? _channel;
   Timer? _httpTimer;
+  Timer? _wsTimeoutTimer;
 
   final StreamController<DeviceStatus> _statusController =
       StreamController<DeviceStatus>.broadcast();
@@ -33,6 +35,15 @@ class Esp8266Repository implements DeviceRepository {
 
   bool _connected = false;
   bool _usingHttpFallback = false;
+
+  int _wsReconnectAttempts = 0;
+  Timer? _wsReconnectTimer;
+  static const int _maxWsReconnectAttempts = 10;
+
+  /// True while the repository is intentionally torn down; prevents the
+  /// WebSocket onDone/onError callbacks from restarting the HTTP fallback
+  /// after [disconnect] already cancelled every timer.
+  bool _stopped = true;
 
   Stream<bool> get connectionStream =>
       _connectionController.stream;
@@ -49,6 +60,14 @@ class Esp8266Repository implements DeviceRepository {
     _activePort = wsPort;
 
     await disconnect();
+
+    // disconnect() flagged the repository as stopped; clear the flag because
+    // connect() is about to establish a brand new session.
+    _stopped = false;
+
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+    _wsReconnectAttempts = 0;
 
 
     debugPrint(
@@ -77,6 +96,13 @@ class Esp8266Repository implements DeviceRepository {
           _connected = true;
           _usingHttpFallback = false;
 
+          if (_wsReconnectAttempts != 0) {
+            _wsReconnectAttempts = 0;
+          }
+
+          _wsReconnectTimer?.cancel();
+          _wsReconnectTimer = null;
+
           _connectionController.add(true);
 
 
@@ -93,9 +119,16 @@ class Esp8266Repository implements DeviceRepository {
             "WS CLOSED",
           );
 
+          if (_stopped) {
+            return;
+          }
+
           _setDisconnected();
 
           _startHttpFallback(host);
+
+          _scheduleWsReconnect();
+
 
         },
 
@@ -106,9 +139,15 @@ class Esp8266Repository implements DeviceRepository {
             "WS ERROR $error",
           );
 
+          if (_stopped) {
+            return;
+          }
+
           _setDisconnected();
 
           _startHttpFallback(host);
+
+          _scheduleWsReconnect();
 
         },
 
@@ -118,16 +157,31 @@ class Esp8266Repository implements DeviceRepository {
       );
 
 
-      _channel!.sink.add(
-        "hello",
-      );
+      try {
+
+        _channel!.sink.add(
+          "hello",
+        );
+
+      } catch (e) {
+
+        // Writing to a freshly-closed socket throws; the onDone/onError
+        // handlers take over from here.
+
+        debugPrint(
+          "WS HELLO FAILED $e",
+        );
+
+      }
 
 
-      Future.delayed(
+      _wsTimeoutTimer?.cancel();
+
+      _wsTimeoutTimer = Timer(
         const Duration(seconds: 3),
         () {
 
-          if (!_connected) {
+          if (!_connected && !_stopped) {
 
             debugPrint(
               "WS TIMEOUT -> HTTP FALLBACK",
@@ -161,7 +215,7 @@ class Esp8266Repository implements DeviceRepository {
     String host,
   ) {
 
-    if (_usingHttpFallback) {
+    if (_stopped || _usingHttpFallback) {
       return;
     }
 
@@ -237,6 +291,55 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  void _scheduleWsReconnect() {
+
+    if (_stopped || _wsReconnectTimer != null) {
+      return;
+    }
+
+    if (_wsReconnectAttempts >= _maxWsReconnectAttempts) {
+
+      debugPrint(
+        "WS RECONNECT GAVE UP - STAYING ON HTTP POLLING",
+      );
+
+      return;
+
+    }
+
+
+    _wsReconnectAttempts++;
+
+
+    final delaySeconds = 3 * _wsReconnectAttempts.clamp(1, 5);
+
+    debugPrint(
+      "WS RECONNECT IN ${delaySeconds}s (attempt $_wsReconnectAttempts/$_maxWsReconnectAttempts)",
+    );
+
+
+    _wsReconnectTimer = Timer(
+      Duration(seconds: delaySeconds),
+      () {
+
+        _wsReconnectTimer = null;
+
+        if (_stopped || _connected) {
+          return;
+        }
+
+        connect(
+          host: _activeHost,
+          port: _activePort,
+        );
+
+      },
+    );
+
+  }
+
+
+
   void _setDisconnected() {
 
     _connected = false;
@@ -244,6 +347,311 @@ class Esp8266Repository implements DeviceRepository {
     _connectionController.add(false);
 
     _statusController.add(DeviceStatus.disconnected());
+
+  }
+
+
+
+  /// Sends a raw GET command to the connected module and reports whether it
+  /// acknowledged the request.
+  Future<bool> sendDeviceCommand(String endpoint) async {
+
+    if (_stopped) {
+      return false;
+    }
+
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse("http://$_activeHost$endpoint"),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+      return response.statusCode == 200;
+
+    } catch (e) {
+
+      debugPrint(
+        "DEVICE COMMAND FAILED $endpoint : $e",
+      );
+
+      return false;
+
+    }
+
+  }
+
+
+
+  /// Silences the module buzzer (`/mute`).
+  Future<bool> muteBuzzer() => sendDeviceCommand(DeviceEndpoints.mute);
+
+  /// Runs the radiator fan test (`/testfan`).
+  Future<bool> testFan() => sendDeviceCommand(DeviceEndpoints.testFan);
+
+  /// Reboots the module (`/restart`).
+  Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
+
+
+  /// Fetches the settings stored on the module (`/getallsettings`).
+  ///
+  /// Returns null when the device is unreachable or replies with an
+  /// unexpected payload.
+  Future<DeviceModuleSettings?> getDeviceSettings() async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.getAllSettings}",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return DeviceModuleSettings.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        "GET DEVICE SETTINGS FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
+  /// Saves alarm limits to the module (`/saveallsettings`).
+  Future<bool> saveDeviceSettings(
+    DeviceModuleSettings settings,
+  ) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveAllSettings}"
+      "?maxTemp=${settings.maxTemp}"
+      "&fanOnTemp=${settings.fanOnTemp}"
+      "&minVolt=${settings.minVolt}"
+      "&maxVolt=${settings.maxVolt}"
+      "&offset=${settings.offset}",
+    );
+
+  }
+
+
+
+  /// Saves calibration values to the module (`/saveadvancedsettings`).
+  Future<bool> saveAdvancedSettings(DeviceModuleSettings settings) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveAdvancedSettings}"
+      "?offset=${settings.offset}"
+      "&voltCalib=${settings.voltCalib}"
+      "&r1=${settings.r1}"
+      "&r2=${settings.r2}"
+      "&sensorPullUp=${settings.sensorPullUp}"
+      "&installDate=${Uri.encodeComponent(settings.installDate)}",
+    );
+
+  }
+
+
+
+  /// Uploads a firmware image to the module OTA page (`/update`).
+  ///
+  /// The multipart field name matches ESP8266HTTPUpdateServer's form
+  /// ('firmware'). The module flashes and reboots on success.
+  Future<bool> updateFirmware(String filePath) async {
+
+    try {
+
+      final uri = Uri.parse(
+        "http://$_activeHost${DeviceEndpoints.otaUpdate}",
+      );
+
+      final request = http.MultipartRequest("POST", uri)
+        ..files.add(await http.MultipartFile.fromPath("firmware", filePath));
+
+      final response = await request
+          .send()
+          .timeout(const Duration(seconds: 120));
+
+      return response.statusCode == 200;
+
+    } catch (e) {
+
+      debugPrint(
+        "OTA UPLOAD FAILED : $e",
+      );
+
+      return false;
+
+    }
+
+  }
+
+
+
+  /// Reads the Wi-Fi credentials stored on the module
+  /// (`/getwifisettings`).
+  Future<({String ssid, String password})?> getWifiSettings() async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.getWifiSettings}",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 5),
+          );
+
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map) {
+        return null;
+      }
+
+      return (
+        ssid: decoded['ssid'] as String? ?? '',
+        password: decoded['password'] as String? ?? '',
+      );
+
+    } catch (e) {
+
+      debugPrint(
+        "GET WIFI SETTINGS FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
+  /// Runs the on-module voltage calibration wizard (`/calibratevoltage`).
+  ///
+  /// The firmware replies with `OK,<newFactor>`; the new factor is returned
+  /// so the caller can refresh the calibration field, or null on failure.
+  Future<double?> calibrateVoltage(double realVolt) async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse(
+              "http://$_activeHost${DeviceEndpoints.calibrateVoltage}"
+              "?realVolt=$realVolt",
+            ),
+          )
+          .timeout(
+            const Duration(seconds: 6),
+          );
+
+
+      final body = response.body.trim();
+
+      if (response.statusCode != 200 ||
+          !body.toUpperCase().startsWith("OK")) {
+        return null;
+      }
+
+      final parts = body.split(",");
+
+      if (parts.length < 2) {
+        return null;
+      }
+
+      return double.tryParse(parts[1].trim());
+
+    } catch (e) {
+
+      debugPrint(
+        "CALIBRATE VOLTAGE FAILED : $e",
+      );
+
+      return null;
+
+    }
+
+  }
+
+
+
+  /// Provisions the module Wi-Fi (`/savewifi`).
+  ///
+  /// The module usually restarts its access point right after replying, so a
+  /// network failure after the request was sent is expected.
+  Future<bool> saveWifiSettings({
+    required String ssid,
+    required String password,
+  }) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.saveWifiSettings}"
+      "?ssid=${Uri.encodeComponent(ssid)}"
+      "&password=${Uri.encodeComponent(password)}",
+    );
+
+  }
+
+
+
+  Future<bool> _getExpectsOk(String pathAndQuery) async {
+
+    try {
+
+      final response = await http
+          .get(
+            Uri.parse("http://$_activeHost$pathAndQuery"),
+          )
+          .timeout(
+            const Duration(seconds: 8),
+          );
+
+      return response.statusCode == 200 &&
+          response.body.trim().toUpperCase() == "OK";
+
+    } catch (e) {
+
+      debugPrint(
+        "DEVICE REQUEST FAILED $pathAndQuery : $e",
+      );
+
+      return false;
+
+    }
 
   }
 
@@ -264,6 +672,23 @@ class Esp8266Repository implements DeviceRepository {
         final json =
             jsonDecode(data);
 
+        // Coolant may arrive as 1/0, "1"/"0" or true/false depending on the
+        // firmware revision; when the key is absent we optimistically assume
+        // coolant is available instead of crying wolf.
+        final rawCoolant = json["coolant"] ?? json["coolantAvailable"];
+
+        final coolantAvailable = rawCoolant == null ||
+            rawCoolant == 1 ||
+            rawCoolant == '1' ||
+            rawCoolant == true;
+
+        final moduleLimits = ModuleLimits(
+          maxTemp: (json["maxTemp"] as num?)?.toDouble(),
+          fanOnTemp: (json["fanOnTemp"] as num?)?.toDouble(),
+          minVolt: (json["minVolt"] as num?)?.toDouble(),
+          maxVolt: (json["maxVolt"] as num?)?.toDouble(),
+          offset: (json["offset"] as num?)?.toDouble(),
+        );
 
         status = DeviceStatus(
 
@@ -296,10 +721,10 @@ class Esp8266Repository implements DeviceRepository {
 
 
           coolantLevelData:
-              const CoolantLevelData(
+              CoolantLevelData(
 
 
-            coolantAvailable: true,
+            coolantAvailable: coolantAvailable,
 
 
           ),
@@ -308,7 +733,8 @@ class Esp8266Repository implements DeviceRepository {
           controlData: DeviceControlData(
 
             fanRunning:
-                json["fanState"] == 1,
+                json["fanState"] == 1 ||
+                json["fanState"] == true,
 
             buzzerActive:
                 json["buzzerState"] == 1 ||
@@ -316,7 +742,14 @@ class Esp8266Repository implements DeviceRepository {
                 json["alarm"] == 1 ||
                 json["alarmState"] == 1,
 
+            muted:
+                json["muted"] == 1 ||
+                json["muted"] == true,
+
           ),
+
+
+          moduleLimits: moduleLimits,
 
 
           lastUpdated:
@@ -332,7 +765,7 @@ class Esp8266Repository implements DeviceRepository {
             data.split(',');
 
 
-        if (parts.length < 4) {
+        if (parts.length < 3) {
 
           debugPrint(
             "INVALID WS DATA",
@@ -343,6 +776,8 @@ class Esp8266Repository implements DeviceRepository {
         }
 
 
+        // Reference protocol (from the original Kayan dashboard):
+        // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset
         status = DeviceStatus(
 
           connected: true,
@@ -353,12 +788,10 @@ class Esp8266Repository implements DeviceRepository {
           batteryData: BatteryData(
 
             voltage:
-                double.parse(
-                  parts[1],
-                ),
-
-            voltageDifference:
-                parts.length > 5 ? (double.tryParse(parts[5]) ?? 0.0) : 0.0,
+                double.tryParse(
+                  parts[1].trim(),
+                ) ??
+                0.0,
 
           ),
 
@@ -367,18 +800,18 @@ class Esp8266Repository implements DeviceRepository {
               TemperatureData(
 
             engineTemperature:
-                double.parse(
-                  parts[0],
-                ),
+                double.tryParse(
+                  parts[0].trim(),
+                ) ??
+                0.0,
 
           ),
 
 
           coolantLevelData:
-              CoolantLevelData(
+              const CoolantLevelData(
 
-            coolantAvailable:
-                parts[2] == "1",
+            coolantAvailable: true,
 
           ),
 
@@ -387,10 +820,39 @@ class Esp8266Repository implements DeviceRepository {
               DeviceControlData(
 
             fanRunning:
-                parts[3] == "1",
+                parts[2].trim() == "1" ||
+                    parts[2].trim().toLowerCase() == "true",
 
+            // temp,volt,fanState,?,...,offset,alarm,muted
             buzzerActive:
-                parts.length > 4 ? parts[4].trim() == "1" : false,
+                parts.length > 9 ? parts[9].trim() == "1" : false,
+
+            muted: parts.length > 10 ? parts[10].trim() == "1" : false,
+
+          ),
+
+
+          moduleLimits: ModuleLimits(
+
+            maxTemp: parts.length > 4
+                ? double.tryParse(parts[4].trim())
+                : null,
+
+            fanOnTemp: parts.length > 5
+                ? double.tryParse(parts[5].trim())
+                : null,
+
+            minVolt: parts.length > 6
+                ? double.tryParse(parts[6].trim())
+                : null,
+
+            maxVolt: parts.length > 7
+                ? double.tryParse(parts[7].trim())
+                : null,
+
+            offset: parts.length > 8
+                ? double.tryParse(parts[8].trim())
+                : null,
 
           ),
 
@@ -431,11 +893,23 @@ class Esp8266Repository implements DeviceRepository {
   @override
   Future<void> disconnect() async {
 
+    // Flag first so the WebSocket onDone/onError callbacks triggered by
+    // closing the sink below cannot restart the HTTP fallback timer.
+    _stopped = true;
 
     _httpTimer?.cancel();
 
     _httpTimer = null;
 
+    _wsTimeoutTimer?.cancel();
+
+    _wsTimeoutTimer = null;
+
+    _wsReconnectTimer?.cancel();
+
+    _wsReconnectTimer = null;
+
+    _wsReconnectAttempts = 0;
 
     await _channel?.sink.close();
 

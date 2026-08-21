@@ -1,4 +1,42 @@
-// Strongly typed domain models for the ESP8266 communication layer.
+// Strongly typed domain models for the Car Guard communication layer.
+/// Alarm limits reported by the module inside its live stream.
+///
+/// Every field is nullable: the firmware may omit values, in which case the
+/// app keeps its locally configured thresholds.
+class ModuleLimits {
+  const ModuleLimits({
+    this.maxTemp,
+    this.fanOnTemp,
+    this.minVolt,
+    this.maxVolt,
+    this.offset,
+  });
+
+  final double? maxTemp;
+  final double? fanOnTemp;
+  final double? minVolt;
+  final double? maxVolt;
+  final double? offset;
+
+  /// True when the module did not report any limit.
+  bool get isEmpty =>
+      maxTemp == null &&
+      fanOnTemp == null &&
+      minVolt == null &&
+      maxVolt == null &&
+      offset == null;
+
+  factory ModuleLimits.fromJson(Map<String, dynamic> json) {
+    return ModuleLimits(
+      maxTemp: (json['maxTemp'] as num?)?.toDouble(),
+      fanOnTemp: (json['fanOnTemp'] as num?)?.toDouble(),
+      minVolt: (json['minVolt'] as num?)?.toDouble(),
+      maxVolt: (json['maxVolt'] as num?)?.toDouble(),
+      offset: (json['offset'] as num?)?.toDouble(),
+    );
+  }
+}
+
 class DeviceStatus {
   const DeviceStatus({
     required this.connected,
@@ -8,6 +46,7 @@ class DeviceStatus {
     required this.coolantLevelData,
     required this.controlData,
     required this.lastUpdated,
+    this.moduleLimits = const ModuleLimits(),
   });
 
   final bool connected;
@@ -19,6 +58,9 @@ class DeviceStatus {
   final DeviceControlData controlData;
 
   final DateTime lastUpdated;
+
+  /// Limits reported alongside the reading, when the firmware sends them.
+  final ModuleLimits moduleLimits;
 
   factory DeviceStatus.disconnected() {
     return DeviceStatus(
@@ -55,6 +97,10 @@ class DeviceStatus {
 
       lastUpdated:
           DateTime.tryParse(json['lastUpdated'] ?? '') ?? DateTime.now(),
+
+      moduleLimits: ModuleLimits.fromJson(
+        Map<String, dynamic>.from(json),
+      ),
     );
   }
 
@@ -67,6 +113,11 @@ class DeviceStatus {
       'coolantLevelData': coolantLevelData.toJson(),
       'controlData': controlData.toJson(),
       'lastUpdated': lastUpdated.toIso8601String(),
+      'maxTemp': moduleLimits.maxTemp,
+      'fanOnTemp': moduleLimits.fanOnTemp,
+      'minVolt': moduleLimits.minVolt,
+      'maxVolt': moduleLimits.maxVolt,
+      'offset': moduleLimits.offset,
     };
   }
 }
@@ -145,15 +196,25 @@ class DeviceControlData {
   const DeviceControlData({
     this.fanRunning = false,
     this.buzzerActive = false,
+    this.muted = false,
   });
 
   final bool fanRunning;
+
+  /// Whether the module's own alarm (buzzer) is currently firing.
   final bool buzzerActive;
+
+  /// Whether the module buzzer is muted from the app or the module side.
+  final bool muted;
 
   factory DeviceControlData.fromJson(Map<String, dynamic> json) {
     return DeviceControlData(
       fanRunning: json['fanRunning'] as bool? ?? false,
-      buzzerActive: json['buzzerActive'] as bool? ?? false,
+      buzzerActive:
+          json['buzzerActive'] as bool? ??
+          json['alarm'] == 1 ||
+          json['alarm'] == true,
+      muted: json['muted'] == 1 || json['muted'] == true,
     );
   }
 
@@ -161,6 +222,101 @@ class DeviceControlData {
     return {
       'fanRunning': fanRunning,
       'buzzerActive': buzzerActive,
+      'muted': muted,
     };
+  }
+}
+
+
+/// Settings stored on the Car Guard module itself, loaded via `/getallsettings`.
+class DeviceModuleSettings {
+  const DeviceModuleSettings({
+    this.maxTemp = 95.0,
+    this.fanOnTemp = 85.0,
+    this.minVolt = 12.0,
+    this.maxVolt = 15.0,
+    this.offset = 0.0,
+    this.r1 = 2155.0,
+    this.r2 = 390.0,
+    this.voltCalib = 0.9724,
+    this.sensorPullUp = 4700.0,
+    this.installDate = '',
+    this.serial = '',
+  });
+
+  /// Alarm temperature (°C) configured on the module.
+  final double maxTemp;
+
+  /// Temperature (°C) at which the module turns the fan on.
+  final double fanOnTemp;
+
+  /// Minimum battery voltage (V) configured on the module.
+  final double minVolt;
+
+  /// Maximum battery voltage (V) configured on the module.
+  final double maxVolt;
+
+  /// Temperature reading calibration offset (±°C).
+  final double offset;
+
+  /// Voltage divider resistor R1 (ohm).
+  final double r1;
+
+  /// Voltage divider resistor R2 (ohm).
+  final double r2;
+
+  /// Voltage calibration factor.
+  final double voltCalib;
+
+  /// Temperature sensor pull-up resistor (ohm).
+  final double sensorPullUp;
+
+  /// Module first-run date (yyyy-mm-dd) as reported by the firmware.
+  final String installDate;
+
+  /// Module serial number.
+  final String serial;
+
+  DeviceModuleSettings copyWith({
+    double? maxTemp,
+    double? fanOnTemp,
+    double? minVolt,
+    double? maxVolt,
+    double? offset,
+    double? r1,
+    double? r2,
+    double? voltCalib,
+    double? sensorPullUp,
+    String? installDate,
+  }) {
+    return DeviceModuleSettings(
+      maxTemp: maxTemp ?? this.maxTemp,
+      fanOnTemp: fanOnTemp ?? this.fanOnTemp,
+      minVolt: minVolt ?? this.minVolt,
+      maxVolt: maxVolt ?? this.maxVolt,
+      offset: offset ?? this.offset,
+      r1: r1 ?? this.r1,
+      r2: r2 ?? this.r2,
+      voltCalib: voltCalib ?? this.voltCalib,
+      sensorPullUp: sensorPullUp ?? this.sensorPullUp,
+      installDate: installDate ?? this.installDate,
+      serial: serial,
+    );
+  }
+
+  factory DeviceModuleSettings.fromJson(Map<String, dynamic> json) {
+    return DeviceModuleSettings(
+      maxTemp: (json['maxTemp'] as num?)?.toDouble() ?? 95.0,
+      fanOnTemp: (json['fanOnTemp'] as num?)?.toDouble() ?? 85.0,
+      minVolt: (json['minVolt'] as num?)?.toDouble() ?? 12.0,
+      maxVolt: (json['maxVolt'] as num?)?.toDouble() ?? 15.0,
+      offset: (json['offset'] as num?)?.toDouble() ?? 0.0,
+      r1: (json['r1'] as num?)?.toDouble() ?? 2155.0,
+      r2: (json['r2'] as num?)?.toDouble() ?? 390.0,
+      voltCalib: (json['voltCalib'] as num?)?.toDouble() ?? 0.9724,
+      sensorPullUp: (json['sensorPullUp'] as num?)?.toDouble() ?? 4700.0,
+      installDate: json['installDate'] as String? ?? '',
+      serial: json['serial'] as String? ?? '',
+    );
   }
 }

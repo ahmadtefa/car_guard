@@ -6,6 +6,7 @@ class DashboardState {
     this.voltageDifference = '--.- V',
     this.coolantLevel = '--',
     this.fanStatus = 'OFF',
+    this.lastUpdated = '--:--:--',
   });
 
   final String connectionStatus;
@@ -19,4 +20,7 @@ class DashboardState {
   final String coolantLevel;
 
   final String fanStatus;
+
+  /// Clock time of the last reading received from the device.
+  final String lastUpdated;
 }

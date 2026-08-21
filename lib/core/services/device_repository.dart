@@ -1,6 +1,6 @@
 import 'device_models.dart';
 
-/// Abstract contract for the ESP8266 communication repository.
+/// Abstract contract for the device communication repository.
 ///
 /// This repository is intentionally infrastructure-focused and does not contain
 /// UI or feature-specific business logic. It provides a stable interface for
@@ -26,18 +26,4 @@ abstract class DeviceRepository {
 
   /// Attempts to reconnect after a connection failure.
   Future<void> reconnect();
-}
-
-class DeviceEndpoints {
-  static const dashboard = '/data';
-  static const getAllSettings = '/getallsettings';
-  static const saveAllSettings = '/saveallsettings';
-  static const saveAdvancedSettings = '/saveadvancedsettings';
-  static const calibrateVoltage = '/calibratevoltage';
-  static const getWifiSettings = '/getwifisettings';
-  static const saveWifiSettings = '/savewifi';
-  static const restart = '/restart';
-  static const mute = '/mute';
-  static const testFan = '/testfan';
-  static const otaUpdate = '/update';
 }
