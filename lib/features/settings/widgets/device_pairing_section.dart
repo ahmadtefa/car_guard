@@ -5,38 +5,32 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
-import '../../../core/providers/device_provider.dart';
 import '../../../core/services/esp8266_repository.dart';
 import '../../../core/services/network_binding_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/primary_button.dart';
-import '../../../core/widgets/section_title.dart';
 import '../providers/settings_provider.dart';
 
-/// Lets the user view and change the Car Guard module address, then
-/// reconnects to it.
+/// The only connection control left in Settings: the direct app-scoped
+/// Wi-Fi pairing switch (module link + 4G internet at the same time).
 ///
-/// Default: `192.168.4.1` (the module's own access point). Needed when the
-/// module joins another network — e.g. the phone's hotspot, which keeps the
-/// phone's own internet on 4G at all times.
-class DeviceAddressSection extends ConsumerStatefulWidget {
-  const DeviceAddressSection({super.key});
+/// The module address itself is intentionally NOT editable anymore — end
+/// users should never see or touch it; the default `192.168.4.1` is fixed.
+class DevicePairingSection extends ConsumerStatefulWidget {
+  const DevicePairingSection({super.key});
 
   @override
-  ConsumerState<DeviceAddressSection> createState() =>
-      _DeviceAddressSectionState();
+  ConsumerState<DevicePairingSection> createState() =>
+      _DevicePairingSectionState();
 }
 
-class _DeviceAddressSectionState
-    extends ConsumerState<DeviceAddressSection> {
-  final _hostController = TextEditingController();
+class _DevicePairingSectionState
+    extends ConsumerState<DevicePairingSection> {
   final _ssidController = TextEditingController(text: 'CarGuard');
   final _passController = TextEditingController();
 
-  bool _initialized = false;
-  bool _busy = false;
   bool _pairing = false;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -46,7 +40,6 @@ class _DeviceAddressSectionState
 
   @override
   void dispose() {
-    _hostController.dispose();
     _ssidController.dispose();
     _passController.dispose();
     super.dispose();
@@ -77,33 +70,6 @@ class _DeviceAddressSectionState
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
-
-  Future<void> _apply(AppSettings settings) async {
-    final l = ref.read(l10nProvider);
-    final host = _hostController.text.trim();
-
-    if (host.isEmpty) return;
-
-    setState(() => _busy = true);
-
-    await ref
-        .read(settingsProvider.notifier)
-        .save(settings.copyWith(deviceHost: host));
-
-    // Reconnect right away so the change takes effect without an app restart.
-    await ref
-        .read(esp8266RepositoryProvider)
-        .connect(host: host, port: settings.devicePort);
-
-    if (!mounted) return;
-
-    setState(() => _busy = false);
-    _snack(l.settingsSaved);
-  }
-
-  // ------------------------------------------------------------------
-  // Direct app-scoped Wi-Fi pairing (keeps 4G as the internet route)
-  // ------------------------------------------------------------------
 
   Future<bool> _ensurePairingPermission() async {
     final sdk = await NetworkBindingService.androidSdkLevel();
@@ -190,10 +156,6 @@ class _DeviceAddressSectionState
       _busy = false;
       _pairing = false;
     });
-
-    await _apply(
-      ref.read(settingsProvider).value ?? const AppSettings(),
-    );
   }
 
   @override
@@ -203,34 +165,9 @@ class _DeviceAddressSectionState
 
     final l = ref.watch(l10nProvider);
 
-    // Fill the field once with the persisted address.
-    if (!_initialized) {
-      _hostController.text = settings.deviceHost;
-      _initialized = true;
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(
-          title: l.deviceConnection,
-          subtitle: l.deviceAddressInfo,
-        ),
-        AppTextField(
-          controller: _hostController,
-          labelText: l.deviceAddressLabel,
-          hintText: '192.168.4.1',
-          keyboardType: TextInputType.url,
-          enabled: !settings.demoModeEnabled && !_busy,
-        ),
-        PrimaryButton(
-          onPressed: (settings.demoModeEnabled || _busy)
-              ? null
-              : () => _apply(settings),
-          child: Text(l.applyAndReconnect),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-
         SwitchListTile(
           title: Text(l.directPairTitle),
           subtitle: Text(l.directPairInfo),

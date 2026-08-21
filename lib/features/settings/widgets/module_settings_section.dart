@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_provider.dart';
@@ -245,37 +246,70 @@ class _ModuleSettingsSectionState
           ),
           const SizedBox(height: AppSpacing.md),
 
-          AppTextField(
-            controller: _fanOnTemp,
-            labelText: l.fanOnTempLabel,
-            hintText: '85',
-            keyboardType: TextInputType.number,
-          ),
-          AppTextField(
-            controller: _alarmTemp,
-            labelText: l.alarmTempLabel,
-            hintText: '95',
-            keyboardType: TextInputType.number,
-          ),
-          AppTextField(
-            controller: _minVolt,
-            labelText: l.minVoltLabel,
-            hintText: '12.0',
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
+          // Alarm-limit fields get their own warning-tinted card so they
+          // never blend in with the rest of the settings.
+          Card(
+            color: AppColors.warning.withValues(alpha: 0.12),
+            elevation: 0,
+            child: Padding(
+              padding: AppSpacing.padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          l.alarmLimits,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(color: AppColors.warning),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
+                    controller: _fanOnTemp,
+                    labelText: l.fanOnTempLabel,
+                    hintText: '85',
+                    keyboardType: TextInputType.number,
+                  ),
+                  AppTextField(
+                    controller: _alarmTemp,
+                    labelText: l.alarmTempLabel,
+                    hintText: '95',
+                    keyboardType: TextInputType.number,
+                  ),
+                  AppTextField(
+                    controller: _minVolt,
+                    labelText: l.minVoltLabel,
+                    hintText: '12.0',
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                  AppTextField(
+                    controller: _maxVolt,
+                    labelText: l.maxVoltLabel,
+                    hintText: '15.0',
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
+                  PrimaryButton(
+                    onPressed: _saving ? null : _saveLimits,
+                    child: Text(l.saveToModule),
+                  ),
+                ],
+              ),
             ),
-          ),
-          AppTextField(
-            controller: _maxVolt,
-            labelText: l.maxVoltLabel,
-            hintText: '15.0',
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
-          ),
-          PrimaryButton(
-            onPressed: _saving ? null : _saveLimits,
-            child: Text(l.saveToModule),
           ),
           const SizedBox(height: AppSpacing.xl),
 
