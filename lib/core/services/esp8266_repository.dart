@@ -51,6 +51,12 @@ class Esp8266Repository implements DeviceRepository {
   /// background monitor isolate can use the same fallback.
   static const String moduleLimitsCacheKey = 'module_limits_cache';
 
+  /// Keys for the optional direct Wi-Fi pairing (WifiNetworkSpecifier) stored
+  /// by the settings page through [StorageServiceImpl] (prefix `flutter.`).
+  static const String pairingEnabledKey = 'wifi_direct_pairing';
+  static const String pairingSsidKey = 'wifi_direct_pairing_ssid';
+  static const String pairingPassKey = 'wifi_direct_pairing_password';
+
   int _wsReconnectAttempts = 0;
   Timer? _wsReconnectTimer;
   static const int _maxWsReconnectAttempts = 10;
@@ -79,6 +85,11 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+
+    // Optional direct, app-scoped pairing (paired from Settings -> Device
+    // connection): keeps the module reachable while 4G stays the phone's
+    // internet route without any system dialog.
+    await _maybePairModuleWifi();
 
     // Pin this app's traffic to the module's Wi-Fi network: the module keeps
     // streaming while the phone's internet keeps riding mobile data (4G).
@@ -1060,6 +1071,30 @@ class Esp8266Repository implements DeviceRepository {
 
   }
 
+
+  /// If the user enabled direct pairing in Settings, asks Android for an
+  /// app-scoped link to the module network (WifiNetworkSpecifier) so the
+  /// phone keeps 4G as its internet route without any system dialog.
+  Future<void> _maybePairModuleWifi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (prefs.getString(pairingEnabledKey) != 'true') return;
+
+      final ssid = prefs.getString(pairingSsidKey) ?? '';
+      final password = prefs.getString(pairingPassKey) ?? '';
+      if (ssid.isEmpty) return;
+
+      debugPrint('DIRECT PAIRING REQUEST -> $ssid');
+
+      await NetworkBindingService.pairWithModuleWifi(
+        ssid: ssid,
+        password: password,
+      );
+    } catch (e) {
+      debugPrint('WIFI PAIRING READ FAILED: $e');
+    }
+  }
 
   /// Remembers the limits the module reported, and persists them so the
   /// background monitor isolate can fall back to the same values.

@@ -170,6 +170,22 @@ class AppL10n {
       : 'Default 192.168.4.1 when the phone joins the module Wi-Fi directly. Change it only if the module joined another network (like the phone hotspot).';
   String get applyAndReconnect =>
       isAr ? 'حفظ وإعادة الاتصال' : 'Save & reconnect';
+  String get directPairTitle => isAr
+      ? 'اتصال مباشر + إنترنت 4G'
+      : 'Direct link + 4G internet';
+  String get directPairInfo => isAr
+      ? 'اتصال خاص بالتطبيق بشبكة الجهاز من غير ما أندرويد يعتبرها شبكة الإنترنت — الموبايل يفضل على بيانات 4G.'
+      : 'An app-only link to the module Wi-Fi, so Android keeps the phone on 4G internet.';
+  String get pairingAction => isAr ? 'وصّل دلوقتي' : 'Connect now';
+  String get pairingStarted => isAr
+      ? 'وافق على نافذة أندرويد اللي طلعت (Pair) — التطبيق هيوصل بالجهاز من غير ما النت يفصل.'
+      : 'Approve the Android pairing sheet — the app stays linked while 4G keeps internet.';
+  String get pairingDenied => isAr
+      ? 'محتاجين إذن "الأجهزة القريبة" عشان نوصل مباشرة.'
+      : 'We need the "Nearby devices" permission to pair directly.';
+  String get pairingUnsupported => isAr
+      ? 'الميزة دي محتاجة أندرويد 10 أو أحدث.'
+      : 'This needs Android 10 or newer.';
   String get buzzerMuted =>
       isAr ? 'تم كتم الصفارة على الجهاز' : 'Buzzer muted on the module';
   String get fanTestStarted =>

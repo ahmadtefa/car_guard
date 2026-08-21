@@ -1,13 +1,22 @@
 package com.example.car_guard
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiNetworkSpecifier
+import android.os.Build
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+
+    /** Active callback while the app-scoped module Wi-Fi pairing lives. */
+    private var moduleWifiPairing: ConnectivityManager.NetworkCallback? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -19,6 +28,14 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "bindToWifi" -> result.success(bindProcessToWifi())
                 "bindToDefault" -> result.success(unbindProcess())
+                "androidSdkInt" -> result.success(Build.VERSION.SDK_INT)
+                "pairModuleWifi" -> {
+                    val ssid = call.argument<String>("ssid").orEmpty()
+                    val password = call.argument<String>("password").orEmpty()
+                    result.success(pairModuleWifi(ssid, password))
+                }
+                "unpairModuleWifi" -> result.success(unpairModuleWifi())
+                "openInternetSettings" -> result.success(openInternetSettings())
                 else -> result.notImplemented()
             }
         }
@@ -54,7 +71,101 @@ class MainActivity : FlutterActivity() {
         return manager.bindProcessToNetwork(null)
     }
 
+    /**
+     * Direct, APP-SCOPED connection to the module access point
+     * (WifiNetworkSpecifier, Android 10+).
+     *
+     * The request explicitly removes the INTERNET capability so Android never
+     * treats the module Wi-Fi as the phone's internet network: the system
+     * default route stays on 4G, other apps never lose connectivity, and no
+     * "network has no internet" dance is needed. The system shows its one-tap
+     * pairing sheet on the first request.
+     */
+    private fun pairModuleWifi(ssid: String, password: String): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || ssid.isEmpty()) {
+            return false
+        }
+
+        val manager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        val specifier = WifiNetworkSpecifier.Builder().apply {
+            setSsid(ssid)
+            if (password.isNotEmpty()) {
+                setWpa2Passphrase(password)
+            }
+        }.build()
+
+        // removeCapability(INTERNET) is the crucial bit — it promises the
+        // system this link is a device link, not the phone's internet.
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .setNetworkSpecifier(specifier)
+            .build()
+
+        moduleWifiPairing?.let {
+            runCatching { manager.unregisterNetworkCallback(it) }
+        }
+
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                manager.bindProcessToNetwork(network)
+            }
+
+            override fun onLost(network: Network) {
+                if (moduleWifiPairing === this) {
+                    manager.bindProcessToNetwork(null)
+                }
+            }
+        }
+
+        moduleWifiPairing = callback
+
+        return try {
+            manager.requestNetwork(request, callback, PAIRING_TIMEOUT_MS)
+            true
+        } catch (e: SecurityException) {
+            // NEARBY_WIFI_DEVICES (Android 13+) / fine location (older) missing.
+            false
+        } catch (e: RuntimeException) {
+            false
+        }
+    }
+
+    /** Drops the app-scoped pairing and releases the binding. */
+    private fun unpairModuleWifi(): Boolean {
+        val manager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        moduleWifiPairing?.let {
+            runCatching { manager.unregisterNetworkCallback(it) }
+        }
+        moduleWifiPairing = null
+
+        return manager.bindProcessToNetwork(null)
+    }
+
+    /**
+     * Opens the system internet connectivity panel (the same sheet that hosts
+     * the "keep Wi-Fi without internet" choice), so guidance users land on
+     * the right toggle with one tap.
+     */
+    private fun openInternetSettings(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY))
+            } else {
+                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private companion object {
         const val NETWORK_CHANNEL = "com.kayan.carguard/network"
+        const val PAIRING_TIMEOUT_MS = 30_000
     }
 }
