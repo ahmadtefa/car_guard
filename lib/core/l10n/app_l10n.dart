@@ -52,6 +52,15 @@ class AppL10n {
   String get locationDenied => isAr
       ? 'إذن الموقع مرفوض — السرعة والمسافة مش هتشتغل.'
       : 'Location permission denied — speed and distance stay off.';
+  String get speedLimit => isAr ? 'حد السرعة' : 'Speed limit';
+  String get speedLimitInfo => isAr
+      ? 'لو السرعة عدّت الرقم ده هيطلعلك تحذير — بيتخزّن في التطبيق (الوحدة مبتعرفش GPS).'
+      : 'Warn when the GPS speed passes this — stored in the app (the module has no GPS).';
+  String get saveAppSide => isAr ? 'حفظ في التطبيق' : 'Save in app';
+  String get speedingTitle => isAr ? 'سرعة زيادة!' : 'Speeding!';
+  String speedingMessage(String speed, String limit) => isAr
+      ? 'انت ماشي $speed كم/س — الحد $limit كم/س'
+      : 'You are at $speed km/h — limit is $limit km/h';
 
   // ---------- Dashboard cards ----------
   String get connectionStatus => isAr ? 'حالة الاتصال' : 'Connection Status';

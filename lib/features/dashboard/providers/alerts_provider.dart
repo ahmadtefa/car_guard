@@ -8,6 +8,7 @@ import '../../../core/services/alert_evaluator.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/services/notification_service.dart';
 import '../../settings/providers/settings_provider.dart';
+import 'trip_provider.dart';
 
 /// Immutable state exposed by [alertsProvider].
 class AlertsState {
@@ -66,11 +67,16 @@ class AlertsNotifier extends Notifier<AlertsState> {
     }
 
     // Sensor alerts follow the limits reported by the module itself — the
-    // removed app-side sliders no longer participate anywhere.
+    // removed app-side sliders no longer participate anywhere. Speed comes
+    // from the phone GPS instead: it is compared against the app-stored
+    // AppSettings.speedLimit in the same pass.
+    final trip = ref.read(tripProvider);
+
     final alerts = AlertEvaluator.evaluate(
       status,
       local,
       moduleLimits: status.moduleLimits,
+      speedKmh: trip.hasFix ? trip.speedKmh : null,
       hadConnectionBefore: _everConnected,
     );
 

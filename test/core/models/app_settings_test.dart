@@ -69,6 +69,7 @@ void main() {
         restored.backgroundMonitoringEnabled,
         settings.backgroundMonitoringEnabled,
       );
+      expect(restored.speedLimit, settings.speedLimit);
     });
 
     test('missing JSON fields fall back to defaults', () {

@@ -145,6 +145,38 @@ void main() {
       expect(alerts, isEmpty);
     });
 
+    test('speeding fires at or above the phone-side speed limit', () {
+      final alerts = AlertEvaluator.evaluate(
+        _status(connected: false), // GPS works without the module
+        const AppSettings(
+          connectionAlertsEnabled: false,
+          speedLimit: 120,
+        ),
+        speedKmh: 121,
+      );
+
+      expect(alerts, hasLength(1));
+      expect(alerts.single.id, 'speeding');
+      expect(alerts.single.severity, AlertSeverity.warning);
+    });
+
+    test('no speeding alert below the limit or without a GPS fix', () {
+      final healthy = AlertEvaluator.evaluate(
+        _status(),
+        const AppSettings(speedLimit: 120),
+        moduleLimits: const ModuleLimits(maxTemp: 110, minVolt: 12, maxVolt: 15),
+        speedKmh: 119,
+      );
+      expect(healthy, isEmpty);
+
+      final noFix = AlertEvaluator.evaluate(
+        _status(),
+        const AppSettings(speedLimit: 20),
+        moduleLimits: const ModuleLimits(maxTemp: 110, minVolt: 12, maxVolt: 15),
+      );
+      expect(noFix, isEmpty);
+    });
+
     test('low coolant raises a critical alert when enabled', () {
       final alerts = AlertEvaluator.evaluate(
         _status(coolantAvailable: false),

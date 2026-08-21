@@ -25,6 +25,7 @@ class AppSettings {
     this.languageName = 'en',
     this.alarmSoundEnabled = true,
     this.backgroundMonitoringEnabled = false,
+    this.speedLimit = 120.0,
   });
 
   /// Theme preference names accepted by [themeModeName].
@@ -104,6 +105,13 @@ class AppSettings {
   /// Whether the background monitoring service should run (Android).
   final bool backgroundMonitoringEnabled;
 
+  /// Speed limit (km/h) above which the speeding alert fires.
+  ///
+  /// Unlike the module alarm limits, this one is phone-side: the module
+  /// knows nothing about GPS, so the phone evaluates it against the live
+  /// GPS speed from the trip tracker. It IS persisted.
+  final double speedLimit;
+
   /// Returns a copy of this settings with the given fields replaced.
   AppSettings copyWith({
     String? deviceHost,
@@ -122,6 +130,7 @@ class AppSettings {
     String? languageName,
     bool? alarmSoundEnabled,
     bool? backgroundMonitoringEnabled,
+    double? speedLimit,
   }) {
     return AppSettings(
       deviceHost: deviceHost ?? this.deviceHost,
@@ -142,6 +151,7 @@ class AppSettings {
       alarmSoundEnabled: alarmSoundEnabled ?? this.alarmSoundEnabled,
       backgroundMonitoringEnabled:
           backgroundMonitoringEnabled ?? this.backgroundMonitoringEnabled,
+      speedLimit: speedLimit ?? this.speedLimit,
     );
   }
 
@@ -160,6 +170,7 @@ class AppSettings {
       'languageName': languageName,
       'alarmSoundEnabled': alarmSoundEnabled,
       'backgroundMonitoringEnabled': backgroundMonitoringEnabled,
+      'speedLimit': speedLimit,
     };
   }
 
@@ -194,6 +205,7 @@ class AppSettings {
       alarmSoundEnabled: json['alarmSoundEnabled'] as bool? ?? true,
       backgroundMonitoringEnabled:
           json['backgroundMonitoringEnabled'] as bool? ?? false,
+      speedLimit: (json['speedLimit'] as num?)?.toDouble() ?? 120.0,
     );
   }
 

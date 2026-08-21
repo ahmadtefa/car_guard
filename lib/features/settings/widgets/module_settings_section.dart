@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
+import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
+import '../providers/settings_provider.dart';
 
 /// Settings that live on the Car Guard module itself: the alarm limits
 /// (`/getallsettings` + `/saveallsettings`) and the module Wi-Fi
@@ -34,10 +37,12 @@ class _ModuleSettingsSectionState
   final _maxVolt = TextEditingController();
   final _ssid = TextEditingController();
   final _password = TextEditingController();
+  final _speedLimit = TextEditingController();
 
   DeviceModuleSettings? _loaded;
   bool _loading = true;
   bool _saving = false;
+  bool _speedInitialized = false;
   String? _error;
 
   @override
@@ -54,6 +59,7 @@ class _ModuleSettingsSectionState
     _maxVolt.dispose();
     _ssid.dispose();
     _password.dispose();
+    _speedLimit.dispose();
     super.dispose();
   }
 
@@ -203,9 +209,39 @@ class _ModuleSettingsSectionState
     _snack(l.wifiSent(ssid));
   }
 
+  Future<void> _saveSpeedLimit() async {
+    final l = ref.read(l10nProvider);
+
+    final value = _parseField(_speedLimit, l.speedLimit);
+    if (value == null) return;
+
+    if (value < 20 || value > 240) {
+      _snack(l.valueOutOfRange(l.speedLimit));
+      return;
+    }
+
+    final settings =
+        ref.read(settingsProvider).value ?? const AppSettings();
+
+    await ref
+        .read(settingsProvider.notifier)
+        .save(settings.copyWith(speedLimit: value));
+
+    _snack(l.settingsSaved);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = ref.watch(l10nProvider);
+
+    // Prefill the app-side speed limit once settings are loaded.
+    if (!_speedInitialized) {
+      final appSettings = ref.watch(settingsProvider).value;
+      if (appSettings != null) {
+        _speedLimit.text = appSettings.speedLimit.toStringAsFixed(0);
+        _speedInitialized = true;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,6 +342,25 @@ class _ModuleSettingsSectionState
                   PrimaryButton(
                     onPressed: _saving ? null : _saveLimits,
                     child: Text(l.saveToModule),
+                  ),
+
+                  const Divider(height: AppSpacing.xl),
+
+                  // Phone-side-only limit: the module has no GPS, so the
+                  // speeding threshold lives in the app settings.
+                  Text(
+                    l.speedLimitInfo,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  AppTextField(
+                    controller: _speedLimit,
+                    labelText: l.speedLimit,
+                    hintText: '120',
+                    keyboardType: TextInputType.number,
+                  ),
+                  SecondaryButton(
+                    onPressed: _saving ? null : _saveSpeedLimit,
+                    child: Text(l.saveAppSide),
                   ),
                 ],
               ),

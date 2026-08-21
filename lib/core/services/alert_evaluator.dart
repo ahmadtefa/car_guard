@@ -24,15 +24,38 @@ abstract final class AlertEvaluator {
   ///
   /// [hadConnectionBefore] indicates the app has seen a live connection at
   /// least once, which prevents a "connection lost" alert on cold start.
+  ///
+  /// [speedKmh] is the live GPS ground speed from the phone (the module has
+  /// no GPS). When provided and [AppSettings.speedLimit] is exceeded, a
+  /// speeding warning fires. It is evaluated independently of the module
+  /// connection — the GPS keeps working even when the module drops.
   static List<DeviceAlert> evaluate(
     DeviceStatus status,
     AppSettings settings, {
     ModuleLimits? moduleLimits,
+    double? speedKmh,
     bool hadConnectionBefore = false,
   }) {
     final alerts = <DeviceAlert>[];
     final now = DateTime.now();
     final l = AppL10n(settings.languageName);
+
+    // Speeding is phone-side (GPS), so it never waits for the module.
+    final speed = speedKmh;
+    if (speed != null && speed >= settings.speedLimit) {
+      alerts.add(
+        DeviceAlert(
+          id: 'speeding',
+          title: l.speedingTitle,
+          message: l.speedingMessage(
+            speed.toStringAsFixed(0),
+            settings.speedLimit.toStringAsFixed(0),
+          ),
+          severity: AlertSeverity.warning,
+          timestamp: now,
+        ),
+      );
+    }
 
     if (!status.connected) {
       if (settings.connectionAlertsEnabled && hadConnectionBefore) {
