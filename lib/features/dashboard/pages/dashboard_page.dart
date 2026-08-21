@@ -13,6 +13,7 @@ import '../../../core/services/device_models.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
+import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
@@ -99,6 +100,39 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         await ref.read(esp8266RepositoryProvider).muteBuzzer();
       }
     }
+  }
+
+  Future<void> _toggleDrivingMode() async {
+    final isEnabled = ref.read(drivingModeProvider);
+    await ref.read(drivingModeProvider.notifier).setEnabled(!isEnabled);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              !isEnabled ? Icons.visibility : Icons.visibility_off,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                !isEnabled
+                    ? '🚗 وضع القيادة مفعل - الشاشة ستبقى مضاءة'
+                    : 'وضع القيادة متوقف',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: !isEnabled ? AppColors.neonCyan : Colors.grey[800],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showModuleInfo() {
@@ -384,59 +418,118 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     // GPS speed + trip distance, side by side.
                     const TripCards(),
 
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.md),
 
-                    // Icon-only controls: mute + settings.
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _roundIconButton(
-                          tooltip: local.alarmSoundEnabled
-                              ? l.muteAlarm
-                              : l.enableAlarm,
-                          icon: local.alarmSoundEnabled
-                              ? Icons.volume_up_rounded
-                              : Icons.volume_off_rounded,
-                          color: local.alarmSoundEnabled
-                              ? AppColors.neonAmber
-                              : AppColors.textSecondary,
-                          onTap: _toggleAlarmSound,
+                    // بانر وضع القيادة - يظهر فقط عند التفعيل
+                    if (ref.watch(drivingModeProvider))
+                      Container(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                        const SizedBox(width: AppSpacing.lg),
-                        _roundIconButton(
-                          tooltip: switch (local.themeModeName) {
-                            'light' => l.light,
-                            'dark' => l.dark,
-                            _ => l.auto,
-                          },
-                          icon: switch (local.themeModeName) {
-                            'light' => Icons.light_mode_outlined,
-                            'dark' => Icons.dark_mode_outlined,
-                            _ => Icons.brightness_auto_outlined,
-                          },
-                          color: AppColors.neonAmber,
-                          onTap: () {
-                            final next = switch (local.themeModeName) {
-                              'system' => 'light',
-                              'light' => 'dark',
-                              _ => 'system',
-                            };
+                        decoration: BoxDecoration(
+                          color: AppColors.neonCyan.withAlpha(30),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.neonCyan.withAlpha(80),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.visibility,
+                              color: AppColors.neonCyan,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '🚗 وضع القيادة مفعل - الشاشة ستبقى مضاءة',
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                color: AppColors.neonCyan,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                            ref
-                                .read(settingsProvider.notifier)
-                                .save(
-                                  local.copyWith(themeModeName: next),
-                                );
-                          },
-                        ),
-                        const SizedBox(width: AppSpacing.lg),
-                        _roundIconButton(
-                          tooltip: l.settings,
-                          icon: Icons.settings_outlined,
-                          color: AppColors.neonCyan,
-                          onTap: () => context.push('/settings'),
-                        ),
-                      ],
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Icon-only controls: mute + theme + driving + settings.
+                    // تم إضافة زرار وضع القيادة جنب الإعدادات والأوضاع
+                    Builder(
+                      builder: (context) {
+                        final isDrivingMode = ref.watch(drivingModeProvider);
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _roundIconButton(
+                              tooltip: local.alarmSoundEnabled
+                                  ? l.muteAlarm
+                                  : l.enableAlarm,
+                              icon: local.alarmSoundEnabled
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_off_rounded,
+                              color: local.alarmSoundEnabled
+                                  ? AppColors.neonAmber
+                                  : AppColors.textSecondary,
+                              onTap: _toggleAlarmSound,
+                            ),
+                            const SizedBox(width: AppSpacing.lg),
+                            _roundIconButton(
+                              tooltip: switch (local.themeModeName) {
+                                'light' => l.light,
+                                'dark' => l.dark,
+                                _ => l.auto,
+                              },
+                              icon: switch (local.themeModeName) {
+                                'light' => Icons.light_mode_outlined,
+                                'dark' => Icons.dark_mode_outlined,
+                                _ => Icons.brightness_auto_outlined,
+                              },
+                              color: AppColors.neonAmber,
+                              onTap: () {
+                                final next = switch (local.themeModeName) {
+                                  'system' => 'light',
+                                  'light' => 'dark',
+                                  _ => 'system',
+                                };
+
+                                ref
+                                    .read(settingsProvider.notifier)
+                                    .save(
+                                      local.copyWith(themeModeName: next),
+                                    );
+                              },
+                            ),
+                            const SizedBox(width: AppSpacing.lg),
+                            // زرار وضع القيادة - إبقاء الشاشة مضاءة
+                            _roundIconButton(
+                              tooltip: isDrivingMode
+                                  ? 'إيقاف وضع القيادة'
+                                  : 'وضع القيادة - إبقاء الشاشة مضاءة',
+                              icon: isDrivingMode
+                                  ? Icons.directions_car
+                                  : Icons.directions_car_outlined,
+                              color: isDrivingMode
+                                  ? AppColors.neonCyan
+                                  : AppColors.textSecondary,
+                              onTap: _toggleDrivingMode,
+                            ),
+                            const SizedBox(width: AppSpacing.lg),
+                            _roundIconButton(
+                              tooltip: l.settings,
+                              icon: Icons.settings_outlined,
+                              color: AppColors.neonCyan,
+                              onTap: () => context.push('/settings'),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
