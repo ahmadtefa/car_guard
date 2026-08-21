@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/providers/device_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/driving_mode_button.dart';
@@ -22,6 +24,18 @@ class DashboardPage extends ConsumerWidget {
     final state = ref.watch(dashboardProvider);
     final isDark = ref.watch(themeModeProvider.notifier).isDark(context);
     final isDrivingMode = ref.watch(drivingModeProvider);
+    final deviceStatus = ref.watch(deviceStatusProvider);
+
+    // حالة كتم الصوت - من بيانات الجهاز
+    final isMuted = deviceStatus.maybeWhen(
+      data: (status) => status.controlData.buzzerActive == false,
+      orElse: () => false,
+    );
+    // لو الـ buzzerActive = true يعني في صوت شغال ولسه مش مكتوم
+    final isBuzzerActive = deviceStatus.maybeWhen(
+      data: (status) => status.controlData.buzzerActive,
+      orElse: () => false,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -30,7 +44,7 @@ class DashboardPage extends ConsumerWidget {
         actions: [
           // 1) زرار وضع القيادة - يحافظ على الشاشة شغالة
           const DrivingModeButton(),
-          const SizedBox(width: 2),
+          const SizedBox(width: 1),
 
           // 2) زرار الوضع الليلي/النهاري
           IconButton(
@@ -46,9 +60,41 @@ class DashboardPage extends ConsumerWidget {
               ref.read(themeModeProvider.notifier).toggle();
             },
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 1),
 
-          // 3) زرار الإعدادات
+          // 3) زرار كتم الصوت
+          IconButton(
+            tooltip: isBuzzerActive ? 'كتم الصوت' : 'الصوت',
+            icon: Icon(
+              isBuzzerActive ? Icons.volume_off : Icons.volume_up,
+              color: isBuzzerActive ? Theme.of(context).colorScheme.error : null,
+            ),
+            onPressed: () async {
+              try {
+                final repo = ref.read(esp8266RepositoryProvider);
+                // إرسال أمر كتم للجهاز
+                await repo.sendJson({"mute": 1, "command": "mute"});
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(isBuzzerActive ? 'تم كتم الصوت 🔇' : 'تم إلغاء الكتم 🔊'),
+                      duration: const Duration(seconds: 1),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('خطأ في كتم الصوت: $e')),
+                  );
+                }
+              }
+            },
+          ),
+          const SizedBox(width: 1),
+
+          // 4) زرار الإعدادات
           IconButton(
             tooltip: 'الإعدادات',
             icon: const Icon(Icons.settings_outlined),
