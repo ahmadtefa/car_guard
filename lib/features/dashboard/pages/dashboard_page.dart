@@ -25,6 +25,7 @@ import '../widgets/gauge_area.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/system_status_card.dart';
+import '../widgets/trip_cards.dart';
 
 /// Full-screen dashboard.
 ///
@@ -378,6 +379,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     const SizedBox(height: AppSpacing.md),
 
                     const SystemStatusCard(),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    // GPS speed + trip distance, side by side.
+                    const TripCards(),
 
                     const SizedBox(height: AppSpacing.xl),
 

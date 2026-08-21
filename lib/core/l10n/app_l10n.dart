@@ -40,6 +40,19 @@ class AppL10n {
   String get last5Minutes => isAr ? 'آخر 5 دقائق' : 'Last 5 minutes';
   String get collectingData => isAr ? 'جمع البيانات...' : 'Collecting data...';
 
+  // ---------- Trip / GPS ----------
+  String get vehicleSpeed => isAr ? 'سرعة العربية' : 'Vehicle speed';
+  String get tripDistance => isAr ? 'المسافة المقطوعة' : 'Trip distance';
+  String get resetTrip => isAr ? 'تصفير المسافة' : 'Reset trip';
+  String get kmh => isAr ? 'كم/س' : 'km/h';
+  String get km => isAr ? 'كم' : 'km';
+  String get gpsOff => isAr
+      ? 'شغّل خدمة الموقع (GPS) عشان تشتغل السرعة والمسافة.'
+      : 'Turn on Location services for speed and distance.';
+  String get locationDenied => isAr
+      ? 'إذن الموقع مرفوض — السرعة والمسافة مش هتشتغل.'
+      : 'Location permission denied — speed and distance stay off.';
+
   // ---------- Dashboard cards ----------
   String get connectionStatus => isAr ? 'حالة الاتصال' : 'Connection Status';
   String get streamingLive =>
