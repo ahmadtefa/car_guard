@@ -374,9 +374,9 @@ AppSettings mergeModuleLimits(AppSettings local, ModuleLimits? limits) {
   if (limits.maxTemp != null) {
     effective = effective.copyWith(
       engineTempCritical: limits.maxTemp,
-      engineTempWarning: limits.maxTemp! - 5 < local.engineTempWarning
-          ? limits.maxTemp! - 5
-          : local.engineTempWarning,
+      // تم التعديل: التحذير والإنذار عند نفس الدرجة اللي ظابطها المستخدم
+      // بدون فرق 5 درجات
+      engineTempWarning: limits.maxTemp,
     );
   }
 

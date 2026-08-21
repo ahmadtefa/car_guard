@@ -75,8 +75,10 @@ abstract final class AlertEvaluator {
 
     final temperature = status.temperatureData.engineTemperature;
 
-    // Alarm temperature stored on the module; the warning level is always
-    // 5 °C below it, exactly like the firmware's own buzzer stages.
+    // تم التعديل حسب طلب المستخدم: التحذير والإنذار عند نفس الدرجة
+    // اللي ظابطها في الجهاز (maxTemp)، بدون فرق 5 درجات.
+    // قبل كده كان التحذير عند maxTemp-5 والإنذار عند maxTemp،
+    // دلوقتي الاتنين عند نفس القيمة اللي في كارت Module Limits.
     final maxTemp = moduleLimits?.maxTemp;
 
     if (maxTemp != null) {
@@ -92,19 +94,9 @@ abstract final class AlertEvaluator {
             timestamp: now,
           ),
         );
-      } else if (temperature >= maxTemp - 5) {
-        alerts.add(
-          DeviceAlert(
-            id: 'engine_temp_high',
-            title: l.engineTempHighTitle,
-            message: l.engineTempHighMessage(
-              temperature.toStringAsFixed(1),
-            ),
-            severity: AlertSeverity.warning,
-            timestamp: now,
-          ),
-        );
       }
+      // تم إزالة التحذير عند maxTemp-5 — المستخدم يريد الإنذار والتحذير
+      // عند نفس الدرجة اللي ظابطها، فلا يوجد تحذير منفصل قبلها.
     }
 
     final voltage = status.batteryData.voltage;
