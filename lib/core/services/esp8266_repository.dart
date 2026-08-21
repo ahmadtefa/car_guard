@@ -720,6 +720,13 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Wipes everything stored on the module EEPROM (`/factoryreset`) and
+  /// reboots it into factory defaults: AP name CarGaurd / 12345678, default
+  /// limits, empty STA creds.
+  Future<bool> factoryResetModule() => _getExpectsOk(DeviceEndpoints.factoryReset);
+
+
+
   Future<bool> _getExpectsOk(String pathAndQuery) async {
 
     try {

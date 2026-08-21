@@ -675,10 +675,30 @@ void handleGetWiFiSettings() {
 
   String json = "{";
   json += "\"ssid\":\""     + String(settings.wifiSSID) + "\",";
-  json += "\"password\":\"" + String(settings.wifiPASS) + "\"";
+  json += "\"password\":\"" + String(settings.wifiPASS) + "\",";
+  json += "\"fw\":\"portaliq-sta-mdns-2026-08-21\"";
   json += "}";
 
   server.send(200, "application/json", json);
+}
+
+// [FACTORY RESET] /factoryreset — wipes every stored setting (AP name,
+// password, alarm limits, STA creds…) by invalidating the EEPROM signature,
+// then rebooting so defaults are re-burned. Needed when someone forgets
+// custom credentials they saved earlier through /savewifi.
+void handleFactoryReset() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+
+  settings.signature   = 0x00000000;          // invalidate -> defaults on boot
+  settings.staSSID[0]  = 0;
+  settings.staPASS[0]  = 0;
+  saveSettings();
+
+  server.send(200, "text/plain", "FACTORY RESET - REBOOTING");
+  Serial.println("🏭 FACTORY RESET REQUESTED — rebooting with defaults");
+  delay(600);
+  ESP.restart();
 }
 
 void handleGetAllSettings() {
@@ -904,6 +924,7 @@ void setup() {
   server.on("/savewifi",            handleSaveWiFiSettings);
   server.on("/joinwifi",            handleJoinWiFi);
   server.on("/getwifisettings",     handleGetWiFiSettings);
+  server.on("/factoryreset",        handleFactoryReset);
   server.on("/saveallsettings",     handleSaveAllSettings);
   server.on("/saveadvancedsettings",handleSaveAdvancedSettings);
   server.on("/getallsettings",      handleGetAllSettings);

@@ -185,8 +185,43 @@ class _ModuleSettingsSectionState
   /// [STA+mDNS] Sends the external network (hotspot/router) credentials to
   /// the module — it joins it alongside its own AP and becomes discoverable
   /// as car_guard.local.
-  Future<void> _joinNetwork() async {
+  Future<void> _factoryReset() async {
     final l = ref.read(l10nProvider);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l.factoryResetModule),
+        content: Text(l.factoryResetConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l.factoryResetModule),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _saving = true);
+
+    final ok = await ref
+        .read(esp8266RepositoryProvider)
+        .factoryResetModule();
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    _snack(ok ? l.factoryResetDone : l.joinNetworkFailed);
+  }
+
+  Future<void> _joinNetwork() async {    final l = ref.read(l10nProvider);
 
     final ssid = _staSsid.text.trim();
     final password = _staPassword.text;
@@ -434,6 +469,16 @@ class _ModuleSettingsSectionState
           PrimaryButton(
             onPressed: _saving ? null : _joinNetwork,
             child: Text(l.joinNetworkAction),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+
+          SectionTitle(
+            title: l.factoryResetModule,
+            subtitle: l.factoryResetInfo,
+          ),
+          SecondaryButton(
+            onPressed: _saving ? null : _factoryReset,
+            child: Text(l.factoryResetModule),
           ),
         ],
       ],

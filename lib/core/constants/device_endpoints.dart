@@ -7,6 +7,7 @@ class DeviceEndpoints {
   static const getWifiSettings = '/getwifisettings';
   static const saveWifiSettings = '/savewifi';
   static const joinWifi = '/joinwifi';
+  static const factoryReset = '/factoryreset';
   static const restart = '/restart';
   static const mute = '/mute';
   static const testFan = '/testfan';

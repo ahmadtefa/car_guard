@@ -70,6 +70,16 @@ class AppL10n {
   String get joinNetworkFailed => isAr
       ? 'تعذر الوصول للجهاز لإرسال بيانات الشبكة.'
       : 'Could not reach the module to send the network.';
+  String get factoryResetModule => isAr ? 'إعادة ضبط المصنع للجهاز' : 'Factory reset module';
+  String get factoryResetInfo => isAr
+      ? 'بيمسح كل الإعدادات المتخزنة على الجهاز (اسم الشبكة، الباسوورد، الحدود، المعايرات) — الجهاز بيعمل Restart وبعدين الوضع الافتراضي كله يرجع.'
+      : 'Wipes every stored module setting (Wi-Fi name, password, limits, calibration) — the module reboots into factory defaults.';
+  String get factoryResetConfirmBody => isAr
+      ? 'متأكد؟ كل إعدادات الجهاز هتترجع للأوضاع الافتراضية والجهاز هيعمل Restart فورًا.'
+      : 'Sure? Every module setting returns to factory defaults and it reboots immediately.';
+  String get factoryResetDone => isAr
+      ? 'اتمسحت إعدادات الجهاز — الجهاز بيعيد تقليعه دلوقتي.'
+      : 'Module settings wiped — rebooting now.';
   String get speedingTitle => isAr ? 'سرعة زيادة!' : 'Speeding!';
   String speedingMessage(String speed, String limit) => isAr
       ? 'انت ماشي $speed كم/س — الحد $limit كم/س'
