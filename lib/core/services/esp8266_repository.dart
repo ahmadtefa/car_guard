@@ -39,7 +39,10 @@ class Esp8266Repository implements DeviceRepository {
 
   /// Last settings the module itself reported (`/getallsettings`). Used to
   /// fill limits the firmware does not stream, so voltage/temperature
-  /// alerts keep working on every hardware build.
+  /// alerts keep working on every hardware build. When even that fails the
+  /// firmware defaults (95 °C / 12.0 V / 15.0 V — the same values the
+  /// module itself ships with) are used, so an unreadable module never
+  /// silently disables its own alarms.
   DeviceModuleSettings? _lastModuleSettings;
   bool _moduleLimitsRequested = false;
 
@@ -711,7 +714,7 @@ class Esp8266Repository implements DeviceRepository {
           minVolt: (json["minVolt"] as num?)?.toDouble(),
           maxVolt: (json["maxVolt"] as num?)?.toDouble(),
           offset: (json["offset"] as num?)?.toDouble(),
-        ).fillFrom(_lastModuleSettings);
+        ).fillFrom(_lastModuleSettings ?? const DeviceModuleSettings());
 
         status = DeviceStatus(
 
@@ -850,9 +853,7 @@ class Esp8266Repository implements DeviceRepository {
             buzzerActive:
                 parts.length > 9 ? parts[9].trim() == "1" : false,
 
-            muted: parts.length > 10 ? parts[10].trim() == "1" : false,
-
-          ),
+            muted: parts.length > 10 ? parts[10].trim
 
 
           moduleLimits: ModuleLimits(
@@ -877,7 +878,7 @@ class Esp8266Repository implements DeviceRepository {
                 ? double.tryParse(parts[8].trim())
                 : null,
 
-          ).fillFrom(_lastModuleSettings),
+          ).fillFrom(_lastModuleSettings ?? const DeviceModuleSettings()),
 
 
           lastUpdated:

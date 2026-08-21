@@ -65,8 +65,10 @@ class BackgroundMonitorHandler extends TaskHandler {
     // app-side sliders no longer participate anywhere (foreground behaves
     // the same way through alerts_provider). Live stream values win; any
     // limit the firmware omits falls back to the cached /getallsettings
-    // snapshot the app keeps in storage.
-    final cachedLimits = _cachedModuleSettings(prefs);
+    // snapshot, and finally to the firmware defaults, so the module alarms
+    // never silently turn off.
+    final cachedLimits =
+        _cachedModuleSettings(prefs) ?? const DeviceModuleSettings();
 
     final alerts = AlertEvaluator.evaluate(
       status,
