@@ -10,6 +10,9 @@ status streamed straight to your phone over Wi-Fi.
   difference, coolant level, and fan status update in real time.
 - **Robust transport** — live updates over WebSocket (port 81) with an
   automatic HTTP polling fallback when the socket drops.
+- **Dual connectivity (Android)** — the app pins its traffic to the module's
+  Wi-Fi (`bindProcessToNetwork`), so the live stream never dies while your
+  phone keeps using 4G/mobile data for internet (GPS, maps, messaging…).
 - **Smart alerts** — dashboard banner + local notifications when:
   - the engine overheats (warning & critical thresholds),
   - the battery voltage drops below your minimum,

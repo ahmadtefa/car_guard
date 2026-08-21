@@ -9,6 +9,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../constants/device_endpoints.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
+import 'network_binding_service.dart';
 
 
 class Esp8266Repository implements DeviceRepository {
@@ -78,6 +79,10 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+
+    // Pin this app's traffic to the module's Wi-Fi network: the module keeps
+    // streaming while the phone's internet keeps riding mobile data (4G).
+    await NetworkBindingService.bindToModuleWifi();
 
     _wsReconnectTimer?.cancel();
     _wsReconnectTimer = null;
@@ -922,6 +927,9 @@ class Esp8266Repository implements DeviceRepository {
     // Flag first so the WebSocket onDone/onError callbacks triggered by
     // closing the sink below cannot restart the HTTP fallback timer.
     _stopped = true;
+
+    // Release the Wi-Fi binding so the app follows the system network again.
+    unawaited(NetworkBindingService.bindToDefault());
 
     _httpTimer?.cancel();
 

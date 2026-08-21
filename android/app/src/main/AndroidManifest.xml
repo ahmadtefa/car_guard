@@ -3,6 +3,9 @@
          INTERNET permission release builds silently fail every request. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Lets the app pin its own traffic to the module Wi-Fi network while
+         the phone keeps internet over mobile data (bindProcessToNetwork). -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <!-- Runtime permission required on Android 13+ for alert notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Background monitoring: keep the service alive with the screen off
