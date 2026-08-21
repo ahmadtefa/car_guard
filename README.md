@@ -13,6 +13,11 @@ status streamed straight to your phone over Wi-Fi.
 - **Dual connectivity (Android)** — the app pins its traffic to the module's
   Wi-Fi (`bindProcessToNetwork`), so the live stream never dies while your
   phone keeps using 4G/mobile data for internet (GPS, maps, messaging…).
+- **Zero-config hotspot join (STA + mDNS)** — the module can additionally
+  join the phone hotspot / home router (Settings → "Join another network"),
+  after which it announces itself as `car_guard.local` and the app follows
+  it automatically across DHCP IP changes (firmware side in
+  `firmware/car_guard/car_guard.ino`, see `docs/firmware-sta-mdns.md`).
 - **Smart alerts** — dashboard banner + local notifications when:
   - the engine overheats (warning & critical thresholds),
   - the battery voltage drops below your minimum,

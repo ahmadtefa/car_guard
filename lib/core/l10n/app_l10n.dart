@@ -57,6 +57,19 @@ class AppL10n {
       ? 'لو السرعة عدّت الرقم ده هيطلعلك تحذير — بيتخزّن في التطبيق (الوحدة مبتعرفش GPS).'
       : 'Warn when the GPS speed passes this — stored in the app (the module has no GPS).';
   String get saveAppSide => isAr ? 'حفظ في التطبيق' : 'Save in app';
+  String get joinNetworkTitle => isAr
+      ? 'انضمام لشبكة تانية (هوتسبوت/راوتر)'
+      : 'Join another network (hotspot/router)';
+  String get joinNetworkInfo => isAr
+      ? 'الجهاز هيخش على الشبكة دي جنب شبكته CarGuard، والتطبيق هيلاقيه لوحده بالاسم car_guard.local — من غير ما تكتب أي IP.'
+      : 'The module joins this network alongside its own AP; the app then finds it automatically as car_guard.local — no IP typing.';
+  String get joinNetworkAction => isAr ? 'انضم للشبكة' : 'Join network';
+  String get joinNetworkDone => isAr
+      ? 'اتبعت للجهاز — لو الشبكة قريبة هيتصل بيها خلال ثواني.'
+      : 'Sent to the module — it joins the network within seconds if reachable.';
+  String get joinNetworkFailed => isAr
+      ? 'تعذر الوصول للجهاز لإرسال بيانات الشبكة.'
+      : 'Could not reach the module to send the network.';
   String get speedingTitle => isAr ? 'سرعة زيادة!' : 'Speeding!';
   String speedingMessage(String speed, String limit) => isAr
       ? 'انت ماشي $speed كم/س — الحد $limit كم/س'

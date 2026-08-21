@@ -9,6 +9,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../constants/device_endpoints.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
+import 'mdns_discovery_service.dart';
 import 'network_binding_service.dart';
 
 
@@ -57,6 +58,13 @@ class Esp8266Repository implements DeviceRepository {
   static const String pairingSsidKey = 'wifi_direct_pairing_ssid';
   static const String pairingPassKey = 'wifi_direct_pairing_password';
 
+  /// Last address discovered by mDNS for car_guard.local — reused by the
+  /// Android Auto screen and the background monitor when the saved/default
+  /// address does not answer.
+  static const String lastModuleIpKey = 'mdns_module_ip';
+
+  DateTime? _lastMdnsLookup;
+
   int _wsReconnectAttempts = 0;
   Timer? _wsReconnectTimer;
   static const int _maxWsReconnectAttempts = 10;
@@ -98,6 +106,31 @@ class Esp8266Repository implements DeviceRepository {
     _wsReconnectTimer?.cancel();
     _wsReconnectTimer = null;
     _wsReconnectAttempts = 0;
+
+    // [STA+mDNS] When the module joined the phone hotspot / home router, it
+    // announces itself as car_guard.local — resolve that once and follow it,
+    // so a DHCP-assigned IP never needs to be typed by hand. Throttled: at
+    // most one lookup per minute (WS reconnects call connect() repeatedly).
+    if (_lastMdnsLookup == null ||
+        DateTime.now().difference(_lastMdnsLookup!) >
+            const Duration(minutes: 1)) {
+      _lastMdnsLookup = DateTime.now();
+
+      final discovered = await MdnsDiscoveryService().resolveModuleIp();
+
+      if (discovered != null &&
+          discovered.isNotEmpty &&
+          discovered != host) {
+        debugPrint("MDNS SWITCH $host -> $discovered");
+        host = discovered;
+        _activeHost = discovered;
+
+        // Persist for the other readers of the connection target
+        // (Android Auto screen + background monitor).
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(lastModuleIpKey, discovered);
+      }
+    }
 
 
     debugPrint(
@@ -662,6 +695,25 @@ class Esp8266Repository implements DeviceRepository {
       "${DeviceEndpoints.saveWifiSettings}"
       "?ssid=${Uri.encodeComponent(ssid)}"
       "&password=${Uri.encodeComponent(password)}",
+    );
+
+  }
+
+
+
+  /// [STA+mDNS] Tells the module to join another network (phone hotspot or
+  /// home router) in addition to its own AP (`/joinwifi`). The credentials
+  /// persist on the module, so it re-joins by itself after every boot and
+  /// mDNS lets the app find it back automatically.
+  Future<bool> joinExternalWifi({
+    required String ssid,
+    required String password,
+  }) async {
+
+    return _getExpectsOk(
+      "${DeviceEndpoints.joinWifi}"
+      "?ssid=${Uri.encodeComponent(ssid)}"
+      "&pass=${Uri.encodeComponent(password)}",
     );
 
   }

@@ -37,6 +37,8 @@ class _ModuleSettingsSectionState
   final _maxVolt = TextEditingController();
   final _ssid = TextEditingController();
   final _password = TextEditingController();
+  final _staSsid = TextEditingController();
+  final _staPassword = TextEditingController();
   final _speedLimit = TextEditingController();
 
   DeviceModuleSettings? _loaded;
@@ -59,6 +61,8 @@ class _ModuleSettingsSectionState
     _maxVolt.dispose();
     _ssid.dispose();
     _password.dispose();
+    _staSsid.dispose();
+    _staPassword.dispose();
     _speedLimit.dispose();
     super.dispose();
   }
@@ -176,6 +180,30 @@ class _ModuleSettingsSectionState
     setState(() => _saving = false);
 
     _snack(ok ? l.savedToModule : l.failedReachable);
+  }
+
+  /// [STA+mDNS] Sends the external network (hotspot/router) credentials to
+  /// the module — it joins it alongside its own AP and becomes discoverable
+  /// as car_guard.local.
+  Future<void> _joinNetwork() async {
+    final l = ref.read(l10nProvider);
+
+    final ssid = _staSsid.text.trim();
+    final password = _staPassword.text;
+
+    if (ssid.isEmpty) return;
+
+    setState(() => _saving = true);
+
+    final ok = await ref
+        .read(esp8266RepositoryProvider)
+        .joinExternalWifi(ssid: ssid, password: password);
+
+    if (!mounted) return;
+
+    setState(() => _saving = false);
+
+    _snack(ok ? l.joinNetworkDone : l.joinNetworkFailed);
   }
 
   Future<void> _saveWifi() async {
@@ -386,6 +414,26 @@ class _ModuleSettingsSectionState
           PrimaryButton(
             onPressed: _saving ? null : _saveWifi,
             child: Text(l.saveWifi),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+
+          SectionTitle(
+            title: l.joinNetworkTitle,
+            subtitle: l.joinNetworkInfo,
+          ),
+          AppTextField(
+            controller: _staSsid,
+            labelText: l.ssidLabel,
+            hintText: 'AhmdSpot',
+          ),
+          AppTextField(
+            controller: _staPassword,
+            labelText: l.passwordLabel,
+            obscureText: true,
+          ),
+          PrimaryButton(
+            onPressed: _saving ? null : _joinNetwork,
+            child: Text(l.joinNetworkAction),
           ),
         ],
       ],

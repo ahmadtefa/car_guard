@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.provider.Settings
@@ -18,8 +19,18 @@ class MainActivity : FlutterActivity() {
     /** Active callback while the app-scoped module Wi-Fi pairing lives. */
     private var moduleWifiPairing: ConnectivityManager.NetworkCallback? = null
 
+    /**
+     * mDNS multicast lock. Several Android vendors silently drop multicast
+     * traffic until an app holds it — without this, car_guard.local lookups
+     * hang and fail. Held for the process lifetime (foreground app); the
+     * Kotlin runtime throws on duplicate acquire, so we guard with a flag.
+     */
+    private var multicastLock: WifiManager.MulticastLock? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        acquireMulticastLock()
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -162,6 +173,37 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /** Holds the mDNS multicast lock for the process while the app is up. */
+    private fun acquireMulticastLock() {
+        if (multicastLock != null) return
+
+        try {
+            val wifiManager =
+                applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+            multicastLock = wifiManager.createMulticastLock("car_guard_mdns").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (e: Exception) {
+            // Multicast lookup will still work OEM-dependently; never crash.
+        }
+    }
+
+    override fun onDestroy() {
+        multicastLock?.let {
+            if (it.isHeld) {
+                try {
+                    it.release()
+                } catch (e: Exception) {
+                    // ignore
+                }
+            }
+        }
+        multicastLock = null
+        super.onDestroy()
     }
 
     private companion object {

@@ -52,7 +52,15 @@ class BackgroundMonitorHandler extends TaskHandler {
       return;
     }
 
-    final status = await _fetchStatus(settings.deviceHost);
+    // [STA+mDNS] When the module joined a hotspot, its address is dynamic —
+    // the foreground app records the mDNS-discovered one under this key.
+    final discoveredIp = prefs.getString('mdns_module_ip')?.trim();
+    final hostToQuery =
+        (discoveredIp != null && discoveredIp.isNotEmpty)
+            ? discoveredIp
+            : settings.deviceHost;
+
+    final status = await _fetchStatus(hostToQuery);
 
     if (status == null) {
       await _maybeNotifyConnectionLost(settings);

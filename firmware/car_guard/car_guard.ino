@@ -7,11 +7,18 @@
 //   2. The WebSocket CSV payload carries alarm + muted (fields 10, 11)
 //   3. The /data JSON carries "alarm" and "muted"
 //  The mobile app reads them to mirror the module's buzzer state.
+//
+//  [STA+mDNS] — optional home/hotspot join: the module keeps its own
+//  CarGuard AP AND can additionally join the phone's hotspot (or home
+//  router) as a station. While joined it announces itself via mDNS as
+//  "car_guard.local" so the app finds it automatically — no IP handling.
+//  Boot is NEVER blocked by missing networks (car safety first).
 // =========================================================
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
+#include <ESP8266mDNS.h>
 #include <DNSServer.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -84,7 +91,9 @@ float tempOffset = 0.0;
 // EEPROM
 // =========================================================
 #define EEPROM_SIZE      512
-#define EEPROM_SIGNATURE 0xBEAF0007
+// [STA+mDNS] bumped: the Settings struct now ends with the optional
+// station (hotspot) credentials; old stores reset once to defaults.
+#define EEPROM_SIGNATURE 0xBEAF0008
 
 struct Settings {
   uint32_t signature;
@@ -100,9 +109,43 @@ struct Settings {
   char     installDate[16];
   char     wifiSSID[32];
   char     wifiPASS[32];
+  // [STA+mDNS] network the module should JOIN (phone hotspot / home router).
+  // Empty staSSID = stay pure AP (old behavior, zero risk).
+  char     staSSID[32];
+  char     staPASS[32];
 };
 
 Settings settings;
+
+// =========================================================
+// STA + mDNS (optional home/hotspot join)
+// =========================================================
+// The AP (CarGuard) MUST stay up so the app always has a way back in —
+// we never switch to pure station mode. mDNS announces the module as
+// "car_guard.local", with the HTTP API as _http._tcp on port 80 and the
+// websocket as _ws._tcp on port 81.
+bool mdnsStarted = false;
+
+void maybeStartStaAndMdns() {
+  if (settings.staSSID[0] == 0) return;
+
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.begin(settings.staSSID, settings.staPASS);
+}
+
+void maybeAdvertiseMdns() {
+  if (mdnsStarted || WiFi.status() != WL_CONNECTED) return;
+
+  if (MDNS.begin("car_guard")) {
+    MDNS.addService("http",    "tcp", 80);
+    MDNS.addService("ws",      "tcp", 81);
+    MDNS.addService("carguard","tcp", 80);
+    mdnsStarted = true;
+
+    Serial.print("📡 mDNS up: car_guard.local @ ");
+    Serial.println(WiFi.localIP());
+  }
+}
 
 // =========================================================
 // FILTERS
@@ -275,6 +318,9 @@ void loadSettings() {
     settings.voltCalib   = 1.0;
     settings.sensorPullUp = 4700.0;
     strcpy(settings.installDate, "2026-06-08");
+    // [STA+mDNS] fresh unit starts as AP-only until /joinwifi is called.
+    settings.staSSID[0] = 0;
+    settings.staPASS[0] = 0;
     strcpy(settings.wifiSSID, "CarGaurd");
     strcpy(settings.wifiPASS, "12345678");
     strcpy(ap_ssid,     settings.wifiSSID);
@@ -482,6 +528,41 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
 // =========================================================
 // API HANDLERS
 // =========================================================
+// [STA+mDNS] /joinwifi?ssid=..&pass=.. — learn the hotspot/home network.
+// Saved to EEPROM; the module keeps its AP alive while trying to join.
+void handleJoinWiFi() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+
+  if (server.hasArg("ssid")) {
+    String ssid = server.arg("ssid");
+    String pass = server.hasArg("pass") ? server.arg("pass") : "";
+
+    if (ssid.length() < 1 || ssid.length() > 31 || pass.length() > 31) {
+      server.send(400, "text/plain", "INVALID LENGTH");
+      return;
+    }
+
+    // Open network allowed: empty password is valid.
+    if (pass.length() > 0 && pass.length() < 8) {
+      server.send(400, "text/plain", "PASSWORD TOO SHORT");
+      return;
+    }
+
+    ssid.toCharArray(settings.staSSID, 32);
+    pass.toCharArray(settings.staPASS, 32);
+    saveSettings();
+
+    server.send(200, "text/plain", "OK");
+
+    Serial.print("📡 Joining network: ");
+    Serial.println(ssid);
+    maybeStartStaAndMdns();
+  } else {
+    server.send(400, "text/plain", "MISSING PARAMETERS");
+  }
+}
+
 void handleData() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
@@ -497,7 +578,11 @@ void handleData() {
   json += "\"offset\":"   + String(tempOffset, 2)   + ",";
   json += "\"fanState\":" + String((fanState || fanTestActive) ? 1 : 0) + ",";
   json += "\"alarm\":"    + String(alarmActive ? 1 : 0) + ",";
-  json += "\"muted\":"    + String(buzzMuted ? 1 : 0);
+  json += "\"muted\":"    + String(buzzMuted ? 1 : 0) + ",";
+  // [STA+mDNS] let the app show/route around the joined-network state.
+  json += "\"staUp\":"    + String((WiFi.status() == WL_CONNECTED) ? 1 : 0) + ",";
+  json += "\"staIp\":\""  + String(WiFi.localIP().toString()) + "\",";
+  json += "\"mdns\":\""   + (mdnsStarted ? String("car_guard.local") : String("")) + "\"";
   json += "}";
 
   server.send(200, "application/json", json);
@@ -779,8 +864,11 @@ void setup() {
 
   loadSettings();
 
-  WiFi.mode(WIFI_AP);
+  // [STA+mDNS] AP stays always-on; the STA join is attempted in parallel
+  // and never blocks boot (the hotspot might legitimately be off).
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(ap_ssid, ap_password);
+  maybeStartStaAndMdns();
 
   dnsServer.start(53, "*", WiFi.softAPIP());
 
@@ -795,6 +883,7 @@ void setup() {
   server.on("/testfan",             handleTestFan);
   server.on("/restart",             handleRestart);
   server.on("/savewifi",            handleSaveWiFiSettings);
+  server.on("/joinwifi",            handleJoinWiFi);
   server.on("/getwifisettings",     handleGetWiFiSettings);
   server.on("/saveallsettings",     handleSaveAllSettings);
   server.on("/saveadvancedsettings",handleSaveAdvancedSettings);
@@ -828,6 +917,24 @@ void loop() {
   dnsServer.processNextRequest();
   server.handleClient();
   webSocket.loop();
+
+  // [STA+mDNS] once the station link is up, bring mDNS online exactly once;
+  // if it drops later, just re-attempt the WiFi join quietly.
+  if (settings.staSSID[0] != 0) {
+    if (!mdnsStarted && WiFi.status() == WL_CONNECTED) {
+      maybeAdvertiseMdns();
+    }
+    if (mdnsStarted) {
+      static unsigned long lastStaCheck = 0;
+      if (millis() - lastStaCheck > 15000) {
+        lastStaCheck = millis();
+        if (WiFi.status() != WL_CONNECTED) {
+          Serial.println("📡 STA lost — retrying join...");
+          WiFi.begin(settings.staSSID, settings.staPASS);
+        }
+      }
+    }
+  }
 
   updateSensors();
   handleAlarm();

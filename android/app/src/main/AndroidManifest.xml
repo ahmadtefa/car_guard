@@ -6,6 +6,9 @@
     <!-- Lets the app pin its own traffic to the module Wi-Fi network while
          the phone keeps internet over mobile data (bindProcessToNetwork). -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- Multicast reception (mDNS) — some vendors filter multicast frames
+         until a lock is held; this permission lets us acquire it. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Direct app-scoped pairing with the module AP (WifiNetworkSpecifier):
          CHANGE_WIFI_STATE always; NEARBY_WIFI_DEVICES runtime on 13+;
          fine location covers 10-12. -->

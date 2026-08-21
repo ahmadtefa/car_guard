@@ -152,6 +152,13 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 CarContext.MODE_PRIVATE,
             )
 
+            // 1) An mDNS-discovered address from the last app session wins
+            //    when the module joined a hotspot (its DHCP IP is dynamic).
+            val mdnsIp = prefs.getString("flutter.mdns_module_ip", null)
+                ?.trim().orEmpty()
+            if (mdnsIp.isNotEmpty()) return mdnsIp
+
+            // 2) Otherwise fall back to the saved settings (or the default).
             val raw = prefs.getString("flutter.app_settings", null)
                 ?: return DEFAULT_HOST
 
