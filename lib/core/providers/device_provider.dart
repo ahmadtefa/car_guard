@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/device_repository.dart';
 import '../services/esp8266_repository.dart';
 import '../services/storage_service.dart';
+import 'connectivity_provider.dart';
 
 
 final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
@@ -10,6 +11,23 @@ final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
   final repository = Esp8266Repository(
     host: '192.168.4.1',
     port: 81,
+  );
+
+
+  // React immediately to operating system network changes: when WiFi is
+  // turned off the device socket never receives a close event, so the drop
+  // has to be applied from here; when a network comes back we reconnect.
+  ref.listen<AsyncValue<bool>>(
+    connectivityStatusProvider,
+    (previous, next) {
+      next.whenData((isOnline) {
+        if (isOnline) {
+          repository.handleNetworkAvailable();
+        } else {
+          repository.handleNetworkLost();
+        }
+      });
+    },
   );
 
 
@@ -33,6 +51,7 @@ final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
 
 
   return repository;
+
 });
 
 

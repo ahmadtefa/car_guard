@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required to reach the device over HTTP/WebSocket (also in release
+         builds) and to observe network state for disconnect detection. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <application
         android:label="car_guard"
         android:name="${applicationName}"
