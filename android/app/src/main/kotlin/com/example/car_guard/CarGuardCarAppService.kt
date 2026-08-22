@@ -116,7 +116,7 @@ private object CarReadings {
         refs++
         if (!running) {
             running = true
-            poll()
+            poller.run()
         }
     }
 
@@ -269,7 +269,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
     init {
         CarReadings.addListener(onReading)
-        getLifecycle().addObserver(object : DefaultLifecycleObserver {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 CarReadings.acquire(loadHost(carContext))
             }
@@ -572,7 +572,7 @@ class CarGuardDetailsScreen(carContext: CarContext) : Screen(carContext) {
 
     init {
         CarReadings.addListener(onReading)
-        getLifecycle().addObserver(object : DefaultLifecycleObserver {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 CarReadings.acquire(loadHost(carContext))
             }
