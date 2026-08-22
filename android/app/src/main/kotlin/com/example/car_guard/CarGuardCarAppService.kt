@@ -6,8 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.RRectF
 import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
@@ -119,7 +119,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         ).setTint(customColor(color)).build()
 
     private fun gaugeIcon(bitmap: Bitmap): CarIcon =
-        CarIcon.Builder(IconCompat.createFromBitmap(bitmap)).build()
+        CarIcon.Builder(IconCompat.createWithBitmap(bitmap)).build()
 
     private fun gridItem(
         iconRes: Int,
@@ -399,7 +399,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             style = Paint.Style.STROKE
             strokeWidth = size * 0.045f
             strokeCap = Paint.Cap.ROUND
-            color = TICK
+            this.color = TICK
         }
         val tipX = cx + (radius - stroke) * cos(angleRad).toFloat()
         val tipY = cy + (radius - stroke) * sin(angleRad).toFloat()
@@ -439,18 +439,16 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         val width = right - left
 
         val barRect = RectF(left, top, right, top + barHeight)
-        val roundRect = RRectF(
-            barRect.left,
-            barRect.top,
-            barRect.right,
-            barRect.bottom,
-            barHeight / 2f,
-            barHeight / 2f,
-        )
+
+        // مسار مدوّر للحواف (Android 23+ مفيش clipRoundRect مضمون،
+        // فبنستخدم Path.addRoundRect مع clipPath).
+        val barPath = Path().apply {
+            addRoundRect(barRect, barHeight / 2f, barHeight / 2f, Path.Direction.CW)
+        }
 
         // مناطق خافتة (أحمر | أخضر | أحمر) زي شريط الموبايل بالظبط.
         canvas.save()
-        canvas.clipRRect(roundRect)
+        canvas.clipPath(barPath)
 
         val zone = Paint(Paint.ANTI_ALIAS_FLAG)
         zone.color = TRACK
@@ -497,7 +495,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 left + width * fraction(volt),
                 top + barHeight / 2f,
                 size * 0.045f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TICK },
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = TICK },
             )
         }
 
@@ -505,7 +503,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
         // علامتا حدّي الأدنى/الأقصى.
         val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = TICK
+            this.color = TICK
             strokeWidth = size * 0.016f
         }
         fun tickAt(f: Float) {
@@ -522,7 +520,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
         // أرقام المقياس: 10 … min–max … 16.
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = LABEL
+            this.color = LABEL
             textSize = size * 0.085f
             textAlign = Paint.Align.LEFT
         }
