@@ -15,7 +15,6 @@ import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.Session
-import androidx.car.app.model.Action
 import androidx.car.app.model.CarColor
 import androidx.car.app.model.CarIcon
 import androidx.car.app.model.GridItem
@@ -38,11 +37,11 @@ import kotlin.math.sin
 /**
  * Android Auto front-end for Car Guard.
  *
- * الشاشة الرئيسية فيها عدادين **كبيرين**: حرارة المحرك (نصف دائرة بإبرة)
- * وفولت البطارية (شريط بمناطق ملونة) — نفس رسم MiniArcGauge +
- * MiniVoltBarGauge في التطبيق. كروت السرعة/المروحة/الدينامو/الحالة
- * في شاشة "قراءات إضافية" بتتفتح بضغطة على أي عداد أو من الزر
- * العائم. البيانات حية كل 2 ثانية من /data.
+ * شاشة واحدة بكل البيانات: عداد الحرارة (نص دائري بإبرة) وعداد الفولت
+ * (شريط بمناطق ملونة) — نفس رسم MiniArcGauge + MiniVoltBarGauge في
+ * التطبيق — والقراءة الحية مكتوبة **تحت كل عداد** بخط واضح، ومعاهم
+ * في نفس الشاشة: السرعة/المسافة، المروحة، الدينامو وحالة الإنذار.
+ * البيانات حية كل 2 ثانية من /data.
  */
 class CarGuardCarAppService : CarAppService() {
     override fun onCreateSession(): Session = CarGuardSession()
@@ -85,7 +84,6 @@ private const val ZONE_RED = 0x55FF2244.toInt()
 private const val ZONE_GREEN = 0x5500FF88.toInt()
 private const val LABEL = 0x66FFFFFF.toInt()
 private const val TICK = 0xB3FFFFFF.toInt()
-private const val VALUE_WHITE = 0xFFF8FAFC.toInt()
 private const val FACE_BG = 0xE60F172A.toInt()
 private const val TRACK = 0xB3475569.toInt()
 
@@ -116,7 +114,6 @@ private object CarReadings {
         listeners.remove(listener)
     }
 
-    /** كل شاشة بتطلب الـ poller (عندما تبقى ظاهرة) وبتفرّغه عند إخفائها. */
     fun acquire(newHost: String) {
         host = newHost
         refs++
@@ -172,8 +169,6 @@ private object CarReadings {
 
             reading = next
 
-            // محدّثش إلا لو القراءة اتغيرت فعلًا — بيقلل ضغط
-            // التحديثات على المضيف ويمنع أخطاء الـ refresh.
             if (next != lastSent) {
                 lastSent = next
                 listeners.forEach { it() }
@@ -256,13 +251,11 @@ private fun speedText(carContext: CarContext): String {
 }
 
 private fun loadHost(carContext: CarContext): String = try {
-    // 1) عنوان اكتشفه mDNS آخر مرة — الأولوية لأنه بيتغير مع الهوت سبوت.
     val mdnsIp = prefs(carContext).getString("flutter.mdns_module_ip", null)
         ?.trim().orEmpty()
     if (mdnsIp.isNotEmpty()) {
         mdnsIp
     } else {
-        // 2) وإلا العنوان المحفوظ في إعدادات التطبيق.
         val raw = prefs(carContext).getString("flutter.app_settings", null)
             ?: DEFAULT_HOST
         JSONObject(raw).optString("deviceHost", DEFAULT_HOST)
@@ -273,7 +266,8 @@ private fun loadHost(carContext: CarContext): String = try {
 }
 
 // ----------------------------------------------------------------------
-// الشاشة الرئيسية: عدادين كبيرين
+// الشاشة الرئيسية: كل البيانات في شاشة واحدة
+//   عداد الحرارة + عداد الفولت (القراءة تحتهم) + السرعة/المروحة/الدينامو/الحالة
 // ----------------------------------------------------------------------
 
 class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
@@ -297,38 +291,34 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         })
     }
 
-    private fun openDetails() {
-        screenManager.push(CarGuardDetailsScreen(carContext))
-    }
-
     private fun gaugeGridItem(
         bitmap: Bitmap,
         title: CharSequence,
         text: CharSequence,
-        clickable: Boolean = true,
-    ): GridItem {
-        val builder = GridItem.Builder()
-            .setImage(gaugeIcon(bitmap), GridItem.IMAGE_TYPE_LARGE)
-            .setTitle(title)
-            .setText(text)
-        if (clickable) {
-            builder.setOnClickListener { openDetails() }
-        }
-        return builder.build()
-    }
+    ): GridItem = GridItem.Builder()
+        .setImage(gaugeIcon(bitmap), GridItem.IMAGE_TYPE_LARGE)
+        .setTitle(title)
+        .setText(text)
+        .build()
+
+    private fun gridItem(
+        iconRes: Int,
+        title: CharSequence,
+        text: CharSequence,
+        color: Int,
+    ): GridItem = GridItem.Builder()
+        .setImage(carIcon(carContext, iconRes, color), GridItem.IMAGE_TYPE_LARGE)
+        .setTitle(title)
+        .setText(text)
+        .build()
 
     override fun onGetTemplate(): Template {
-        val connected = CarReadings.reading?.connected == true
         val current = CarReadings.reading
+        val connected = current?.connected == true
+
         val list = ItemList.Builder()
 
-        // — الحرارة: عداد كبير (ضبطة → القراءات الإضافية) —
-        val tempStatus = when {
-            !connected -> carContext.getString(R.string.aa_disconnected)
-            current!!.temp >= current!!.maxTemp ->
-                carContext.getString(R.string.aa_critical)
-            else -> carContext.getString(R.string.aa_ok)
-        }
+        // — حرارة المحرك: العداد (القراءة تحت العداد) —
         list.addItem(
             gaugeGridItem(
                 tempGauge(
@@ -337,18 +327,15 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                     active = connected,
                 ),
                 carContext.getString(R.string.aa_temp),
-                tempStatus,
+                if (connected) {
+                    String.format(Locale.US, "%.1f °C", current!!.temp)
+                } else {
+                    carContext.getString(R.string.aa_no_data)
+                },
             ),
         )
 
-        // — الفولت: شريط كبير —
-        val voltStatus = when {
-            !connected -> carContext.getString(R.string.aa_disconnected)
-            current!!.volt <= 0.0 -> carContext.getString(R.string.aa_no_data)
-            current!!.volt < current!!.minVolt || current!!.volt > current!!.maxVolt ->
-                carContext.getString(R.string.aa_out_of_range)
-            else -> carContext.getString(R.string.aa_ok)
-        }
+        // — فولت البطارية: العداد (القراءة تحت العداد) —
         list.addItem(
             gaugeGridItem(
                 voltGauge(
@@ -358,7 +345,83 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                     active = connected,
                 ),
                 carContext.getString(R.string.aa_voltage),
-                voltStatus,
+                if (connected) {
+                    String.format(Locale.US, "%.2f V", current!!.volt)
+                } else {
+                    carContext.getString(R.string.aa_no_data)
+                },
+            ),
+        )
+
+        // — السرعة + المسافة —
+        val speedColor = when {
+            speedKmh(carContext) >= speedLimit(carContext) -> NEON_RED
+            speedKmh(carContext) <= 0.0 -> MUTED_GRAY
+            else -> NEON_GREEN
+        }
+        list.addItem(
+            gridItem(
+                R.drawable.ic_car_speed,
+                carContext.getString(R.string.aa_speed),
+                speedText(carContext),
+                speedColor,
+            ),
+        )
+
+        // — المروحة —
+        val fanColor = if (connected && current!!.fanOn) NEON_GREEN else NEON_AMBER
+        list.addItem(
+            gridItem(
+                R.drawable.ic_car_fan,
+                carContext.getString(R.string.aa_fan),
+                if (connected && current!!.fanOn) {
+                    carContext.getString(R.string.aa_on)
+                } else {
+                    carContext.getString(R.string.aa_off)
+                },
+                fanColor,
+            ),
+        )
+
+        // — الدينامو —
+        val charging = connected && current!!.volt >= 13.0
+        list.addItem(
+            gridItem(
+                R.drawable.ic_car_alternator,
+                carContext.getString(R.string.aa_alternator),
+                if (charging) {
+                    carContext.getString(R.string.aa_charging)
+                } else {
+                    carContext.getString(R.string.aa_not_charging)
+                },
+                if (charging) NEON_GREEN else MUTED_GRAY,
+            ),
+        )
+
+        // — الحالة —
+        val alarmColor = when {
+            connected && current!!.alarm -> NEON_RED
+            connected && current!!.muted -> NEON_AMBER
+            connected -> NEON_GREEN
+            else -> NEON_RED
+        }
+        val alarmText = when {
+            !connected -> carContext.getString(R.string.aa_disconnected)
+            current!!.alarm -> carContext.getString(R.string.aa_active)
+            current!!.muted -> carContext.getString(R.string.aa_muted)
+            else -> carContext.getString(R.string.aa_ok)
+        }
+        val alarmIcon = if (connected && current!!.alarm) {
+            R.drawable.ic_car_alarm
+        } else {
+            R.drawable.ic_car_status
+        }
+        list.addItem(
+            gridItem(
+                alarmIcon,
+                carContext.getString(R.string.aa_status),
+                alarmText,
+                alarmColor,
             ),
         )
 
@@ -370,13 +433,10 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             )
             .setSingleList(list.build())
 
-        // Car API 8+: أكبر حجم ممكن لكل عناصر الشبكة.
         if (carContext.getCarAppApiLevel() >= 8) {
             builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
         }
 
-        // لو المضيف رفض القالب لأي سبب، اعرض شاشة بسيطة بدل
-        // رسالة "حدث خطأ" — القراءات تفضل شغالة.
         return try {
             builder.build()
         } catch (t: Throwable) {
@@ -421,6 +481,19 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                     .build(),
             )
         }
+        rows.addItem(
+            Row.Builder()
+                .setTitle(carContext.getString(R.string.aa_status))
+                .addText(
+                    when {
+                        !connected -> carContext.getString(R.string.aa_disconnected)
+                        current!!.alarm -> carContext.getString(R.string.aa_active)
+                        current!!.muted -> carContext.getString(R.string.aa_muted)
+                        else -> carContext.getString(R.string.aa_ok)
+                    },
+                )
+                .build(),
+        )
 
         return ListTemplate.Builder()
             .setTitle(carContext.getString(R.string.aa_title))
@@ -432,6 +505,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         (dp * carContext.resources.displayMetrics.density).toInt()
             .coerceIn(dp, 720)
 
+    // عداد الحرارة — الرسم زي ما هو (بدون قراءة جوه؛ القراءة تحت العداد).
     private fun tempGauge(
         temp: Double,
         maxTemp: Double,
@@ -447,7 +521,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         val arcR = size * 0.36f
         val stroke = size * 0.085f
 
-        // وجه العداد الدائري — شفاف من غير مربع، بيتناسق مع الشاشة.
+        // وجه العداد الدائري — شفاف من غير مربع.
         canvas.drawCircle(
             cx,
             cy,
@@ -498,41 +572,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
 
-        // القيمة الكبيرة جوه العداد.
-        val value = if (active) {
-            String.format(Locale.US, "%.1f°C", temp)
-        } else {
-            "--"
-        }
-        canvas.drawText(
-            value,
-            cx,
-            cy + size * 0.12f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = VALUE_WHITE
-                textSize = size * 0.135f
-                textAlign = Paint.Align.CENTER
-                typeface = android.graphics.Typeface.create(
-                    android.graphics.Typeface.DEFAULT,
-                    android.graphics.Typeface.BOLD,
-                )
-            },
-        )
-
-        // قراءة دقيقة صغيرة تحت القيمة الكبيرة.
-        if (active) {
-            canvas.drawText(
-                String.format(Locale.US, "MAX %.0f°C", maxTemp),
-                cx,
-                size * 0.965f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    this.color = LABEL
-                    textSize = size * 0.065f
-                    textAlign = Paint.Align.CENTER
-                },
-            )
-        }
-
         // تدريجات صغيرة عند طرفي القوس: 40 / 140.
         val scale = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = LABEL
@@ -545,6 +584,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         return bmp
     }
 
+    // عداد الفولت — الرسم زي ما هو (بدون قراءة جوه؛ القراءة تحت العداد).
     private fun voltGauge(
         volt: Double,
         minVolt: Double,
@@ -555,7 +595,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // وجه مستدير شفاف — من غير مربع محرج.
+        // وجه مستدير شفاف — من غير مربع.
         val faceLeft = size * 0.05f
         val faceTop = size * 0.10f
         val faceRight = size * 0.95f
@@ -573,27 +613,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = FACE_BG },
         )
 
-        // القيمة الكبيرة في نص البطاقة.
-        val value = if (active && volt > 0.0) {
-            String.format(Locale.US, "%.2f V", volt)
-        } else {
-            "--"
-        }
-        canvas.drawText(
-            value,
-            size / 2f,
-            size * 0.36f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.color = VALUE_WHITE
-                textSize = size * 0.135f
-                textAlign = Paint.Align.CENTER
-                typeface = android.graphics.Typeface.create(
-                    android.graphics.Typeface.DEFAULT,
-                    android.graphics.Typeface.BOLD,
-                )
-            },
-        )
-
         // الشريط.
         val min = 10.0
         val max = 16.0
@@ -602,8 +621,8 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
         val left = size * 0.12f
         val right = size * 0.88f
-        val top = size * 0.56f
-        val barHeight = size * 0.13f
+        val top = size * 0.42f
+        val barHeight = size * 0.16f
         val width = right - left
 
         val barRect = RectF(left, top, right, top + barHeight)
@@ -680,7 +699,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         tickAt(lowF)
         tickAt(highF)
 
-        // أرقام المقياس تحت الشريط.
+        // أرقام المقياس تحت الشريط: 10 / حدّي / 16.
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = LABEL
             textSize = size * 0.085f
@@ -704,160 +723,5 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         canvas.drawText("16", right, labelY, label)
 
         return bmp
-    }
-}
-
-// ----------------------------------------------------------------------
-// شاشة القراءات الإضافية: سرعة، مروحة، دينامو، حالة
-// ----------------------------------------------------------------------
-
-class CarGuardDetailsScreen(carContext: CarContext) : Screen(carContext) {
-
-    private val onReading = { invalidate() }
-
-    init {
-        CarReadings.addListener(onReading)
-        lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                CarReadings.acquire(loadHost(carContext))
-            }
-
-            override fun onStop(owner: LifecycleOwner) {
-                CarReadings.release()
-            }
-
-            override fun onDestroy(owner: LifecycleOwner) {
-                CarReadings.removeListener(onReading)
-            }
-        })
-    }
-
-    private fun gridItem(
-        iconRes: Int,
-        title: CharSequence,
-        text: CharSequence,
-        color: Int,
-    ): GridItem = GridItem.Builder()
-        .setImage(carIcon(carContext, iconRes, color), GridItem.IMAGE_TYPE_LARGE)
-        .setTitle(title)
-        .setText(text)
-        .build()
-
-    override fun onGetTemplate(): Template {
-        val current = CarReadings.reading
-        val connected = current?.connected == true
-        val list = ItemList.Builder()
-
-        val speedColor = when {
-            speedKmh(carContext) >= speedLimit(carContext) -> NEON_RED
-            speedKmh(carContext) <= 0.0 -> MUTED_GRAY
-            else -> NEON_GREEN
-        }
-
-        val fanColor = if (connected && current!!.fanOn) NEON_GREEN else NEON_AMBER
-        val fanText = if (connected && current!!.fanOn) {
-            carContext.getString(R.string.aa_on)
-        } else {
-            carContext.getString(R.string.aa_off)
-        }
-
-        val charging = connected && current!!.volt >= 13.0
-        val altColor = if (charging) NEON_GREEN else MUTED_GRAY
-        val altText = if (charging) {
-            carContext.getString(R.string.aa_charging)
-        } else {
-            carContext.getString(R.string.aa_not_charging)
-        }
-
-        val alarmColor = when {
-            connected && current!!.alarm -> NEON_RED
-            connected && current!!.muted -> NEON_AMBER
-            connected -> NEON_GREEN
-            else -> NEON_RED
-        }
-        val alarmText = when {
-            !connected -> carContext.getString(R.string.aa_disconnected)
-            current!!.alarm -> carContext.getString(R.string.aa_active)
-            current!!.muted -> carContext.getString(R.string.aa_muted)
-            else -> carContext.getString(R.string.aa_ok)
-        }
-        val alarmIcon = if (connected && current!!.alarm) {
-            R.drawable.ic_car_alarm
-        } else {
-            R.drawable.ic_car_status
-        }
-
-        list.addItem(
-            gridItem(
-                R.drawable.ic_car_speed,
-                carContext.getString(R.string.aa_speed),
-                speedText(carContext),
-                speedColor,
-            ),
-        )
-        list.addItem(
-            gridItem(
-                R.drawable.ic_car_fan,
-                carContext.getString(R.string.aa_fan),
-                fanText,
-                fanColor,
-            ),
-        )
-        list.addItem(
-            gridItem(
-                R.drawable.ic_car_alternator,
-                carContext.getString(R.string.aa_alternator),
-                altText,
-                altColor,
-            ),
-        )
-        list.addItem(
-            gridItem(
-                alarmIcon,
-                carContext.getString(R.string.aa_status),
-                alarmText,
-                alarmColor,
-            ),
-        )
-
-        val builder = GridTemplate.Builder()
-            .setTitle(carContext.getString(R.string.aa_more))
-            .setHeaderAction(Action.BACK)
-            .setSingleList(list.build())
-
-        if (carContext.getCarAppApiLevel() >= 8) {
-            builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
-        }
-
-        return try {
-            builder.build()
-        } catch (t: Throwable) {
-            // Fallback بسيط: قائمة بالقراءات بدل رسالة الخطأ العامة.
-            val rows = ItemList.Builder()
-            rows.addItem(
-                Row.Builder()
-                    .setTitle(carContext.getString(R.string.aa_speed))
-                    .addText(speedText(carContext))
-                    .build(),
-            )
-            rows.addItem(
-                Row.Builder()
-                    .setTitle(carContext.getString(R.string.aa_alternator))
-                    .addText(altText)
-                    .build(),
-            )
-            rows.addItem(
-                Row.Builder()
-                    .setTitle(carContext.getString(R.string.aa_status))
-                    .addText(alarmText)
-                    .build(),
-            )
-
-            ListTemplate.Builder()
-                .setTitle(carContext.getString(R.string.aa_more))
-                .setHeaderAction(Action.BACK)
-                .setSingleList(rows.build())
-                .build()
-        }
     }
 }
