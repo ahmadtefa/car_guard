@@ -21,6 +21,8 @@ import androidx.car.app.model.CarIcon
 import androidx.car.app.model.GridItem
 import androidx.car.app.model.GridTemplate
 import androidx.car.app.model.ItemList
+import androidx.car.app.model.ListTemplate
+import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.car.app.validation.HostValidator
 import androidx.core.graphics.drawable.IconCompat
@@ -76,7 +78,6 @@ private const val POLL_INTERVAL_MS = 2000L
 private const val NEON_GREEN = 0x00FF88.toInt()
 private const val NEON_AMBER = 0xFFAA00.toInt()
 private const val NEON_RED = 0xFF2244.toInt()
-private const val NEON_CYAN = 0x00D4FF.toInt()
 private const val MUTED_GRAY = 0x64748B.toInt()
 
 // خلفية / مسار العداد — نفس ألوان كروت الموبايل الداكنة.
@@ -101,6 +102,10 @@ private object CarReadings {
 
     private val handler = Handler(Looper.getMainLooper())
     private val listeners = mutableListOf<() -> Unit>()
+
+    // آخر قراءة اتبعتت للمضيف — عشان مترفعش تحديث إلا لما
+    // القيم تتغير فعلًا (المضيف بيتعامل مع كل refresh كخطوة جديدة).
+    private var lastSent: CarReading? = null
 
     fun addListener(listener: () -> Unit) {
         listeners.add(listener)
@@ -152,7 +157,7 @@ private object CarReadings {
         }
 
         handler.post {
-            reading = result ?: CarReading(
+            val next = result ?: CarReading(
                 connected = false,
                 temp = 0.0,
                 volt = 0.0,
@@ -164,7 +169,14 @@ private object CarReadings {
                 maxVolt = 14.8,
             )
 
-            listeners.forEach { it() }
+            reading = next
+
+            // محدّثش إلا لو القراءة اتغيرت فعلًا — بيقلل ضغط
+            // التحديثات على المضيف ويمنع أخطاء الـ refresh.
+            if (next != lastSent) {
+                lastSent = next
+                listeners.forEach { it() }
+            }
         }
     }
 
@@ -352,23 +364,62 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             )
             .setSingleList(list.build())
 
-        if (carContext.getCarAppApiLevel() >= 7) {
-            builder.addAction(
-                Action.Builder()
-                    .setTitle(carContext.getString(R.string.aa_more))
-                    .setIcon(carIcon(carContext, R.drawable.ic_car_status, NEON_CYAN))
-                    .setBackgroundColor(customColor(CARD_BG))
-                    .setOnClickListener { openDetails() }
-                    .build(),
-            )
-        }
-
         // Car API 8+: أكبر حجم ممكن لكل عناصر الشبكة.
         if (carContext.getCarAppApiLevel() >= 8) {
             builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
         }
 
-        return builder.build()
+        // لو المضيف رفض القالب لأي سبب، اعرض شاشة بسيطة بدل
+        // رسالة "حدث خطأ" — القراءات تفضل شغالة.
+        return try {
+            builder.build()
+        } catch (t: Throwable) {
+            fallbackTemplate()
+        }
+    }
+
+    private fun fallbackTemplate(): Template {
+        val connected = CarReadings.reading?.connected == true
+        val current = CarReadings.reading
+        val rows = ItemList.Builder()
+
+        rows.addItem(
+            Row.Builder()
+                .setTitle(carContext.getString(R.string.aa_temp))
+                .addText(
+                    if (connected) {
+                        String.format(Locale.US, "%.1f °C", current!!.temp)
+                    } else {
+                        carContext.getString(R.string.aa_no_data)
+                    },
+                )
+                .build(),
+        )
+        rows.addItem(
+            Row.Builder()
+                .setTitle(carContext.getString(R.string.aa_voltage))
+                .addText(
+                    if (connected) {
+                        String.format(Locale.US, "%.2f V", current!!.volt)
+                    } else {
+                        carContext.getString(R.string.aa_no_data)
+                    },
+                )
+                .build(),
+        )
+        if (connected) {
+            rows.addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_speed))
+                    .addText(speedText(carContext))
+                    .build(),
+            )
+        }
+
+        return ListTemplate.Builder()
+            .setTitle(carContext.getString(R.string.aa_title))
+            .setSingleList(rows.build())
+            .build()
     }
 
     private fun gaugeSizeDp(dp: Int): Int =
@@ -684,6 +735,35 @@ class CarGuardDetailsScreen(carContext: CarContext) : Screen(carContext) {
             builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
         }
 
-        return builder.build()
+        return try {
+            builder.build()
+        } catch (t: Throwable) {
+            // Fallback بسيط: قائمة بالقراءات بدل رسالة الخطأ العامة.
+            val rows = ItemList.Builder()
+            rows.addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_speed))
+                    .addText(speedText(carContext))
+                    .build(),
+            )
+            rows.addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_alternator))
+                    .addText(altText)
+                    .build(),
+            )
+            rows.addItem(
+                Row.Builder()
+                    .setTitle(carContext.getString(R.string.aa_status))
+                    .addText(alarmText)
+                    .build(),
+            )
+
+            ListTemplate.Builder()
+                .setTitle(carContext.getString(R.string.aa_more))
+                .setHeaderAction(Action.BACK)
+                .setSingleList(rows.build())
+                .build()
+        }
     }
 }
