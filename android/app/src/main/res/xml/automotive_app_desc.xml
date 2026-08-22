@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Describes the automotive experience provided by the app.
+     "template" means the app renders driving-optimized UIs through the
+     Android for Cars App Library (CarAppService + Templates). -->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

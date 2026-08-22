@@ -1,71 +1,143 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/l10n/app_l10n.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../providers/trip_provider.dart';
-import 'base_dashboard_card.dart';
 
-/// GPS speed and trip distance cards fed by [tripProvider].
+/// Two side-by-side cards fed by the phone GPS: current vehicle speed
+/// (km/h) and the resettable trip distance (km).
 class TripCards extends ConsumerWidget {
   const TripCards({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = ref.watch(tripProvider);
+    final l = ref.watch(l10nProvider);
 
     final speedText =
-        trip.hasFix ? '${trip.speedKmh.toStringAsFixed(0)} km/h' : '-- km/h';
+        trip.hasFix ? trip.speedKmh.toStringAsFixed(0) : '--';
     final distanceText =
-        trip.hasFix ? '${trip.distanceKm.toStringAsFixed(2)} km' : '-- km';
+        trip.hasFix ? trip.distanceKm.toStringAsFixed(2) : '--';
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BaseDashboardCard(
-          title: 'Vehicle Speed',
-          value: speedText,
-          subtitle: 'From phone GPS',
-          statusText: trip.hasFix ? 'Live' : 'Waiting for GPS...',
+        Row(
+          children: [
+            Expanded(
+              child: _TripCard(
+                title: l.vehicleSpeed,
+                value: speedText,
+                unit: l.kmh,
+                icon: Icons.speed_rounded,
+                color: AppColors.neonCyan,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _TripCard(
+                title: l.tripDistance,
+                value: distanceText,
+                unit: l.km,
+                icon: Icons.route_rounded,
+                color: AppColors.neonGreen,
+              ),
+            ),
+          ],
         ),
 
         const SizedBox(height: AppSpacing.md),
 
-        BaseDashboardCard(
-          title: 'Trip Distance',
-          value: distanceText,
-          subtitle: 'Total distance since reset',
-          statusText: '',
-          child: SecondaryButton(
-            onPressed: trip.distanceKm > 0
-                ? () => ref.read(tripProvider.notifier).resetTrip()
-                : null,
-            child: const Text('Reset Trip'),
-          ),
+        SecondaryButton(
+          onPressed: trip.distanceKm > 0
+              ? () => ref.read(tripProvider.notifier).resetTrip()
+              : null,
+          child: Text(l.resetTrip),
         ),
 
         // Friendly heads-up instead of silently dead cards.
         if (trip.denied || !trip.available)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  trip.denied
-                      ? 'Location permission denied — speed tracking is off.'
-                      : 'Location services are off — turn on GPS.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                TextButton(
-                  onPressed: () =>
-                      ref.read(tripProvider.notifier).start(),
-                  child: const Text('Retry'),
-                ),
-              ],
+            child: Text(
+              trip.denied ? l.locationDenied : l.gpsOff,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.warning,
+                  ),
             ),
           ),
       ],
+    );
+  }
+}
+
+class _TripCard extends StatelessWidget {
+  const _TripCard({
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String unit;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: value,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 34,
+                          height: 1.0,
+                        ),
+                  ),
+                  TextSpan(
+                    text: ' $unit',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: color.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

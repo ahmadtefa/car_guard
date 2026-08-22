@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/app_settings.dart';
 import '../services/background_service.dart';
 import '../services/device_repository.dart';
 import '../services/esp8266_repository.dart';
@@ -9,9 +10,11 @@ import 'connectivity_provider.dart';
 
 final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
 
+  const defaults = AppSettings();
+
   final repository = Esp8266Repository(
-    host: '192.168.4.1',
-    port: 81,
+    host: defaults.deviceHost,
+    port: defaults.devicePort,
   );
 
 
@@ -33,10 +36,7 @@ final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
 
 
   // While a device connection is alive, promote the process to a foreground
-  // service so Android keeps updating readings in the background. The
-  // service intentionally stays up across temporary drops (it is what makes
-  // automatic recovery work in the background too) and is only stopped on a
-  // manual disconnect.
+  // service so Android keeps updating readings in the background.
   final connectionEvents = repository.connectionStream.listen(
     (isConnected) {
       if (isConnected) {
@@ -48,16 +48,18 @@ final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
   ref.onDispose(connectionEvents.cancel);
 
 
-  // Load user-saved IP asynchronously
-  ref.read(storageServiceProvider).read('device_host').then((savedHost) {
+  // Load the persisted settings and connect to the saved device address.
+  ref.read(storageServiceProvider).read(AppSettings.storageKey).then((raw) {
+    final settings = AppSettings.fromRaw(raw);
+
     repository.connect(
-      host: savedHost ?? '192.168.4.1',
-      port: 81,
+      host: settings.deviceHost,
+      port: settings.devicePort,
     );
   }).catchError((_) {
     repository.connect(
-      host: '192.168.4.1',
-      port: 81,
+      host: defaults.deviceHost,
+      port: defaults.devicePort,
     );
   });
 

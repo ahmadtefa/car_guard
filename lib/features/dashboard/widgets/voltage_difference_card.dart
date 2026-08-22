@@ -1,33 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/app_l10n.dart';
 import 'base_dashboard_card.dart';
 
-/// A reusable placeholder widget for displaying voltage difference.
-class VoltageDifferenceCard extends StatelessWidget {
-  /// Creates a voltage difference card.
+/// Displays the voltage difference reported by the device.
+class VoltageDifferenceCard extends ConsumerWidget {
   const VoltageDifferenceCard({
     super.key,
-    this.value = '--.-',
-    this.unit = 'V',
+    this.value = '--.- V',
     this.statusText = 'Unknown',
   });
 
-  /// Optional placeholder value for the voltage difference display.
+  /// Voltage difference reading including its unit (e.g. `0.12 V`).
   final String value;
 
-  /// Optional unit label for the voltage difference display.
-  final String unit;
-
-  /// Optional status label shown beneath the value.
   final String statusText;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+
     return BaseDashboardCard(
-      title: 'Voltage Difference',
-      value: '$value $unit',
-      subtitle: 'Waiting for measurement...',
-      statusText: statusText,
+      title: l.voltageDifference,
+      value: value,
+      subtitle: l.chargingDeltaInfo,
+      statusText: statusText == 'Unknown' ? l.unknown : statusText,
     );
   }
 }
