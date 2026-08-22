@@ -51,16 +51,26 @@ void main() {
       expect(alerts.single.severity, AlertSeverity.critical);
     });
 
-    test('warning alert within 5 degrees below the module limit', () {
-      final alerts = AlertEvaluator.evaluate(
+    test('no early warning below the module limit — alert fires only at the limit', () {
+      // Updated for the "same-degree" rule the user requested: the separate
+      // (maxTemp - 5) warning is gone — the alert fires at exactly maxTemp.
+      final below = AlertEvaluator.evaluate(
         _status(temperature: 104),
         const AppSettings(),
         moduleLimits: const ModuleLimits(maxTemp: 105),
       );
 
-      expect(alerts, hasLength(1));
-      expect(alerts.single.id, 'engine_temp_high');
-      expect(alerts.single.severity, AlertSeverity.warning);
+      expect(below, isEmpty);
+
+      final atLimit = AlertEvaluator.evaluate(
+        _status(temperature: 105),
+        const AppSettings(),
+        moduleLimits: const ModuleLimits(maxTemp: 105),
+      );
+
+      expect(atLimit, hasLength(1));
+      expect(atLimit.single.id, 'engine_overheat');
+      expect(atLimit.single.severity, AlertSeverity.critical);
     });
 
     test('low battery voltage raises a warning', () {
