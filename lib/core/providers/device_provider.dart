@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/background_service.dart';
 import '../services/device_repository.dart';
 import '../services/esp8266_repository.dart';
 import '../services/storage_service.dart';
@@ -29,6 +30,22 @@ final esp8266RepositoryProvider = Provider<Esp8266Repository>((ref) {
       });
     },
   );
+
+
+  // While a device connection is alive, promote the process to a foreground
+  // service so Android keeps updating readings in the background. The
+  // service intentionally stays up across temporary drops (it is what makes
+  // automatic recovery work in the background too) and is only stopped on a
+  // manual disconnect.
+  final connectionEvents = repository.connectionStream.listen(
+    (isConnected) {
+      if (isConnected) {
+        ref.read(backgroundConnectionServiceProvider).start();
+      }
+    },
+  );
+
+  ref.onDispose(connectionEvents.cancel);
 
 
   // Load user-saved IP asynchronously

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/services/background_service.dart';
 
 class DeviceConnectionPage extends ConsumerStatefulWidget {
   const DeviceConnectionPage({super.key});
@@ -61,6 +62,11 @@ class _DeviceConnectionPageState
         ref.read(esp8266RepositoryProvider);
 
     await repository.disconnect();
+
+    // Manual disconnect also releases the background keep-alive.
+    await ref
+        .read(backgroundConnectionServiceProvider)
+        .stop();
 
     if (!mounted) return;
 
