@@ -81,12 +81,13 @@ private const val NEON_RED = 0xFF2244.toInt()
 private const val MUTED_GRAY = 0x64748B.toInt()
 
 // خلفية / مسار العداد — نفس ألوان كروت الموبايل الداكنة.
-private const val CARD_BG = 0x0F172A.toInt()
-private const val TRACK = 0x1E293B.toInt()
 private const val ZONE_RED = 0x55FF2244.toInt()
 private const val ZONE_GREEN = 0x5500FF88.toInt()
 private const val LABEL = 0x66FFFFFF.toInt()
 private const val TICK = 0xB3FFFFFF.toInt()
+private const val VALUE_WHITE = 0xFFF8FAFC.toInt()
+private const val FACE_BG = 0xE60F172A.toInt()
+private const val TRACK = 0xB3475569.toInt()
 
 // ----------------------------------------------------------------------
 // قراءات مشتركة: poller واحد فقط مهما كان عدد الشاشات المفتوحة
@@ -322,6 +323,12 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         val list = ItemList.Builder()
 
         // — الحرارة: عداد كبير (ضبطة → القراءات الإضافية) —
+        val tempStatus = when {
+            !connected -> carContext.getString(R.string.aa_disconnected)
+            current!!.temp >= current!!.maxTemp ->
+                carContext.getString(R.string.aa_critical)
+            else -> carContext.getString(R.string.aa_ok)
+        }
         list.addItem(
             gaugeGridItem(
                 tempGauge(
@@ -330,15 +337,18 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                     active = connected,
                 ),
                 carContext.getString(R.string.aa_temp),
-                if (connected) {
-                    String.format(Locale.US, "%.1f °C", current!!.temp)
-                } else {
-                    carContext.getString(R.string.aa_no_data)
-                },
+                tempStatus,
             ),
         )
 
         // — الفولت: شريط كبير —
+        val voltStatus = when {
+            !connected -> carContext.getString(R.string.aa_disconnected)
+            current!!.volt <= 0.0 -> carContext.getString(R.string.aa_no_data)
+            current!!.volt < current!!.minVolt || current!!.volt > current!!.maxVolt ->
+                carContext.getString(R.string.aa_out_of_range)
+            else -> carContext.getString(R.string.aa_ok)
+        }
         list.addItem(
             gaugeGridItem(
                 voltGauge(
@@ -348,11 +358,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                     active = connected,
                 ),
                 carContext.getString(R.string.aa_voltage),
-                if (connected) {
-                    String.format(Locale.US, "%.2f V", current!!.volt)
-                } else {
-                    carContext.getString(R.string.aa_no_data)
-                },
+                voltStatus,
             ),
         )
 
@@ -431,63 +437,110 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         maxTemp: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(240)
+        val size = gaugeSizeDp(256)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        canvas.drawColor(CARD_BG)
 
-        val stroke = size * 0.10f
+        val cx = size / 2f
+        val cy = size * 0.52f
+        val faceR = size * 0.47f
+        val arcR = size * 0.36f
+        val stroke = size * 0.085f
+
+        // وجه العداد الدائري — شفاف من غير مربع، بيتناسق مع الشاشة.
+        canvas.drawCircle(
+            cx,
+            cy,
+            faceR,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = FACE_BG },
+        )
+
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = stroke
             strokeCap = Paint.Cap.ROUND
         }
 
-        val cx = size / 2f
-        val cy = size * 0.60f
-        val radius = size * 0.40f
-        val arc = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
-
+        val arc = RectF(cx - arcR, cy - arcR, cx + arcR, cy + arcR)
         paint.color = TRACK
         canvas.drawArc(arc, 180f, 180f, false, paint)
 
-        if (!active) {
-            paint.color = MUTED_GRAY
-            canvas.drawArc(arc, 180f, 180f, false, paint)
-            return bmp
+        var color = MUTED_GRAY
+        if (active) {
+            val min = 40.0
+            val max = 140.0
+            val percent = ((temp - min) / (max - min)).coerceIn(0.0, 1.0)
+            val sweep = (180.0 * percent).toFloat()
+
+            color = when {
+                temp >= maxTemp -> NEON_RED
+                temp >= maxTemp - 10.0 -> NEON_AMBER
+                else -> NEON_GREEN
+            }
+
+            paint.color = color
+            if (sweep > 0f) canvas.drawArc(arc, 180f, sweep, false, paint)
+
+            val angleRad = Math.toRadians(180.0 + 180.0 * percent)
+            val tipX = cx + (arcR - stroke / 2f) * cos(angleRad).toFloat()
+            val tipY = cy + (arcR - stroke / 2f) * sin(angleRad).toFloat()
+            canvas.drawLine(
+                cx,
+                cy,
+                tipX,
+                tipY,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = size * 0.035f
+                    strokeCap = Paint.Cap.ROUND
+                    this.color = 0xFFFFFFFF.toInt()
+                },
+            )
         }
 
-        val min = 40.0
-        val max = 140.0
-        val percent = ((temp - min) / (max - min)).coerceIn(0.0, 1.0)
-        val sweep = (180.0 * percent).toFloat()
-
-        val color = when {
-            temp >= maxTemp -> NEON_RED
-            temp >= maxTemp - 10.0 -> NEON_AMBER
-            else -> NEON_GREEN
+        // القيمة الكبيرة جوه العداد.
+        val value = if (active) {
+            String.format(Locale.US, "%.1f°C", temp)
+        } else {
+            "--"
         }
-
-        paint.color = color
-        if (sweep > 0f) canvas.drawArc(arc, 180f, sweep, false, paint)
-
-        val angleRad = Math.toRadians(180.0 + 180.0 * percent)
-        val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = size * 0.05f
-            strokeCap = Paint.Cap.ROUND
-            this.color = TICK
-        }
-        val tipX = cx + (radius - stroke) * cos(angleRad).toFloat()
-        val tipY = cy + (radius - stroke) * sin(angleRad).toFloat()
-
-        canvas.drawLine(cx, cy, tipX, tipY, needle)
-        canvas.drawCircle(
+        canvas.drawText(
+            value,
             cx,
-            cy,
-            size * 0.08f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color },
+            cy + size * 0.12f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = VALUE_WHITE
+                textSize = size * 0.135f
+                textAlign = Paint.Align.CENTER
+                typeface = android.graphics.Typeface.create(
+                    android.graphics.Typeface.DEFAULT,
+                    android.graphics.Typeface.BOLD,
+                )
+            },
         )
+
+        // قراءة دقيقة صغيرة تحت القيمة الكبيرة.
+        if (active) {
+            canvas.drawText(
+                String.format(Locale.US, "MAX %.0f°C", maxTemp),
+                cx,
+                size * 0.965f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = LABEL
+                    textSize = size * 0.065f
+                    textAlign = Paint.Align.CENTER
+                },
+            )
+        }
+
+        // تدريجات صغيرة عند طرفي القوس: 40 / 140.
+        val scale = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = LABEL
+            textSize = size * 0.06f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("40", cx - arcR, cy + size * 0.04f, scale)
+        canvas.drawText("140", cx + arcR, cy + size * 0.04f, scale)
 
         return bmp
     }
@@ -498,20 +551,59 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         maxVolt: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(240)
+        val size = gaugeSizeDp(256)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        canvas.drawColor(CARD_BG)
 
+        // وجه مستدير شفاف — من غير مربع محرج.
+        val faceLeft = size * 0.05f
+        val faceTop = size * 0.10f
+        val faceRight = size * 0.95f
+        val faceBottom = size * 0.90f
+        val facePath = Path().apply {
+            addRoundRect(
+                RectF(faceLeft, faceTop, faceRight, faceBottom),
+                size * 0.16f,
+                size * 0.16f,
+                Path.Direction.CW,
+            )
+        }
+        canvas.drawPath(
+            facePath,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = FACE_BG },
+        )
+
+        // القيمة الكبيرة في نص البطاقة.
+        val value = if (active && volt > 0.0) {
+            String.format(Locale.US, "%.2f V", volt)
+        } else {
+            "--"
+        }
+        canvas.drawText(
+            value,
+            size / 2f,
+            size * 0.36f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = VALUE_WHITE
+                textSize = size * 0.135f
+                textAlign = Paint.Align.CENTER
+                typeface = android.graphics.Typeface.create(
+                    android.graphics.Typeface.DEFAULT,
+                    android.graphics.Typeface.BOLD,
+                )
+            },
+        )
+
+        // الشريط.
         val min = 10.0
         val max = 16.0
         fun fraction(v: Double): Float =
             ((v - min) / (max - min)).coerceIn(0.0, 1.0).toFloat()
 
-        val left = size * 0.06f
-        val top = size * 0.44f
-        val barHeight = size * 0.20f
-        val right = size - left
+        val left = size * 0.12f
+        val right = size * 0.88f
+        val top = size * 0.56f
+        val barHeight = size * 0.13f
         val width = right - left
 
         val barRect = RectF(left, top, right, top + barHeight)
@@ -564,35 +656,37 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             canvas.drawCircle(
                 left + width * fraction(volt),
                 top + barHeight / 2f,
-                size * 0.07f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = TICK },
+                size * 0.055f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFFFFFFFF.toInt() },
             )
         }
 
         canvas.restore()
 
+        // علامتا الحدّين فوق الشريط.
         val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = TICK
-            strokeWidth = size * 0.02f
+            strokeWidth = size * 0.016f
         }
         fun tickAt(f: Float) {
             canvas.drawLine(
                 left + width * f,
-                top - size * 0.05f,
+                top - size * 0.045f,
                 left + width * f,
-                top + barHeight + size * 0.05f,
+                top + barHeight + size * 0.045f,
                 tick,
             )
         }
         tickAt(lowF)
         tickAt(highF)
 
+        // أرقام المقياس تحت الشريط.
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = LABEL
-            textSize = size * 0.11f
+            textSize = size * 0.085f
             textAlign = Paint.Align.LEFT
         }
-        val labelY = top + barHeight + size * 0.26f
+        val labelY = top + barHeight + size * 0.22f
 
         canvas.drawText("10", left, labelY, label)
 

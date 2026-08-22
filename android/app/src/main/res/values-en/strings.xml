@@ -24,5 +24,7 @@
     <string name="aa_active">Alarm active</string>
     <string name="aa_muted">Muted</string>
     <string name="aa_ok">OK</string>
+    <string name="aa_critical">Critical!</string>
+    <string name="aa_out_of_range">Out of range</string>
     <string name="aa_no_data">--</string>
 </resources>

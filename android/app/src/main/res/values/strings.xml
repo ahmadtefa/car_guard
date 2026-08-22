@@ -24,5 +24,7 @@
     <string name="aa_active">إنذار فعّال</string>
     <string name="aa_muted">الإنذار مكتوم</string>
     <string name="aa_ok">سليم</string>
+    <string name="aa_critical">حرج!</string>
+    <string name="aa_out_of_range">خارج الحدود</string>
     <string name="aa_no_data">--</string>
 </resources>
