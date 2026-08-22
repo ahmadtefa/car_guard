@@ -9,6 +9,8 @@ import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableString
+import android.text.Spanned
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
@@ -27,7 +29,6 @@ import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
 import androidx.car.app.model.Row
-import androidx.car.app.model.Span
 import androidx.car.app.model.Template
 import androidx.car.app.validation.HostValidator
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -433,8 +434,16 @@ object GaugePainter {
 
 /** Small helpers shared by the car screens. */
 private fun colored(text: String, color: CarColor): CarText {
-    val spans: List<Span> = listOf(ForegroundCarColorSpan.create(color))
-    return CarText.Builder(text).setSpans(spans, 0, text.length).build()
+    // Car spans ride on a SpannableString; the CarText.Builder keeps
+    // CarSpan instances (like ForegroundCarColorSpan) and drops others.
+    val spanned = SpannableString(text)
+    spanned.setSpan(
+        ForegroundCarColorSpan.create(color),
+        0,
+        text.length,
+        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+    )
+    return CarText.Builder(spanned).build()
 }
 
 /**
@@ -700,6 +709,10 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
     override fun onGetTemplate(): Template {
         val reading = CarGuardEngine.reading
 
+        // The gauge image lives on the Pane (single-arg setImage, CarApi 4+);
+        // hosts below that level simply show the numbers without the dial.
+        val showImage = carContext.carAppApiLevel >= 4
+
         val pane = if (reading == null || !reading.connected) {
             Pane.Builder()
                 .setTitle(colored("غير متصل", CarColor.RED))
@@ -707,7 +720,7 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                 .build()
         } else if (kind == KIND_TEMP) {
             val warning = reading.temp >= reading.maxTemp
-            Pane.Builder()
+            val builder = Pane.Builder()
                 .setTitle(
                     colored(
                         String.format(Locale.US, "%.1f °C", reading.temp),
@@ -722,20 +735,21 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                         if (warning) "حرارة حرجة" else "حرارة طبيعية",
                     ),
                 )
-                .setImage(
+            if (showImage) {
+                builder.setImage(
                     CarIcon.Builder(
                         BitmapDrawable(
                             carContext.resources,
                             GaugePainter.temperature(reading.temp, reading.maxTemp, 640),
                         ),
                     ).build(),
-                    PaneTemplate.IMAGE_TYPE_LARGE,
                 )
-                .build()
+            }
+            builder.build()
         } else {
             val warning = reading.volt != 0.0 &&
                 (reading.volt < reading.minVolt || reading.volt > reading.maxVolt)
-            Pane.Builder()
+            val builder = Pane.Builder()
                 .setTitle(
                     colored(
                         String.format(Locale.US, "%.2f V", reading.volt),
@@ -751,7 +765,8 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                         if (reading.volt >= 13.0) "الدينامو يشحن" else "لا يوجد شحن",
                     ),
                 )
-                .setImage(
+            if (showImage) {
+                builder.setImage(
                     CarIcon.Builder(
                         BitmapDrawable(
                             carContext.resources,
@@ -763,9 +778,9 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                             ),
                         ),
                     ).build(),
-                    PaneTemplate.IMAGE_TYPE_LARGE,
                 )
-                .build()
+            }
+            builder.build()
         }
 
         return PaneTemplate.Builder(pane)
@@ -784,7 +799,11 @@ class DetailsScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun row(label: String, value: String, color: CarColor? = null): Row {
         val builder = Row.Builder().setTitle(label)
-        builder.addText(if (color == null) value else colored(value, color))
+        if (color == null) {
+            builder.addText(value)
+        } else {
+            builder.addText(colored(value, color))
+        }
         return builder.build()
     }
 
