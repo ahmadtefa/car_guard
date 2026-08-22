@@ -27,10 +27,27 @@ class Esp8266Repository implements DeviceRepository {
   int _activePort;
 
   WebSocketChannel? _channel;
-  StreamSubscription<dynamic>? _channelSubscription;
   Timer? _httpTimer;
   Timer? _wsTimeoutTimer;
+
+  /// Fires when no valid data arrived for [_watchdogTimeout] while the link
+  /// was believed to be up: a dead TCP connection (WiFi toggled off, module
+  /// powered down) never delivers a close frame, so silence is the signal.
   Timer? _watchdogTimer;
+
+  /// Held so a replaced/abandoned socket's callbacks can be cancelled
+  /// before they can clobber a newer connection.
+  StreamSubscription<dynamic>? _channelSubscription;
+
+  /// Serializes fallback polls: a stuck request must not stack followers.
+  bool _httpRequestInFlight = false;
+
+  /// Consecutive failed fallback polls; a single dropped packet must not
+  /// flap the UI to Disconnected.
+  int _pollFailureCount = 0;
+
+  static const Duration _watchdogTimeout = Duration(seconds: 6);
+  static const Duration _httpTimeout = Duration(seconds: 3);
 
   final StreamController<DeviceStatus> _statusController =
       StreamController<DeviceStatus>.broadcast();
@@ -40,32 +57,6 @@ class Esp8266Repository implements DeviceRepository {
 
   bool _connected = false;
   bool _usingHttpFallback = false;
-  bool _httpRequestInFlight = false;
-  bool _connectAttemptInProgress = false;
-
-  /// Monotonic token identifying the latest connect attempt, so delayed
-  /// callbacks from an older attempt never affect a newer one.
-  int _connectAttemptCounter = 0;
-
-  /// Stays true while an active connection is wanted (set by [connect]).
-  /// A manual [disconnect] clears it so automatic recovery paths
-  /// (watchdog, network callbacks) never reconnect behind the user's back.
-  bool _autoReconnectEnabled = false;
-
-  /// A dead TCP connection (WiFi toggled off, device powered down) never
-  /// delivers a close frame, so the only reliable symptom is silence.
-  /// If no data arrives for this long while we believe we are connected,
-  /// the link is treated as lost.
-  static const Duration _watchdogTimeout = Duration(seconds: 6);
-
-  /// WebSocket protocol level keep-alive. dart:io sends pings on this
-  /// interval and closes the connection when no pong comes back, which
-  /// makes the stream fire its onDone/onError handlers even on dead links.
-  static const Duration _wsPingInterval = Duration(seconds: 5);
-
-  /// Hard timeout for plain HTTP calls so a dead device reports in seconds
-  /// instead of waiting for the operating system TCP timeout (minutes).
-  static const Duration _httpTimeout = Duration(seconds: 3);
 
   /// Last settings the module itself reported (`/getallsettings`). Used to
   /// fill limits the firmware does not stream, so voltage/temperature
@@ -116,10 +107,7 @@ class Esp8266Repository implements DeviceRepository {
     _activeHost = host;
     _activePort = wsPort;
 
-    await _closeTransport();
-
-    _autoReconnectEnabled = true;
-    _connectAttemptInProgress = true;
+    await disconnect();
 
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
@@ -171,17 +159,14 @@ class Esp8266Repository implements DeviceRepository {
 
     try {
 
-      final channel = WebSocketChannel.connect(
+      _channel = WebSocketChannel.connect(
         Uri.parse(
           "ws://$host:$wsPort",
         ),
-        pingInterval: _wsPingInterval,
       );
 
-      _channel = channel;
 
-
-      _channelSubscription = channel.stream.listen(
+      _channelSubscription = _channel!.stream.listen(
 
         (message) {
 
@@ -192,7 +177,7 @@ class Esp8266Repository implements DeviceRepository {
 
           // Only genuine device telemetry may keep the connection alive:
           // on a foreign network some other service could answer on the
-          // device IP, and its garbage must not fake a live link.
+          // module IP, and its garbage must not fake a live link.
           final valid = _handleData(
             message.toString(),
           );
@@ -203,8 +188,8 @@ class Esp8266Repository implements DeviceRepository {
 
 
           _connected = true;
-          _connectAttemptInProgress = false;
-          _stopHttpFallback();
+          _usingHttpFallback = false;
+          _pollFailureCount = 0;
 
           if (_wsReconnectAttempts != 0) {
             _wsReconnectAttempts = 0;
@@ -254,6 +239,7 @@ class Esp8266Repository implements DeviceRepository {
             return;
           }
 
+          // The HTTP fallback owns dead-device detection from here on.
           _watchdogTimer?.cancel();
           _watchdogTimer = null;
 
@@ -289,7 +275,7 @@ class Esp8266Repository implements DeviceRepository {
       }
 
 
-      // Data is expected to keep flowing from the device; total silence
+      // Data is expected to keep flowing from the module; total silence
       // right after connecting means the link never really came up.
       _resetWatchdog();
 
@@ -305,11 +291,7 @@ class Esp8266Repository implements DeviceRepository {
               "WS TIMEOUT -> HTTP FALLBACK (1.5s)",
             );
 
-            _connectAttemptInProgress = false;
-
-            if (_autoReconnectEnabled) {
-              _startHttpFallback(host);
-            }
+            _startHttpFallback(host);
 
           }
 
@@ -323,123 +305,9 @@ class Esp8266Repository implements DeviceRepository {
         "WS CONNECT FAILED $e",
       );
 
-      _connectAttemptInProgress = false;
-
       _setDisconnected();
 
-      if (_autoReconnectEnabled) {
-        _startHttpFallback(host);
-      }
-
-    }
-
-  }
-
-
-
-  /// Restarts the inactivity watchdog. Called on every piece of data that
-  /// actually arrives from the device, no matter which transport served it.
-  void _resetWatchdog() {
-
-    _watchdogTimer?.cancel();
-
-    _watchdogTimer = Timer(
-      _watchdogTimeout,
-      _onWatchdogTimeout,
-    );
-
-  }
-
-
-
-  /// No data arrived for [_watchdogTimeout] while we believed the link was
-  /// up. A dropped network does not close the socket, so probe the device
-  /// once over plain HTTP before declaring the connection lost.
-  Future<void> _onWatchdogTimeout() async {
-
-    try {
-
-      debugPrint(
-        "WATCHDOG TIMEOUT - PROBING DEVICE",
-      );
-
-
-      final alive = await _probeHttp();
-
-
-      if (alive) {
-
-        // The device still answers over HTTP but the WebSocket went
-        // quiet: keep receiving through the fallback transport without
-        // dropping the session.
-        debugPrint(
-          "DEVICE STILL ALIVE VIA HTTP - USING FALLBACK",
-        );
-
-        _resetWatchdog();
-
-        if (_autoReconnectEnabled) {
-          _startHttpFallback(_activeHost);
-        }
-
-        return;
-
-      }
-
-
-      debugPrint(
-        "DEVICE NOT RESPONDING - CONNECTION LOST",
-      );
-
-
-      await _closeTransport();
-
-      _setDisconnected();
-
-
-      if (_autoReconnectEnabled) {
-        _startHttpFallback(_activeHost);
-
-        // Keep trying the WebSocket in the background too: once the
-        // module is back the live stream upgrades back from HTTP polling.
-        _scheduleWsReconnect();
-      }
-
-
-    } catch (e) {
-
-      debugPrint(
-        "WATCHDOG ERROR $e",
-      );
-
-    }
-
-  }
-
-
-
-  /// Single quick HTTP probe used by the watchdog to confirm whether the
-  /// device is truly unreachable.
-  Future<bool> _probeHttp() async {
-
-    try {
-
-      final response = await http
-          .get(
-            Uri.parse(
-              "http://$_activeHost${DeviceEndpoints.dashboard}",
-            ),
-          )
-          .timeout(_httpTimeout);
-
-      // HTTP 200 alone means nothing on a foreign network; only the
-      // device's own telemetry format proves it is really there.
-      return response.statusCode == 200 &&
-          _parseStatus(response.body) != null;
-
-    } catch (_) {
-
-      return false;
+      _startHttpFallback(host);
 
     }
 
@@ -462,18 +330,57 @@ class Esp8266Repository implements DeviceRepository {
 
 
     _usingHttpFallback = true;
-    _connectAttemptInProgress = false;
+
 
     _httpTimer?.cancel();
 
-    // Poll immediately instead of waiting a full interval, then every
-    // 800 ms for fast reconnects while the phone sits on the module AP.
-    unawaited(_pollHttp(host));
+    // محاولة فورية بدون انتظار ثانية، ثم كل 800ms لإعادة الاتصال أسرع
+    // لما الموبايل لسه على شبكة الجهاز
+    Future<void> doPoll() async {
+      // A stuck request must not stack followers on top of each other.
+      if (_stopped || !_usingHttpFallback || _httpRequestInFlight) return;
 
+      _httpRequestInFlight = true;
+
+      try {
+        final response = await http
+            .get(
+              Uri.parse("http://$host/data"),
+            )
+            .timeout(_httpTimeout);
+
+        // A bare 200 is not proof of life on a foreign network (a router
+        // page or captive portal can answer on the module IP): the body
+        // must parse as real device telemetry.
+        if (response.statusCode == 200 &&
+            _handleData(response.body)) {
+          // نجاح فوري -> الغي مؤقت الـ WS وأعد الاتصال
+          _wsTimeoutTimer?.cancel();
+          _wsReconnectTimer?.cancel();
+          _wsReconnectAttempts = 0;
+          _pollFailureCount = 0;
+
+          _connected = true;
+          _connectionController.add(true);
+
+          _resetWatchdog();
+        } else {
+          _registerPollFailure();
+        }
+      } catch (e) {
+        // الخطأ لا يقطع الـ polling — سيُعاد في الدورة التالية
+        _registerPollFailure();
+      } finally {
+        _httpRequestInFlight = false;
+      }
+    }
+
+    // أول محاولة فورية
+    unawaited(doPoll());
 
     _httpTimer = Timer.periodic(
       const Duration(milliseconds: 800),
-      (_) => unawaited(_pollHttp(host)),
+      (_) => doPoll(),
     );
 
   }
@@ -540,103 +447,128 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  void _stopHttpFallback() {
+  void _setDisconnected() {
 
-    if (!_usingHttpFallback) {
-      return;
-    }
+    _connected = false;
 
-    _usingHttpFallback = false;
+    _connectionController.add(false);
 
-    _httpTimer?.cancel();
-    _httpTimer = null;
+    _statusController.add(DeviceStatus.disconnected());
 
   }
 
 
 
-  Future<void> _pollHttp(
-    String host,
-  ) async {
+  /// Two consecutive failed polls mean the link is really gone; a single
+  /// dropped packet must not flap the UI to Disconnected.
+  void _registerPollFailure() {
 
-    // Previous request still running (e.g. stuck in its timeout window):
-    // skip this tick instead of stacking requests on top of each other.
-    if (_httpRequestInFlight) {
-      return;
+    _pollFailureCount++;
+
+    if (_pollFailureCount >= 2) {
+      _setDisconnected();
     }
 
-    _httpRequestInFlight = true;
+  }
 
+
+
+  /// Restarts the inactivity watchdog. Called on every piece of data that
+  /// actually arrives from the module, no matter which transport served it.
+  void _resetWatchdog() {
+
+    _watchdogTimer?.cancel();
+
+    _watchdogTimer = Timer(
+      _watchdogTimeout,
+      _onWatchdogTimeout,
+    );
+
+  }
+
+
+
+  /// No data arrived for [_watchdogTimeout] while the link was believed to
+  /// be up. A dropped network does not close the socket, so probe the module
+  /// once over plain HTTP before declaring the connection lost.
+  Future<void> _onWatchdogTimeout() async {
+
+    try {
+
+      debugPrint(
+        "WATCHDOG TIMEOUT - PROBING MODULE",
+      );
+
+
+      final alive = await _probeHttp();
+
+
+      if (alive) {
+
+        // The module still answers over HTTP but the WebSocket went quiet:
+        // keep receiving through the fallback without dropping the session.
+        debugPrint(
+          "MODULE STILL ALIVE VIA HTTP - USING FALLBACK",
+        );
+
+        _resetWatchdog();
+
+        _startHttpFallback(_activeHost);
+
+        return;
+
+      }
+
+
+      debugPrint(
+        "MODULE NOT RESPONDING - CONNECTION LOST",
+      );
+
+
+      await _closeSocket();
+
+      _setDisconnected();
+
+      _startHttpFallback(_activeHost);
+
+      // Keep trying the WebSocket too: once the module is back the live
+      // stream upgrades back from HTTP polling.
+      _scheduleWsReconnect();
+
+
+    } catch (e) {
+
+      debugPrint(
+        "WATCHDOG ERROR $e",
+      );
+
+    }
+
+  }
+
+
+
+  /// Single quick HTTP probe used by the watchdog and the network-change
+  /// verification to confirm whether the module is truly reachable. Only a
+  /// body that parses as real telemetry counts as alive.
+  Future<bool> _probeHttp() async {
 
     try {
 
       final response = await http
           .get(
             Uri.parse(
-              "http://$host${DeviceEndpoints.dashboard}",
+              "http://$_activeHost/data",
             ),
           )
           .timeout(_httpTimeout);
 
+      return response.statusCode == 200 &&
+          _parseStatus(response.body) != null;
 
-      if (_stopped || !_usingHttpFallback) {
-        return;
-      }
+    } catch (_) {
 
-
-      // A bare 200 is not proof of life: the body must parse as real
-      // device telemetry, otherwise whatever answered on this network
-      // (router page, captive portal, ...) is impersonating the device.
-      if (response.statusCode == 200 &&
-          _handleData(response.body)) {
-
-        debugPrint(
-          "HTTP DATA = ${response.body}",
-        );
-
-
-        // Instant success -> cancel the pending WS retry machinery.
-        _wsTimeoutTimer?.cancel();
-        _wsReconnectTimer?.cancel();
-        _wsReconnectAttempts = 0;
-
-        _connected = true;
-
-        _connectionController.add(true);
-
-        _resetWatchdog();
-
-
-      } else {
-
-        if (response.statusCode == 200) {
-          debugPrint(
-            "UNEXPECTED DATA FROM $host - NOT OUR DEVICE",
-          );
-        } else {
-          debugPrint(
-            "HTTP STATUS ${response.statusCode}",
-          );
-        }
-
-        _setDisconnected();
-
-      }
-
-
-    } catch (e) {
-
-      debugPrint(
-        "HTTP ERROR $e",
-      );
-
-
-      _setDisconnected();
-
-
-    } finally {
-
-      _httpRequestInFlight = false;
+      return false;
 
     }
 
@@ -644,10 +576,10 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Closes every active transport (WebSocket + HTTP polling + watchdog)
-  /// without emitting user facing state. Stale stream callbacks are
-  /// cancelled first so an old connection cannot clobber a fresh one.
-  Future<void> _closeTransport() async {
+  /// Drops the current transport without flagging the session as stopped
+  /// (unlike [disconnect], which is an intentional user action): recovery
+  /// paths stay allowed to bring the link back automatically.
+  Future<void> _closeSocket() async {
 
     _watchdogTimer?.cancel();
     _watchdogTimer = null;
@@ -656,10 +588,8 @@ class Esp8266Repository implements DeviceRepository {
     _httpTimer = null;
     _httpRequestInFlight = false;
     _usingHttpFallback = false;
+    _pollFailureCount = 0;
 
-    _connectAttemptInProgress = false;
-
-    // Reset silently (no events): callers re-emit state as needed.
     _connected = false;
 
 
@@ -691,13 +621,119 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  void _setDisconnected() {
+  /// Called when the operating system reports that every network interface
+  /// went down (e.g. the user turned WiFi off). The socket is never told in
+  /// that case, so the drop is applied directly instead of waiting for
+  /// timeouts. The session is NOT stopped: recovery resumes automatically
+  /// from [handleNetworkAvailable].
+  void handleNetworkLost() {
 
-    _connected = false;
+    debugPrint(
+      "NETWORK LOST - MARKING DISCONNECTED",
+    );
 
-    _connectionController.add(false);
 
-    _statusController.add(DeviceStatus.disconnected());
+    // Retrying while every interface is down is pointless.
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+    _wsReconnectAttempts = 0;
+
+    _wsTimeoutTimer?.cancel();
+    _wsTimeoutTimer = null;
+
+
+    unawaited(_closeSocket());
+
+    _setDisconnected();
+
+  }
+
+
+
+  /// Called when at least one network interface is back, or when the phone
+  /// jumps between networks (e.g. leaves the module hotspot and joins home
+  /// WiFi). A live "connection" cannot be trusted after such a jump, so it
+  /// is verified against real device telemetry before being kept.
+  void handleNetworkAvailable() {
+
+    debugPrint(
+      "NETWORK AVAILABLE",
+    );
+
+
+    if (_connected) {
+      unawaited(_verifyActiveConnection());
+      return;
+    }
+
+
+    if (_stopped ||
+        _usingHttpFallback ||
+        _wsReconnectTimer != null) {
+      // Either the user disconnected on purpose, or a recovery path is
+      // already polling/retrying and will restore the link by itself.
+      return;
+    }
+
+
+    debugPrint(
+      "NETWORK AVAILABLE - RECONNECTING",
+    );
+
+    unawaited(
+      connect(
+        host: _activeHost,
+        port: _activePort,
+      ),
+    );
+
+  }
+
+
+
+  /// Re-checks the link to the module after a network change. The socket
+  /// survives roaming silently, so the only reliable proof is whether the
+  /// module still answers with valid telemetry.
+  Future<void> _verifyActiveConnection() async {
+
+    if (!_connected || _stopped) {
+      return;
+    }
+
+    debugPrint(
+      "NETWORK CHANGED - VERIFYING MODULE LINK",
+    );
+
+    final alive = await _probeHttp();
+
+
+    if (alive) {
+
+      debugPrint(
+        "MODULE LINK STILL VALID",
+      );
+
+      _resetWatchdog();
+
+      _startHttpFallback(_activeHost);
+
+      return;
+
+    }
+
+
+    debugPrint(
+      "MODULE LINK VERIFICATION FAILED - CONNECTION LOST",
+    );
+
+
+    await _closeSocket();
+
+    _setDisconnected();
+
+    _startHttpFallback(_activeHost);
+
+    _scheduleWsReconnect();
 
   }
 
@@ -1061,129 +1097,9 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Called when the operating system reports that every network
-  /// interface went down (e.g. the user turned WiFi off). In that state
-  /// the WebSocket never receives a close event, so the drop has to be
-  /// applied directly instead of waiting for timeouts. The repository is
-  /// NOT marked as stopped: recovery resumes when the network returns.
-  void handleNetworkLost() {
-
-    debugPrint(
-      "NETWORK LOST - MARKING DISCONNECTED",
-    );
-
-    // Retrying while every interface is down is pointless; recovery is
-    // triggered by handleNetworkAvailable() instead.
-    _wsReconnectTimer?.cancel();
-    _wsReconnectTimer = null;
-    _wsReconnectAttempts = 0;
-
-    _wsTimeoutTimer?.cancel();
-    _wsTimeoutTimer = null;
-
-    unawaited(_closeTransport());
-
-    _setDisconnected();
-
-  }
-
-
-
-  /// Called when at least one network interface is back, or when the
-  /// device jumps from one network to another (e.g. the phone leaves the
-  /// device hotspot and joins home WiFi). A live "connection" cannot be
-  /// trusted after such a jump, so it is verified against real device
-  /// telemetry before keeping it.
-  void handleNetworkAvailable() {
-
-    debugPrint(
-      "NETWORK AVAILABLE",
-    );
-
-
-    if (_connected) {
-      unawaited(_verifyActiveConnection());
-      return;
-    }
-
-
-    if (_connectAttemptInProgress ||
-        _usingHttpFallback) {
-      return;
-    }
-
-
-    if (!_autoReconnectEnabled) {
-      return;
-    }
-
-
-    debugPrint(
-      "NETWORK AVAILABLE - RECONNECTING",
-    );
-
-    unawaited(reconnect());
-
-  }
-
-
-
-  /// Re-checks the link to the device after a network change. The socket
-  /// survives roaming silently, so the only reliable proof is whether the
-  /// device still answers with valid telemetry.
-  Future<void> _verifyActiveConnection() async {
-
-    if (!_connected) {
-      return;
-    }
-
-    debugPrint(
-      "NETWORK CHANGED - VERIFYING DEVICE LINK",
-    );
-
-    final alive = await _probeHttp();
-
-
-    if (alive) {
-
-      debugPrint(
-        "DEVICE LINK STILL VALID",
-      );
-
-      _resetWatchdog();
-
-      if (_autoReconnectEnabled) {
-        _startHttpFallback(_activeHost);
-      }
-
-      return;
-
-    }
-
-
-    debugPrint(
-      "DEVICE LINK VERIFICATION FAILED - CONNECTION LOST",
-    );
-
-
-    await _closeTransport();
-
-    _setDisconnected();
-
-
-    if (_autoReconnectEnabled) {
-      _startHttpFallback(_activeHost);
-
-      _scheduleWsReconnect();
-    }
-
-  }
-
-
-
   /// Parses a raw payload into a [DeviceStatus], or returns `null` when
-  /// the payload is not valid device telemetry. Used both for updates and
-  /// as proof that whatever answered is really the Car Guard device.
+  /// the payload is not valid device telemetry. Used both for live updates
+  /// and as proof that whatever answered is really the Car Guard module.
   DeviceStatus? _parseStatus(
     String data,
   ) {
@@ -1220,6 +1136,7 @@ class Esp8266Repository implements DeviceRepository {
           connected: true,
 
           deviceId: "Car Guard",
+
 
           batteryData: BatteryData(
 
@@ -1282,27 +1199,38 @@ class Esp8266Repository implements DeviceRepository {
         );
 
 
-      }
+      } else {
 
 
-      final parts =
-          data.split(',');
+        final parts =
+            data.split(',');
 
 
         if (parts.length < 3) {
+          return null;
+        }
+
+
+        // A payload that cannot even produce the two core numbers is noise
+        // from a foreign service (router page, captive portal...), not
+        // module telemetry.
+        final tempCelsius = double.tryParse(parts[0].trim());
+        final volt = double.tryParse(parts[1].trim());
+
+        if (tempCelsius == null || volt == null) {
 
           debugPrint(
-            "INVALID WS DATA",
+            "INVALID DEVICE DATA",
           );
 
-          return;
+          return null;
 
         }
 
 
         // Reference protocol (from the original Kayan dashboard):
         // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset
-        status = DeviceStatus(
+        return DeviceStatus(
 
           connected: true,
 
@@ -1311,11 +1239,7 @@ class Esp8266Repository implements DeviceRepository {
 
           batteryData: BatteryData(
 
-            voltage:
-                double.tryParse(
-                  parts[1].trim(),
-                ) ??
-                0.0,
+            voltage: volt,
 
           ),
 
@@ -1323,11 +1247,7 @@ class Esp8266Repository implements DeviceRepository {
           temperatureData:
               TemperatureData(
 
-            engineTemperature:
-                double.tryParse(
-                  parts[0].trim(),
-                ) ??
-                0.0,
+            engineTemperature: tempCelsius,
 
           ),
 
@@ -1389,63 +1309,6 @@ class Esp8266Repository implements DeviceRepository {
       }
 
 
-      return DeviceStatus(
-
-        connected: true,
-
-        deviceId: "Car Guard",
-
-        batteryData: BatteryData(
-
-          voltage:
-              double.parse(
-                parts[1],
-              ),
-
-          voltageDifference:
-              parts.length > 5 ? (double.tryParse(parts[5]) ?? 0.0) : 0.0,
-
-        ),
-
-
-        temperatureData:
-            TemperatureData(
-
-          engineTemperature:
-              double.parse(
-                parts[0],
-              ),
-
-        ),
-
-
-        coolantLevelData:
-            CoolantLevelData(
-
-          coolantAvailable:
-              parts[2] == "1",
-
-        ),
-
-
-        controlData:
-            DeviceControlData(
-
-          fanRunning:
-              parts[3] == "1",
-
-          buzzerActive:
-              parts.length > 4 ? parts[4].trim() == "1" : false,
-
-        ),
-
-
-        lastUpdated:
-            DateTime.now(),
-
-      );
-
-
     } catch (e) {
 
 
@@ -1467,9 +1330,9 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Handles an incoming payload from any transport. Emits the parsed
-  /// status and reports whether the payload was valid device telemetry;
-  /// invalid data never counts as proof that the device is alive.
+  /// Handles an incoming payload from any transport: emits valid telemetry
+  /// and reports whether parsing succeeded. Invalid data never counts as
+  /// proof that the module is alive.
   bool _handleData(
     String data,
   ) {
@@ -1492,9 +1355,11 @@ class Esp8266Repository implements DeviceRepository {
       status,
     );
 
+
     return true;
 
   }
+
 
 
 
@@ -1508,7 +1373,15 @@ class Esp8266Repository implements DeviceRepository {
     // Release the Wi-Fi binding so the app follows the system network again.
     unawaited(NetworkBindingService.bindToDefault());
 
-    await _closeTransport();
+    _watchdogTimer?.cancel();
+
+    _watchdogTimer = null;
+
+    await _channelSubscription?.cancel();
+
+    _channelSubscription = null;
+
+    _httpTimer?.cancel();
 
     _httpTimer = null;
 
@@ -1541,12 +1414,14 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+
   @override
   Future<bool> isConnected() async {
 
     return _connected;
 
   }
+
 
 
 
@@ -1559,6 +1434,7 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+
   @override
   Future<void> sendJson(
     Map<String, dynamic> payload,
@@ -1567,19 +1443,10 @@ class Esp8266Repository implements DeviceRepository {
 
     if (_channel != null) {
 
-      try {
 
-        _channel!.sink.add(
-          jsonEncode(payload),
-        );
-
-      } catch (e) {
-
-        debugPrint(
-          "WS SEND ERROR $e",
-        );
-
-      }
+      _channel!.sink.add(
+        jsonEncode(payload),
+      );
 
 
       return;
@@ -1591,19 +1458,25 @@ class Esp8266Repository implements DeviceRepository {
     try {
 
 
-      await http
-          .post(
-            Uri.parse(
-              "http://$_activeHost${DeviceEndpoints.dashboard}",
-            ),
-            headers: const {
-              "Content-Type":
-                  "application/json",
-            },
-            body:
-                jsonEncode(payload),
-          )
-          .timeout(_httpTimeout);
+      await http.post(
+
+        Uri.parse(
+          "http://$_activeHost/data",
+        ),
+
+
+        headers: const {
+
+          "Content-Type":
+              "application/json",
+
+        },
+
+
+        body:
+            jsonEncode(payload),
+
+      );
 
 
     } catch (e) {
@@ -1617,6 +1490,7 @@ class Esp8266Repository implements DeviceRepository {
     }
 
   }
+
 
 
 

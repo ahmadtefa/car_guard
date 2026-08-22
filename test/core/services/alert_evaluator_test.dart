@@ -51,16 +51,18 @@ void main() {
       expect(alerts.single.severity, AlertSeverity.critical);
     });
 
-    test('warning alert within 5 degrees below the module limit', () {
+    test('no early warning below the module limit (user request)', () {
+      // Intended behaviour (see AlertEvaluator): both the warning and the
+      // critical alarm fire exactly at the module limit, so a reading one
+      // degree below it must stay silent instead of firing a maxTemp-5
+      // warning.
       final alerts = AlertEvaluator.evaluate(
         _status(temperature: 104),
         const AppSettings(),
         moduleLimits: const ModuleLimits(maxTemp: 105),
       );
 
-      expect(alerts, hasLength(1));
-      expect(alerts.single.id, 'engine_temp_high');
-      expect(alerts.single.severity, AlertSeverity.warning);
+      expect(alerts, isEmpty);
     });
 
     test('low battery voltage raises a warning', () {

@@ -27,6 +27,11 @@ class GpsTripFilter {
   /// or at least this good; otherwise speed comes from the filtered track.
   static const double maxSpeedAccuracyMs = 2.5;
 
+  /// A "dead" sensor speed (0.0 while actually driving) is overridden by
+  /// the filtered track only once it shows at least this much sustained
+  /// motion — a weaker gate would let parked GPS jitter fake movement.
+  static const double deadSensorOverrideMs = 2.8;
+
   /// Physics guard: jumps implying more than this are rejected.
   static const double maxPlausibleKmh = 250;
 
@@ -140,8 +145,10 @@ class GpsTripFilter {
 
     if (metersPerSecond < 0) {
       metersPerSecond = derivedMs;
-    } else if (metersPerSecond < 0.5 && derivedMs > 1.0) {
-      // Some devices keep reporting 0 while moving; trust the track then.
+    } else if (metersPerSecond < 0.5 &&
+        derivedMs > deadSensorOverrideMs) {
+      // Some devices keep reporting 0 while moving; trust the filtered
+      // track then, but only for clearly real motion.
       metersPerSecond = derivedMs;
     }
 
