@@ -2,6 +2,13 @@ package com.example.car_guard
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.RRectF
+import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
 import androidx.car.app.CarAppService
@@ -22,17 +29,17 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Android Auto front-end for Car Guard.
  *
- * يعرض نفس قراءات شاشة الموبايل على شاشة العربية في شكل كروت حية:
- * حرارة المحرك، فولت البطارية، السرعة/المسافة (من GPS الموبايل)، المروحة،
- * الدينامو، وحالة الإنذار. بيسحب `/data` من الوحدة مباشرة كل 2 ثانية
- * بنفس ألوان التطبيق (أخضر/أصفر/أحمر نيون) وبنفس منطق الحدود.
- *
- * Note: distributed as a personal/sideloaded app — vehicle-monitoring is
- * not a Play-Store-distributable Android Auto category.
+ * شاشة حية بنفس قراءات الموبايل: حرارة المحرك على **عداد نص دائري**
+ * وفولت البطارية على **شريط ملون بمناطق خضراء/حمراء** (نفس رسم
+ * MiniArcGauge + MiniVoltBarGauge في التطبيق)، مع سرعة/مسافة GPS،
+ * المروحة، الدينامو وحالة الإنذار. بتسحب `/data` كل 2 ثانية بنفس
+ * ألوان النيون وبنفس منطق الحدود.
  */
 class CarGuardCarAppService : CarAppService() {
     override fun onCreateSession(): Session = CarGuardSession()
@@ -61,16 +68,21 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
     companion object {
         private const val DEFAULT_HOST = "192.168.4.1"
-
-        // "Live" = نفس معدل التحديث اللي بيعمله التطبيق، لكن من غير ما يكون
-        // الواجهة مفروض تكون مفتوحة.
         private const val POLL_INTERVAL_MS = 2000L
 
         // نفس باليتة النيون اللي في شاشة الموبايل (AppColors).
-        private const val NEON_GREEN = 0xFF00FF88.toInt()
-        private const val NEON_AMBER = 0xFFFFAA00.toInt()
-        private const val NEON_RED = 0xFFFF2244.toInt()
-        private const val MUTED_GRAY = 0xFF64748B.toInt()
+        private const val NEON_GREEN = 0x00FF88.toInt()
+        private const val NEON_AMBER = 0xFFAA00.toInt()
+        private const val NEON_RED = 0xFF2244.toInt()
+        private const val MUTED_GRAY = 0x64748B.toInt()
+
+        // خلفية / مسار العداد — نفس ألوان كروت الموبايل الداكنة.
+        private const val CARD_BG = 0x0F172A.toInt()
+        private const val TRACK = 0x1E293B.toInt()
+        private const val ZONE_RED = 0x55FF2244.toInt()
+        private const val ZONE_GREEN = 0x5500FF88.toInt()
+        private const val LABEL = 0x66FFFFFF.toInt()
+        private const val TICK = 0xB3FFFFFF.toInt()
     }
 
     private var reading: CarReading? = null
@@ -106,6 +118,9 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             IconCompat.createWithResource(carContext, res),
         ).setTint(customColor(color)).build()
 
+    private fun gaugeIcon(bitmap: Bitmap): CarIcon =
+        CarIcon.Builder(IconCompat.createFromBitmap(bitmap)).build()
+
     private fun gridItem(
         iconRes: Int,
         title: CharSequence,
@@ -117,37 +132,81 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         .setText(text)
         .build()
 
+    private fun gaugeGridItem(
+        bitmap: Bitmap,
+        title: CharSequence,
+        text: CharSequence,
+    ): GridItem = GridItem.Builder()
+        .setImage(gaugeIcon(bitmap), GridItem.IMAGE_TYPE_LARGE)
+        .setTitle(title)
+        .setText(text)
+        .build()
+
     override fun onGetTemplate(): Template {
         val l = carContext
         val current = reading
         val list = ItemList.Builder()
 
         if (current == null) {
-            // أول اتصال — شاشة تحميل صغيرة زي شاشة الموبايل.
+            list.addItem(
+                gaugeGridItem(
+                    tempGauge(0.0, 97.0, active = false),
+                    l.getString(R.string.aa_temp),
+                    l.getString(R.string.aa_no_data),
+                ),
+            )
+            list.addItem(
+                gaugeGridItem(
+                    voltGauge(0.0, 12.0, 14.8, active = false),
+                    l.getString(R.string.aa_voltage),
+                    l.getString(R.string.aa_no_data),
+                ),
+            )
             list.addItem(
                 gridItem(
-                    R.drawable.ic_car_status,
-                    l.getString(R.string.aa_connecting),
-                    l.getString(R.string.aa_connecting_sub),
+                    R.drawable.ic_car_speed,
+                    l.getString(R.string.aa_speed),
+                    speedText(),
                     MUTED_GRAY,
+                ),
+            )
+            list.addItem(
+                gridItem(
+                    R.drawable.ic_car_fan,
+                    l.getString(R.string.aa_fan),
+                    l.getString(R.string.aa_no_data),
+                    MUTED_GRAY,
+                ),
+            )
+            list.addItem(
+                gridItem(
+                    R.drawable.ic_car_alternator,
+                    l.getString(R.string.aa_alternator),
+                    l.getString(R.string.aa_no_data),
+                    MUTED_GRAY,
+                ),
+            )
+            list.addItem(
+                gridItem(
+                    R.drawable.ic_car_alert,
+                    l.getString(R.string.aa_status),
+                    l.getString(R.string.aa_disconnected),
+                    NEON_RED,
                 ),
             )
         } else if (!current.connected) {
-            // ضياع الاتصال — كروت فاضية + حالة حمراء، نفس شكل الموبايل.
             list.addItem(
-                gridItem(
-                    R.drawable.ic_car_temp,
+                gaugeGridItem(
+                    tempGauge(0.0, current.maxTemp, active = false),
                     l.getString(R.string.aa_temp),
                     l.getString(R.string.aa_no_data),
-                    MUTED_GRAY,
                 ),
             )
             list.addItem(
-                gridItem(
-                    R.drawable.ic_car_battery,
+                gaugeGridItem(
+                    voltGauge(0.0, current.minVolt, current.maxVolt, active = false),
                     l.getString(R.string.aa_voltage),
                     l.getString(R.string.aa_no_data),
-                    MUTED_GRAY,
                 ),
             )
             list.addItem(
@@ -183,21 +242,24 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 ),
             )
         } else {
-            // — حرارة المحرك: نفس منطق التطبيق (بدون تسامح -5) —
-            val tempColor = when {
-                current.temp >= current.maxTemp -> NEON_RED
-                else -> NEON_GREEN
-            }
+            // — حرارة المحرك: عداد نص دائري (نفس نطاق وحدود الموبايل) —
+            list.addItem(
+                gaugeGridItem(
+                    tempGauge(current.temp, current.maxTemp),
+                    l.getString(R.string.aa_temp),
+                    String.format(Locale.US, "%.1f °C", current.temp),
+                ),
+            )
 
-            // — البطارية: ‎0.0 تعني "لا قراءة" — مطابق للتطبيق —
-            val voltColor = when {
-                current.volt <= 0.0 -> MUTED_GRAY
-                current.volt < current.minVolt || current.volt > current.maxVolt ->
-                    NEON_RED
-                else -> NEON_GREEN
-            }
+            // — فولت البطارية: شريط بمناطق ‎10—16V مع حدّي min/max —
+            list.addItem(
+                gaugeGridItem(
+                    voltGauge(current.volt, current.minVolt, current.maxVolt),
+                    l.getString(R.string.aa_voltage),
+                    String.format(Locale.US, "%.2f V", current.volt),
+                ),
+            )
 
-            // — السرعة والمسافة من GPS الموبايل (مكتوبة من التطبيق) —
             val speedColor = when {
                 speedKmh() >= speedLimit() -> NEON_RED
                 speedKmh() <= 0.0 -> MUTED_GRAY
@@ -206,7 +268,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
             val fanColor = if (current.fanOn) NEON_GREEN else NEON_AMBER
 
-            // — الدينامو: نفس منطق "الشحن" في التطبيق (13V+) —
             val charging = current.volt >= 13.0
             val altColor = if (charging) NEON_GREEN else MUTED_GRAY
             val altText = if (charging) {
@@ -215,7 +276,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 l.getString(R.string.aa_not_charging)
             }
 
-            // — الحالة: اتصال + إنذار، نفس أولوية شاشة الموبايل —
             val alarmColor = when {
                 current.alarm -> NEON_RED
                 current.muted -> NEON_AMBER
@@ -235,22 +295,6 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
                 R.drawable.ic_car_status
             }
 
-            list.addItem(
-                gridItem(
-                    R.drawable.ic_car_temp,
-                    l.getString(R.string.aa_temp),
-                    String.format(Locale.US, "%.1f °C", current.temp),
-                    tempColor,
-                ),
-            )
-            list.addItem(
-                gridItem(
-                    R.drawable.ic_car_battery,
-                    l.getString(R.string.aa_voltage),
-                    String.format(Locale.US, "%.2f V", current.volt),
-                    voltColor,
-                ),
-            )
             list.addItem(
                 gridItem(
                     R.drawable.ic_car_speed,
@@ -290,6 +334,216 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             .setTitle(l.getString(R.string.aa_title))
             .setSingleList(list.build())
             .build()
+    }
+
+    // ------------------------------------------------------------------
+    // عدادات مرسومة (Bitmap) — نطاق وحدود نفس شاشة الموبايل:
+    //   الحرارة: 40 → 140°C (نصف دائرة + إبرة)
+    //   الفولت:  10 → 16V  (شريط بمناطق ملونة + حدّي min/max)
+    // ------------------------------------------------------------------
+
+    private fun gaugeSizeDp(dp: Int): Int =
+        (dp * carContext.resources.displayMetrics.density).toInt()
+            .coerceIn(dp, 320)
+
+    private fun tempGauge(
+        temp: Double,
+        maxTemp: Double,
+        active: Boolean = true,
+    ): Bitmap {
+        val size = gaugeSizeDp(128)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(CARD_BG)
+
+        val stroke = size * 0.085f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        val cx = size / 2f
+        val cy = size * 0.58f
+        val radius = size * 0.38f
+        val arc = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+
+        // مسار خلفي داكن.
+        paint.color = TRACK
+        canvas.drawArc(arc, 180f, 180f, false, paint)
+
+        if (!active) {
+            paint.color = MUTED_GRAY
+            canvas.drawArc(arc, 180f, 180f, false, paint)
+            return bmp
+        }
+
+        val min = 40.0
+        val max = 140.0
+        val percent = ((temp - min) / (max - min)).coerceIn(0.0, 1.0)
+        val sweep = (180.0 * percent).toFloat()
+
+        // نفس منطق الألوان في التطبيق: بعده عن maxTemp بيعمل تحذير.
+        val color = when {
+            temp >= maxTemp -> NEON_RED
+            temp >= maxTemp - 10.0 -> NEON_AMBER
+            else -> NEON_GREEN
+        }
+
+        paint.color = color
+        if (sweep > 0f) canvas.drawArc(arc, 180f, sweep, false, paint)
+
+        // الإبرة البيضاء + مركز ملون.
+        val angleRad = Math.toRadians(180.0 + 180.0 * percent)
+        val needle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = size * 0.045f
+            strokeCap = Paint.Cap.ROUND
+            color = TICK
+        }
+        val tipX = cx + (radius - stroke) * cos(angleRad).toFloat()
+        val tipY = cy + (radius - stroke) * sin(angleRad).toFloat()
+
+        canvas.drawLine(cx, cy, tipX, tipY, needle)
+        canvas.drawCircle(
+            cx,
+            cy,
+            size * 0.07f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color },
+        )
+
+        return bmp
+    }
+
+    private fun voltGauge(
+        volt: Double,
+        minVolt: Double,
+        maxVolt: Double,
+        active: Boolean = true,
+    ): Bitmap {
+        val size = gaugeSizeDp(128)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(CARD_BG)
+
+        // نفس نطاق شريط الموبايل: 10 → 16V.
+        val min = 10.0
+        val max = 16.0
+        fun fraction(v: Double): Float =
+            ((v - min) / (max - min)).coerceIn(0.0, 1.0).toFloat()
+
+        val left = size * 0.06f
+        val top = size * 0.50f
+        val barHeight = size * 0.13f
+        val right = size - left
+        val width = right - left
+
+        val barRect = RectF(left, top, right, top + barHeight)
+        val roundRect = RRectF(
+            barRect.left,
+            barRect.top,
+            barRect.right,
+            barRect.bottom,
+            barHeight / 2f,
+            barHeight / 2f,
+        )
+
+        // مناطق خافتة (أحمر | أخضر | أحمر) زي شريط الموبايل بالظبط.
+        canvas.save()
+        canvas.clipRRect(roundRect)
+
+        val zone = Paint(Paint.ANTI_ALIAS_FLAG)
+        zone.color = TRACK
+        canvas.drawRect(barRect, zone)
+
+        val lowF = fraction(minVolt)
+        val highF = fraction(maxVolt)
+
+        zone.color = ZONE_RED
+        canvas.drawRect(
+            RectF(left, top, left + width * lowF, top + barHeight),
+            zone,
+        )
+        zone.color = ZONE_GREEN
+        canvas.drawRect(
+            RectF(left + width * lowF, top, left + width * highF, top + barHeight),
+            zone,
+        )
+        zone.color = ZONE_RED
+        canvas.drawRect(
+            RectF(left + width * highF, top, right, top + barHeight),
+            zone,
+        )
+
+        // التعبئة حتى القراءة الحالية بتدرج نفس ألوان التطبيق.
+        if (active && volt > 0.0) {
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+            fill.shader = LinearGradient(
+                left,
+                0f,
+                right,
+                0f,
+                intArrayOf(NEON_RED, NEON_AMBER, NEON_GREEN, NEON_AMBER, NEON_RED),
+                null,
+                Shader.TileMode.CLAMP,
+            )
+            canvas.drawRect(
+                RectF(left, top, left + width * fraction(volt), top + barHeight),
+                fill,
+            )
+
+            // مقبض أبيض عند القراءة.
+            canvas.drawCircle(
+                left + width * fraction(volt),
+                top + barHeight / 2f,
+                size * 0.045f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TICK },
+            )
+        }
+
+        canvas.restore()
+
+        // علامتا حدّي الأدنى/الأقصى.
+        val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = TICK
+            strokeWidth = size * 0.016f
+        }
+        fun tickAt(f: Float) {
+            canvas.drawLine(
+                left + width * f,
+                top - size * 0.04f,
+                left + width * f,
+                top + barHeight + size * 0.04f,
+                tick,
+            )
+        }
+        tickAt(lowF)
+        tickAt(highF)
+
+        // أرقام المقياس: 10 … min–max … 16.
+        val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = LABEL
+            textSize = size * 0.085f
+            textAlign = Paint.Align.LEFT
+        }
+        val labelY = top + barHeight + size * 0.24f
+
+        canvas.drawText("10", left, labelY, label)
+
+        label.textAlign = Paint.Align.CENTER
+        label.color = TICK
+        canvas.drawText(
+            String.format(Locale.US, "%.1f–%.1f", minVolt, maxVolt),
+            left + width / 2f,
+            labelY,
+            label,
+        )
+
+        label.color = LABEL
+        label.textAlign = Paint.Align.RIGHT
+        canvas.drawText("16", right, labelY, label)
+
+        return bmp
     }
 
     // ------------------------------------------------------------------
