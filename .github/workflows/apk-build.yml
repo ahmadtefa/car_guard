@@ -25,9 +25,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        # Style lints (info/warning) must not block the APK artifact —
-        # real analysis errors still fail the step.
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+        run: flutter analyze
 
       - name: Test
         run: flutter test
