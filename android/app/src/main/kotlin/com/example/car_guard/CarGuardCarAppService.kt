@@ -121,13 +121,15 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
     private fun gaugeIcon(bitmap: Bitmap): CarIcon =
         CarIcon.Builder(IconCompat.createWithBitmap(bitmap)).build()
 
+    // الأيقونات الصغيرة: IMAGE_TYPE_LARGE عشان تتعرض بحجم واضح
+    // على شاشة العربية (نفس حجم صور العدادات تقريبًا).
     private fun gridItem(
         iconRes: Int,
         title: CharSequence,
         text: CharSequence,
         color: Int,
     ): GridItem = GridItem.Builder()
-        .setImage(icon(iconRes, color), GridItem.IMAGE_TYPE_ICON)
+        .setImage(icon(iconRes, color), GridItem.IMAGE_TYPE_LARGE)
         .setTitle(title)
         .setText(text)
         .build()
@@ -330,10 +332,17 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
 
-        return GridTemplate.Builder()
+        val builder = GridTemplate.Builder()
             .setTitle(l.getString(R.string.aa_title))
             .setSingleList(list.build())
-            .build()
+
+        // Car API 8+ hosts: كبّر كل عناصر الشبكة (العدادات والكروت).
+        // على الـ hosts الأقدم بتتجاهل الـ feature بأمان.
+        if (carContext.getCarAppApiLevel() >= 8) {
+            builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
+        }
+
+        return builder.build()
     }
 
     // ------------------------------------------------------------------
@@ -344,14 +353,14 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun gaugeSizeDp(dp: Int): Int =
         (dp * carContext.resources.displayMetrics.density).toInt()
-            .coerceIn(dp, 320)
+            .coerceIn(dp, 512)
 
     private fun tempGauge(
         temp: Double,
         maxTemp: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(128)
+        val size = gaugeSizeDp(180)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(CARD_BG)
@@ -421,7 +430,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         maxVolt: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(128)
+        val size = gaugeSizeDp(180)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(CARD_BG)
