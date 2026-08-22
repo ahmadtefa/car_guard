@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Live trip data collected from the phone GPS.
 class TripState {
@@ -53,6 +54,10 @@ class TripState {
 class TripNotifier extends Notifier<TripState> {
   StreamSubscription<Position>? _sub;
   Position? _last;
+
+  /// آخر مرة كتبنا فيها السرعة في الـ Preferences — عشان ماندوّرش القرص
+  /// كل ثانية (بيستخدمه Android Auto كقراءات حية).
+  DateTime _lastPersist = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   TripState build() {
@@ -155,12 +160,37 @@ class TripNotifier extends Notifier<TripState> {
       distanceKm: state.distanceKm + deltaMeters / 1000.0,
       hasFix: true,
     );
+
+    // يشارك السرعة والمسافة مع Android Auto (نفس الـ Preferences اللي
+    // بيقرأها CarGuardCarAppService) — بدون انتظار واجهة التطبيق.
+    unawaited(_persist(distanceChanged: deltaMeters > 0));
   }
 
   /// Zeroes the trip distance; speed keeps streaming.
   void resetTrip() {
     _last = null;
     state = state.copyWith(distanceKm: 0);
+    unawaited(_persist(distanceChanged: true));
+  }
+
+  /// يحفظ السرعة والمسافة في الـ SharedPreferences القديمة (مفتاح
+  /// `flutter.speed_kmh` / `flutter.trip_distance_km`) ليقروا منها
+  /// Android Auto. الكتابة بحد أقصى مرة كل ثانيتين إلا لو المسافة اتحركت.
+  Future<void> _persist({bool distanceChanged = false}) async {
+    final now = DateTime.now();
+    final due =
+        distanceChanged || now.difference(_lastPersist) >= const Duration(seconds: 2);
+    if (!due) return;
+
+    _lastPersist = now;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('speed_kmh', state.speedKmh);
+      await prefs.setDouble('trip_distance_km', state.distanceKm);
+    } catch (_) {
+      // فشل الحفظ ميمنعش القراءات الحية — ده مجرد جسر لشاشة العربية.
+    }
   }
 }
 
