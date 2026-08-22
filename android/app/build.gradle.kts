@@ -72,6 +72,8 @@ dependencies {
     implementation("androidx.car.app:app:1.4.0")
     // DefaultLifecycleObserver used by the car screen lives here.
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    // IconCompat used to build CarIcon instances for Android Auto.
+    implementation("androidx.core:core-ktx:1.13.1")
 }
 
 flutter {

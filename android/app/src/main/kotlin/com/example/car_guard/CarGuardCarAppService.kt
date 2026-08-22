@@ -6,11 +6,11 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.drawable.BitmapDrawable
 import android.os.Handler
 import android.os.Looper
 import android.text.SpannableString
 import android.text.Spanned
+import androidx.core.graphics.drawable.IconCompat
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
@@ -477,12 +477,8 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun vectorIcon(drawableId: Int, tint: CarColor?): CarIcon {
-        val drawable = carContext.getDrawable(drawableId)
-            ?: BitmapDrawable(
-                carContext.resources,
-                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888),
-            )
-        val builder = CarIcon.Builder(drawable)
+        val icon = IconCompat.createWithResource(carContext, drawableId)
+        val builder = CarIcon.Builder(icon)
         if (tint != null) {
             builder.setTint(tint)
         }
@@ -490,7 +486,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun gaugeIcon(bitmap: Bitmap): CarIcon =
-        CarIcon.Builder(BitmapDrawable(carContext.resources, bitmap)).build()
+        CarIcon.Builder(IconCompat.createWithBitmap(bitmap)).build()
 
     private fun tile(
         title: String,
@@ -713,20 +709,18 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
         // hosts below that level simply show the numbers without the dial.
         val showImage = carContext.carAppApiLevel >= 4
 
-        val pane = if (reading == null || !reading.connected) {
-            Pane.Builder()
-                .setTitle(colored("غير متصل", CarColor.RED))
+        val title: String
+        val pane: Pane
+
+        if (reading == null || !reading.connected) {
+            title = "غير متصل"
+            pane = Pane.Builder()
                 .addText("مش قادرين نوصل للوحدة دلوقتي")
                 .build()
         } else if (kind == KIND_TEMP) {
             val warning = reading.temp >= reading.maxTemp
+            title = String.format(Locale.US, "%.1f °C", reading.temp)
             val builder = Pane.Builder()
-                .setTitle(
-                    colored(
-                        String.format(Locale.US, "%.1f °C", reading.temp),
-                        if (warning) CarColor.RED else CarColor.GREEN,
-                    ),
-                )
                 .addText(
                     String.format(
                         Locale.US,
@@ -737,25 +731,17 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                 )
             if (showImage) {
                 builder.setImage(
-                    CarIcon.Builder(
-                        BitmapDrawable(
-                            carContext.resources,
-                            GaugePainter.temperature(reading.temp, reading.maxTemp, 640),
-                        ),
-                    ).build(),
+                    gaugeIcon(
+                        GaugePainter.temperature(reading.temp, reading.maxTemp, 640),
+                    ),
                 )
             }
-            builder.build()
+            pane = builder.build()
         } else {
             val warning = reading.volt != 0.0 &&
                 (reading.volt < reading.minVolt || reading.volt > reading.maxVolt)
+            title = String.format(Locale.US, "%.2f V", reading.volt)
             val builder = Pane.Builder()
-                .setTitle(
-                    colored(
-                        String.format(Locale.US, "%.2f V", reading.volt),
-                        if (warning) CarColor.RED else CarColor.GREEN,
-                    ),
-                )
                 .addText(
                     String.format(
                         Locale.US,
@@ -767,23 +753,21 @@ class GaugeHudScreen(carContext: CarContext, private val kind: String) : Screen(
                 )
             if (showImage) {
                 builder.setImage(
-                    CarIcon.Builder(
-                        BitmapDrawable(
-                            carContext.resources,
-                            GaugePainter.voltage(
-                                reading.volt,
-                                reading.minVolt,
-                                reading.maxVolt,
-                                640,
-                            ),
+                    gaugeIcon(
+                        GaugePainter.voltage(
+                            reading.volt,
+                            reading.minVolt,
+                            reading.maxVolt,
+                            640,
                         ),
-                    ).build(),
+                    ),
                 )
             }
-            builder.build()
+            pane = builder.build()
         }
 
         return PaneTemplate.Builder(pane)
+            .setTitle(title)
             .setHeaderAction(Action.BACK)
             .build()
     }
@@ -807,11 +791,9 @@ class DetailsScreen(carContext: CarContext) : Screen(carContext) {
         return builder.build()
     }
 
-    private fun section(vararg rows: Row): ItemList {
-        val builder = ItemList.Builder()
-        rows.forEach { builder.addItem(it) }
-        return builder.build()
-    }
+    /** Section divider rendered as a plain title-only row. */
+    private fun header(text: String): Row =
+        Row.Builder().setTitle(text).build()
 
     override fun onGetTemplate(): Template {
         val reading = CarGuardEngine.reading
@@ -839,64 +821,79 @@ class DetailsScreen(carContext: CarContext) : Screen(carContext) {
             (reading.volt < reading.minVolt || reading.volt > reading.maxVolt)
 
         return builder
-            .addItemList(
-                section(
-                    row(
-                        "القيمة",
-                        String.format(Locale.US, "%.1f °C", reading.temp),
-                        if (tempCritical) CarColor.RED else CarColor.GREEN,
-                    ),
-                    row("الحد الأقصى", String.format(Locale.US, "%.0f °C", reading.maxTemp)),
-                    row("الحالة", if (tempCritical) "حرجة" else "طبيعي",
-                        if (tempCritical) CarColor.RED else CarColor.GREEN),
-                ),
-                "الحرارة",
-            )
-            .addItemList(
-                section(
-                    row(
-                        "القيمة",
-                        String.format(Locale.US, "%.2f V", reading.volt),
-                        if (voltBad) CarColor.RED else CarColor.GREEN,
-                    ),
-                    row(
-                        "المدى المسموح",
-                        String.format(
-                            Locale.US,
-                            "%.1f – %.1f V",
-                            reading.minVolt,
-                            reading.maxVolt,
+            .setSingleList(
+                ItemList.Builder()
+                    .addItem(header("الحرارة"))
+                    .addItem(
+                        row(
+                            "القيمة",
+                            String.format(Locale.US, "%.1f °C", reading.temp),
+                            if (tempCritical) CarColor.RED else CarColor.GREEN,
                         ),
-                    ),
-                    row("الدينامو", if (reading.volt >= 13.0) "يشحن" else "لا يشحن",
-                        if (reading.volt >= 13.0) CarColor.GREEN else CarColor.DEFAULT),
-                ),
-                "البطارية",
-            )
-            .addItemList(
-                section(
-                    row("المروحة", if (reading.fanOn) "تعمل" else "متوقفة",
-                        if (reading.fanOn) CarColor.GREEN else CarColor.DEFAULT),
-                ),
-                "المروحة",
-            )
-            .addItemList(
-                section(
-                    row(
-                        "الحالة",
-                        when {
-                            reading.alarm -> "شغّال"
-                            reading.muted -> "مكتوم"
-                            else -> "هادئ"
-                        },
-                        when {
-                            reading.alarm -> CarColor.RED
-                            reading.muted -> CarColor.YELLOW
-                            else -> CarColor.GREEN
-                        },
-                    ),
-                ),
-                "الإنذار",
+                    )
+                    .addItem(
+                        row(
+                            "الحد الأقصى",
+                            String.format(Locale.US, "%.0f °C", reading.maxTemp),
+                        ),
+                    )
+                    .addItem(
+                        row(
+                            "الحالة",
+                            if (tempCritical) "حرجة" else "طبيعي",
+                            if (tempCritical) CarColor.RED else CarColor.GREEN,
+                        ),
+                    )
+                    .addItem(header("البطارية"))
+                    .addItem(
+                        row(
+                            "القيمة",
+                            String.format(Locale.US, "%.2f V", reading.volt),
+                            if (voltBad) CarColor.RED else CarColor.GREEN,
+                        ),
+                    )
+                    .addItem(
+                        row(
+                            "المدى المسموح",
+                            String.format(
+                                Locale.US,
+                                "%.1f – %.1f V",
+                                reading.minVolt,
+                                reading.maxVolt,
+                            ),
+                        ),
+                    )
+                    .addItem(
+                        row(
+                            "الدينامو",
+                            if (reading.volt >= 13.0) "يشحن" else "لا يشحن",
+                            if (reading.volt >= 13.0) CarColor.GREEN else CarColor.DEFAULT,
+                        ),
+                    )
+                    .addItem(header("المروحة والإنذار"))
+                    .addItem(
+                        row(
+                            "المروحة",
+                            if (reading.fanOn) "تعمل" else "متوقفة",
+                            if (reading.fanOn) CarColor.GREEN else CarColor.DEFAULT,
+                        ),
+                    )
+                    .addItem(
+                        row(
+                            "الإنذار",
+                            when {
+                                reading.alarm -> "شغّال"
+                                reading.muted -> "مكتوم"
+                                else -> "هادئ"
+                            },
+                            when {
+                                reading.alarm -> CarColor.RED
+                                reading.muted -> CarColor.YELLOW
+                                else -> CarColor.GREEN
+                            },
+                        ),
+                    )
+                    .build(),
             )
             .build()
     }
@@ -923,11 +920,10 @@ class ConnectionScreen(carContext: CarContext) : Screen(carContext) {
                                 ),
                             )
                             .setImage(
-                                CarIcon.Builder(
-                                    carContext.getDrawable(R.drawable.ic_wifi)!!,
-                                ).setTint(
+                                vectorIcon(
+                                    R.drawable.ic_wifi,
                                     if (connected) CarColor.GREEN else CarColor.RED,
-                                ).build(),
+                                ),
                             )
                             .build(),
                     )
