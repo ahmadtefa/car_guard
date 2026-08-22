@@ -5,6 +5,8 @@
 
     <!-- Android Auto -->
     <string name="aa_title">Car Guard • Live</string>
+    <string name="aa_title_offline">Car Guard • Offline</string>
+    <string name="aa_more">More readings</string>
     <string name="aa_connecting">Connecting…</string>
     <string name="aa_connecting_sub">Preparing live readings</string>
     <string name="aa_temp">Engine temp</string>

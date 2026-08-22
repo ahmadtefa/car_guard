@@ -5,6 +5,8 @@
 
     <!-- Android Auto — نفس نص شاشة الموبايل -->
     <string name="aa_title">Car Guard • قراءات حية</string>
+    <string name="aa_title_offline">Car Guard • غير متصل</string>
+    <string name="aa_more">قراءات إضافية</string>
     <string name="aa_connecting">جارٍ الاتصال…</string>
     <string name="aa_connecting_sub">بتجهيز القراءات الحية</string>
     <string name="aa_temp">حرارة المحرك</string>
