@@ -108,6 +108,18 @@ class Esp8266Repository implements DeviceRepository {
           );
 
 
+          // Only genuine device telemetry may keep the connection alive:
+          // on a foreign network some other service could answer on the
+          // device IP, and its garbage must not fake a live link.
+          final valid = _handleData(
+            message.toString(),
+          );
+
+          if (!valid) {
+            return;
+          }
+
+
           _connected = true;
           _connectAttemptInProgress = false;
           _stopHttpFallback();
@@ -115,11 +127,6 @@ class Esp8266Repository implements DeviceRepository {
           _connectionController.add(true);
 
           _resetWatchdog();
-
-
-          _handleData(
-            message.toString(),
-          );
 
         },
 
@@ -330,7 +337,10 @@ class Esp8266Repository implements DeviceRepository {
           )
           .timeout(_httpTimeout);
 
-      return response.statusCode == 200;
+      // HTTP 200 alone means nothing on a foreign network; only the
+      // device's own telemetry format proves it is really there.
+      return response.statusCode == 200 &&
+          _parseStatus(response.body) != null;
 
     } catch (_) {
 
@@ -417,7 +427,11 @@ class Esp8266Repository implements DeviceRepository {
           .timeout(_httpTimeout);
 
 
-      if (response.statusCode == 200) {
+      // A bare 200 is not proof of life: the body must parse as real
+      // device telemetry, otherwise whatever answered on this network
+      // (router page, captive portal, ...) is impersonating the device.
+      if (response.statusCode == 200 &&
+          _handleData(response.body)) {
 
         debugPrint(
           "HTTP DATA = ${response.body}",
@@ -431,16 +445,17 @@ class Esp8266Repository implements DeviceRepository {
         _resetWatchdog();
 
 
-        _handleData(
-          response.body,
-        );
-
-
       } else {
 
-        debugPrint(
-          "HTTP STATUS ${response.statusCode}",
-        );
+        if (response.statusCode == 200) {
+          debugPrint(
+            "UNEXPECTED DATA FROM $host - NOT OUR DEVICE",
+          );
+        } else {
+          debugPrint(
+            "HTTP STATUS ${response.statusCode}",
+          );
+        }
 
         _setDisconnected();
 
@@ -544,9 +559,11 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Called when at least one network interface is back. Reconnect to the
-  /// device automatically when a connection is still wanted and nothing
-  /// is already recovering it.
+  /// Called when at least one network interface is back, or when the
+  /// device jumps from one network to another (e.g. the phone leaves the
+  /// device hotspot and joins home WiFi). A live "connection" cannot be
+  /// trusted after such a jump, so it is verified against real device
+  /// telemetry before keeping it.
   void handleNetworkAvailable() {
 
     debugPrint(
@@ -554,8 +571,13 @@ class Esp8266Repository implements DeviceRepository {
     );
 
 
-    if (_connected ||
-        _connectAttemptInProgress ||
+    if (_connected) {
+      unawaited(_verifyActiveConnection());
+      return;
+    }
+
+
+    if (_connectAttemptInProgress ||
         _usingHttpFallback) {
       return;
     }
@@ -576,14 +598,65 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  void _handleData(
+  /// Re-checks the link to the device after a network change. The socket
+  /// survives roaming silently, so the only reliable proof is whether the
+  /// device still answers with valid telemetry.
+  Future<void> _verifyActiveConnection() async {
+
+    if (!_connected) {
+      return;
+    }
+
+    debugPrint(
+      "NETWORK CHANGED - VERIFYING DEVICE LINK",
+    );
+
+    final alive = await _probeHttp();
+
+
+    if (alive) {
+
+      debugPrint(
+        "DEVICE LINK STILL VALID",
+      );
+
+      _resetWatchdog();
+
+      if (_autoReconnectEnabled) {
+        _startHttpFallback(_activeHost);
+      }
+
+      return;
+
+    }
+
+
+    debugPrint(
+      "DEVICE LINK VERIFICATION FAILED - CONNECTION LOST",
+    );
+
+
+    await _closeTransport();
+
+    _setDisconnected();
+
+
+    if (_autoReconnectEnabled) {
+      _startHttpFallback(_activeHost);
+    }
+
+  }
+
+
+
+  /// Parses a raw payload into a [DeviceStatus], or returns `null` when
+  /// the payload is not valid device telemetry. Used both for updates and
+  /// as proof that whatever answered is really the Car Guard device.
+  DeviceStatus? _parseStatus(
     String data,
   ) {
 
     try {
-
-      DeviceStatus status;
-
 
       if (data.trim().startsWith('{')) {
 
@@ -591,7 +664,7 @@ class Esp8266Repository implements DeviceRepository {
             jsonDecode(data);
 
 
-        status = DeviceStatus(
+        return DeviceStatus(
 
           connected: true,
 
@@ -650,85 +723,74 @@ class Esp8266Repository implements DeviceRepository {
         );
 
 
-      } else {
+      }
 
 
-        final parts =
-            data.split(',');
+      final parts =
+          data.split(',');
 
 
-        if (parts.length < 4) {
+      if (parts.length < 4) {
 
-          debugPrint(
-            "INVALID WS DATA",
-          );
-
-          return;
-
-        }
-
-
-        status = DeviceStatus(
-
-          connected: true,
-
-          deviceId: "Car Guard",
-
-          batteryData: BatteryData(
-
-            voltage:
-                double.parse(
-                  parts[1],
-                ),
-
-            voltageDifference:
-                parts.length > 5 ? (double.tryParse(parts[5]) ?? 0.0) : 0.0,
-
-          ),
-
-
-          temperatureData:
-              TemperatureData(
-
-            engineTemperature:
-                double.parse(
-                  parts[0],
-                ),
-
-          ),
-
-
-          coolantLevelData:
-              CoolantLevelData(
-
-            coolantAvailable:
-                parts[2] == "1",
-
-          ),
-
-
-          controlData:
-              DeviceControlData(
-
-            fanRunning:
-                parts[3] == "1",
-
-            buzzerActive:
-                parts.length > 4 ? parts[4].trim() == "1" : false,
-
-          ),
-
-
-          lastUpdated:
-              DateTime.now(),
-
-        );
+        return null;
 
       }
 
 
-      _statusController.add(
-        status,
+      return DeviceStatus(
+
+        connected: true,
+
+        deviceId: "Car Guard",
+
+        batteryData: BatteryData(
+
+          voltage:
+              double.parse(
+                parts[1],
+              ),
+
+          voltageDifference:
+              parts.length > 5 ? (double.tryParse(parts[5]) ?? 0.0) : 0.0,
+
+        ),
+
+
+        temperatureData:
+            TemperatureData(
+
+          engineTemperature:
+              double.parse(
+                parts[0],
+              ),
+
+        ),
+
+
+        coolantLevelData:
+            CoolantLevelData(
+
+          coolantAvailable:
+              parts[2] == "1",
+
+        ),
+
+
+        controlData:
+            DeviceControlData(
+
+          fanRunning:
+              parts[3] == "1",
+
+          buzzerActive:
+              parts.length > 4 ? parts[4].trim() == "1" : false,
+
+        ),
+
+
+        lastUpdated:
+            DateTime.now(),
+
       );
 
 
@@ -745,7 +807,40 @@ class Esp8266Repository implements DeviceRepository {
       );
 
 
+      return null;
+
     }
+
+  }
+
+
+
+  /// Handles an incoming payload from any transport. Emits the parsed
+  /// status and reports whether the payload was valid device telemetry;
+  /// invalid data never counts as proof that the device is alive.
+  bool _handleData(
+    String data,
+  ) {
+
+    final status = _parseStatus(data);
+
+
+    if (status == null) {
+
+      debugPrint(
+        "INVALID DEVICE DATA",
+      );
+
+      return false;
+
+    }
+
+
+    _statusController.add(
+      status,
+    );
+
+    return true;
 
   }
 
