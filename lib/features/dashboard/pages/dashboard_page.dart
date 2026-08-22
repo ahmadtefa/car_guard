@@ -9,6 +9,7 @@ import '../widgets/connection_status_card.dart';
 import '../widgets/coolant_level_card.dart';
 import '../widgets/engine_temperature_card.dart';
 import '../widgets/fan_status_card.dart';
+import '../widgets/trip_cards.dart';
 import '../widgets/voltage_difference_card.dart';
 
 class DashboardPage extends ConsumerWidget {
@@ -42,6 +43,10 @@ class DashboardPage extends ConsumerWidget {
                 ConnectionStatusCard(
                   statusText: state.connectionStatus,
                 ),
+
+                const SizedBox(height: AppSpacing.md),
+
+                const TripCards(),
 
                 const SizedBox(height: AppSpacing.md),
 

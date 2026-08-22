@@ -61,11 +61,18 @@ class CarGuardForegroundService : Service() {
     val notification = buildNotification()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(
-        NOTIFICATION_ID,
-        notification,
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-      )
+      var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+
+      // Add the location type so GPS speed/distance keeps updating in the
+      // background — but only once the app actually holds the location
+      // permission, otherwise startForeground throws a SecurityException.
+      if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+          android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        serviceType =
+          serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+      }
+
+      startForeground(NOTIFICATION_ID, notification, serviceType)
     } else {
       startForeground(NOTIFICATION_ID, notification)
     }
@@ -96,7 +103,7 @@ class CarGuardForegroundService : Service() {
 
     return builder
       .setContentTitle("Car Guard")
-      .setContentText("Keeping the device connection alive")
+      .setContentText("Monitoring device and trip in the background")
       .setSmallIcon(applicationInfo.icon)
       .setOngoing(true)
       .apply { contentIntent?.let { setContentIntent(it) } }
