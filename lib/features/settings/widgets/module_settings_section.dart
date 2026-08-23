@@ -29,8 +29,7 @@ class ModuleSettingsSection extends ConsumerStatefulWidget {
       _ModuleSettingsSectionState();
 }
 
-class _ModuleSettingsSectionState
-    extends ConsumerState<ModuleSettingsSection> {
+class _ModuleSettingsSectionState extends ConsumerState<ModuleSettingsSection> {
   final _fanOnTemp = TextEditingController();
   final _alarmTemp = TextEditingController();
   final _minVolt = TextEditingController();
@@ -69,8 +68,9 @@ class _ModuleSettingsSectionState
       _error = null;
     });
 
-    final settings =
-        await ref.read(esp8266RepositoryProvider).getDeviceSettings();
+    final settings = await ref
+        .read(esp8266RepositoryProvider)
+        .getDeviceSettings();
 
     if (!mounted) return;
 
@@ -93,9 +93,7 @@ class _ModuleSettingsSectionState
     });
 
     // Prefill the Wi-Fi card with the credentials stored on the module.
-    final wifi = await ref
-        .read(esp8266RepositoryProvider)
-        .getWifiSettings();
+    final wifi = await ref.read(esp8266RepositoryProvider).getWifiSettings();
 
     if (!mounted || wifi == null) return;
 
@@ -140,10 +138,14 @@ class _ModuleSettingsSectionState
     }
 
     // Ranges enforced by the firmware itself (handleSaveAllSettings).
-    if (alarmTemp < 50 || alarmTemp > 150 ||
-        fanOnTemp < 40 || fanOnTemp > 140 ||
-        minVolt < 8 || minVolt > 14 ||
-        maxVolt < 12 || maxVolt > 18) {
+    if (alarmTemp < 50 ||
+        alarmTemp > 150 ||
+        fanOnTemp < 40 ||
+        fanOnTemp > 140 ||
+        minVolt < 8 ||
+        minVolt > 14 ||
+        maxVolt < 12 ||
+        maxVolt > 18) {
       _snack(l.valueOutOfRange(l.alarmLimits));
       return;
     }
@@ -206,9 +208,7 @@ class _ModuleSettingsSectionState
 
     setState(() => _saving = true);
 
-    final ok = await ref
-        .read(esp8266RepositoryProvider)
-        .factoryResetModule();
+    final ok = await ref.read(esp8266RepositoryProvider).factoryResetModule();
 
     if (!mounted) return;
 
@@ -223,7 +223,7 @@ class _ModuleSettingsSectionState
     final ssid = _ssid.text.trim();
     final password = _password.text;
 
-    if (ssid.length < 1 || ssid.length > 32) {
+    if (ssid.isEmpty || ssid.length > 32) {
       _snack(l.ssidTooShort);
       return;
     }
@@ -265,8 +265,7 @@ class _ModuleSettingsSectionState
       return;
     }
 
-    final settings =
-        ref.read(settingsProvider).value ?? const AppSettings();
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
 
     await ref
         .read(settingsProvider.notifier)
@@ -291,10 +290,7 @@ class _ModuleSettingsSectionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(
-          title: l.moduleSettings,
-          subtitle: l.reportedByFirmware,
-        ),
+        SectionTitle(title: l.moduleSettings, subtitle: l.reportedByFirmware),
         if (_loading)
           const Padding(
             padding: EdgeInsets.all(AppSpacing.xl),
@@ -347,9 +343,7 @@ class _ModuleSettingsSectionState
                       Expanded(
                         child: Text(
                           l.alarmLimits,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(color: AppColors.warning),
                         ),
                       ),
@@ -413,10 +407,7 @@ class _ModuleSettingsSectionState
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          SectionTitle(
-            title: l.moduleWifi,
-            subtitle: l.moduleWifiInfo,
-          ),
+          SectionTitle(title: l.moduleWifi, subtitle: l.moduleWifiInfo),
           AppTextField(
             controller: _ssid,
             labelText: l.ssidLabel,

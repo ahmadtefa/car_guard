@@ -84,8 +84,9 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
       _loading = true;
     });
 
-    final settings =
-        await ref.read(esp8266RepositoryProvider).getDeviceSettings();
+    final settings = await ref
+        .read(esp8266RepositoryProvider)
+        .getDeviceSettings();
 
     if (!mounted) return;
 
@@ -145,7 +146,12 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
       return;
     }
 
-    if (r1 <= 0 || r1 >= 100000 || r2 <= 0 || r2 >= 100000 || pullUp <= 0 || pullUp >= 100000) {
+    if (r1 <= 0 ||
+        r1 >= 100000 ||
+        r2 <= 0 ||
+        r2 >= 100000 ||
+        pullUp <= 0 ||
+        pullUp >= 100000) {
       _snack(l10n.valueOutOfRange(l10n.r1Label));
       return;
     }
@@ -225,9 +231,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     _voltCalib.text = newFactor.toStringAsFixed(4);
 
-    _snack(
-      ref.read(l10nProvider).newFactor(newFactor.toStringAsFixed(4)),
-    );
+    _snack(ref.read(l10nProvider).newFactor(newFactor.toStringAsFixed(4)));
   }
 
   Future<void> _pickDate() async {
@@ -242,7 +246,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     if (picked == null || !mounted) return;
 
-    final two = (int value) => value.toString().padLeft(2, '0');
+    String two(int value) => value.toString().padLeft(2, '0');
 
     setState(() {
       _installDate.text =
@@ -287,7 +291,10 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
           children: [
             const Icon(Icons.lock_outline, size: 56),
             const SizedBox(height: AppSpacing.lg),
-            Text(l.advancedModuleSettings, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l.advancedModuleSettings,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               l.enterCodeToContinue,
@@ -302,10 +309,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               onSubmitted: (_) => _unlock(),
             ),
             const SizedBox(height: AppSpacing.md),
-            PrimaryButton(
-              onPressed: _unlock,
-              child: Text(l.unlock),
-            ),
+            PrimaryButton(onPressed: _unlock, child: Text(l.unlock)),
             if (_passwordError != null) ...[
               const SizedBox(height: AppSpacing.md),
               Text(

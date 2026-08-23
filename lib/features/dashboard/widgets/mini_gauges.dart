@@ -225,12 +225,11 @@ class _ArcGaugePainter extends CustomPainter {
       ],
     );
 
-    final valuePaint =
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = _stroke
-          ..shader = gradient.createShader(trackRect);
+    final valuePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = _stroke
+      ..shader = gradient.createShader(trackRect);
 
     if (danger) {
       valuePaint.color = AppColors.neonRed;
@@ -246,17 +245,13 @@ class _ArcGaugePainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = _stroke + 10
-          ..color = AppColors.neonRed.withAlpha((255 * (0.10 + 0.22 * pulse)).round()),
+          ..color = AppColors.neonRed.withAlpha(
+            (255 * (0.10 + 0.22 * pulse)).round(),
+          ),
       );
     }
 
-    canvas.drawArc(
-      trackRect,
-      startAngle,
-      progress * sweep,
-      false,
-      valuePaint,
-    );
+    canvas.drawArc(trackRect, startAngle, progress * sweep, false, valuePaint);
 
     // Needle knob at the reading position.
     final knobAngle = startAngle + progress * sweep;
@@ -359,8 +354,8 @@ class _VoltBarPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(barRect);
 
-    final zonePaint = (double fromF, double toF, Color color) => Paint()
-      ..color = color.withAlpha((255 * 0.20).round());
+    Paint zonePaint(double fromF, double toF, Color color) =>
+        Paint()..color = color.withAlpha((255 * 0.20).round());
 
     canvas.drawRect(
       Rect.fromLTRB(0, barTop, lowF * w, barTop + barHeight),
@@ -526,10 +521,7 @@ class _DeltaPainter extends CustomPainter {
         height: barHeight,
       );
 
-      final rrect = RRect.fromRectAndRadius(
-        fillRect,
-        const Radius.circular(6),
-      );
+      final rrect = RRect.fromRectAndRadius(fillRect, const Radius.circular(6));
 
       canvas.drawRRect(
         rrect.inflate(2.5),

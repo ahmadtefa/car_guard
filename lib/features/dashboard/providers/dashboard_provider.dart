@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../models/dashboard_state.dart';
 
-final dashboardProvider =
-    NotifierProvider<DashboardNotifier, DashboardState>(
+final dashboardProvider = NotifierProvider<DashboardNotifier, DashboardState>(
   DashboardNotifier.new,
 );
 
@@ -22,8 +21,9 @@ class DashboardNotifier extends Notifier<DashboardState> {
           }
 
           state = DashboardState(
-            connectionStatus:
-                deviceStatus.connected ? 'Connected' : 'Disconnected',
+            connectionStatus: deviceStatus.connected
+                ? 'Connected'
+                : 'Disconnected',
 
             engineTemperature:
                 '${deviceStatus.temperatureData.engineTemperature.toStringAsFixed(1)} °C',
@@ -38,8 +38,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
                 ? 'Available'
                 : 'Low',
 
-            fanStatus:
-                deviceStatus.controlData.fanRunning ? 'ON' : 'OFF',
+            fanStatus: deviceStatus.controlData.fanRunning ? 'ON' : 'OFF',
 
             lastUpdated: _formatClock(deviceStatus.lastUpdated),
           );
@@ -48,9 +47,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
         loading: () {},
 
         error: (error, stackTrace) {
-          state = const DashboardState(
-            connectionStatus: 'Disconnected',
-          );
+          state = const DashboardState(connectionStatus: 'Disconnected');
         },
       );
     });
@@ -59,7 +56,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
   }
 
   String _formatClock(DateTime time) {
-    final two = (int value) => value.toString().padLeft(2, '0');
+    String two(int value) => value.toString().padLeft(2, '0');
 
     return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
   }
