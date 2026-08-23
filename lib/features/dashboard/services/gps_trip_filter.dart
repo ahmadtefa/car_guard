@@ -28,9 +28,15 @@ class GpsTripFilter {
   static const double maxSpeedAccuracyMs = 2.5;
 
   /// A "dead" sensor speed (0.0 while actually driving) is overridden by
-  /// the filtered track only once it shows at least this much sustained
-  /// motion — a weaker gate would let parked GPS jitter fake movement.
+  /// the filtered track only once it shows at least this much motion
+  /// sustained across [overrideStreakFixes] fixes in a row — a weaker gate
+  /// would let parked GPS jitter fake movement.
   static const double deadSensorOverrideMs = 2.8;
+
+  /// How many fixes in a row must beat [deadSensorOverrideMs] before a
+  /// silent/untrusted sensor is overruled by the filtered track. A single
+  /// fix can be one jitter jump; sustained motion cannot.
+  static const int overrideStreakFixes = 2;
 
   /// Physics guard: jumps implying more than this are rejected.
   static const double maxPlausibleKmh = 250;
@@ -69,11 +75,16 @@ class GpsTripFilter {
   Position? _lastFix;
   double _smoothedSpeedKmh = 0;
 
+  /// Fixes in a row where the filtered track moved faster than
+  /// [deadSensorOverrideMs] while the sensor stayed silent or untrusted.
+  int _derivedMotionStreak = 0;
+
   /// Clears the filter (e.g. when the stream restarts or the trip resets).
   void reset() {
     _varianceM2 = -1;
     _lastFix = null;
     _smoothedSpeedKmh = 0;
+    _derivedMotionStreak = 0;
   }
 
   /// Feeds one raw GPS fix. Returns `null` when the fix is rejected as
@@ -136,20 +147,29 @@ class GpsTripFilter {
     _yMeters += gain * (projected.$2 - _yMeters);
     _varianceM2 = (1 - gain) * _varianceM2;
 
-    // 5) Speed: prefer the GNSS Doppler speed when it is trustworthy,
-    //    otherwise derive it from the filtered track.
-    double metersPerSecond = _sensorSpeedMs(position);
-
+    // 5) Speed: a trustworthy Doppler reading wins whenever it reports
+    //    real motion. A silent (~0) or untrusted sensor falls back to the
+    //    filtered track — but only once motion sustains across
+    //    [overrideStreakFixes] fixes in a row, so one parked jitter jump
+    //    can never fake a reading (and phantom distance).
     final filteredStepM = _distance((_xMeters, _yMeters), (prevX, prevY));
     final derivedMs = dtSeconds > 0 ? filteredStepM / dtSeconds : 0.0;
 
-    if (metersPerSecond < 0) {
-      metersPerSecond = derivedMs;
-    } else if (metersPerSecond < 0.5 &&
-        derivedMs > deadSensorOverrideMs) {
-      // Some devices keep reporting 0 while moving; trust the filtered
-      // track then, but only for clearly real motion.
-      metersPerSecond = derivedMs;
+    final sensorMs = _sensorSpeedMs(position);
+    final double metersPerSecond;
+
+    if (sensorMs >= 0.5) {
+      metersPerSecond = sensorMs;
+      _derivedMotionStreak = 0;
+    } else {
+      if (derivedMs > deadSensorOverrideMs) {
+        _derivedMotionStreak++;
+      } else {
+        _derivedMotionStreak = 0;
+      }
+
+      metersPerSecond =
+          _derivedMotionStreak >= overrideStreakFixes ? derivedMs : 0.0;
     }
 
     final speedKmh = _smoothSpeed(metersPerSecond);
