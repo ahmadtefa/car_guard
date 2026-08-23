@@ -59,7 +59,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
   }
 
   String _formatClock(DateTime time) {
-    final two = (int value) => value.toString().padLeft(2, '0');
+    String two(int value) => value.toString().padLeft(2, '0');
 
     return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
   }

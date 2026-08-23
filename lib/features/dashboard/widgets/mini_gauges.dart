@@ -359,7 +359,7 @@ class _VoltBarPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(barRect);
 
-    final zonePaint = (double fromF, double toF, Color color) => Paint()
+    Paint zonePaint(double fromF, double toF, Color color) => Paint()
       ..color = color.withAlpha((255 * 0.20).round());
 
     canvas.drawRect(

@@ -242,7 +242,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     if (picked == null || !mounted) return;
 
-    final two = (int value) => value.toString().padLeft(2, '0');
+    String two(int value) => value.toString().padLeft(2, '0');
 
     setState(() {
       _installDate.text =

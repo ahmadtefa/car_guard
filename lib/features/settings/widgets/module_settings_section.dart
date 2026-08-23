@@ -226,7 +226,7 @@ class _ModuleSettingsSectionState
     final ssid = _ssid.text.trim();
     final password = _password.text;
 
-    if (ssid.length < 1 || ssid.length > 32) {
+    if (ssid.isEmpty || ssid.length > 32) {
       _snack(l.ssidTooShort);
       return;
     }
