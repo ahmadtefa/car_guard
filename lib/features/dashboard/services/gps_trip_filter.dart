@@ -29,8 +29,9 @@ class GpsTripFilter {
 
   /// A "dead" sensor speed (0.0 while actually driving) is overridden by
   /// the filtered track only once it shows at least this much motion
-  /// sustained across [overrideStreakFixes] fixes in a row — a weaker gate
-  /// would let parked GPS jitter fake movement.
+  /// sustained across [overrideStreakFixes] fixes in a row — on BOTH the
+  /// filtered track and the raw fixes (the raw check also stops the
+  /// Kalman catch-up after hard braking from faking speed at a standstill).
   static const double deadSensorOverrideMs = 2.8;
 
   /// How many fixes in a row must beat [deadSensorOverrideMs] before a
@@ -56,8 +57,20 @@ class GpsTripFilter {
   /// After a gap this long the old track is meaningless; re-anchor.
   static const double maxGapSeconds = 15;
 
-  /// How quickly the displayed speed follows the estimate (EMA factor).
-  static const double _speedSmoothing = 0.45;
+  /// Display smoothing — adaptive instead of one fixed EMA factor: a fast
+  /// attack/release on clear changes and a gentle factor for small wobble,
+  /// so noise stays invisible while the response feels near-real-time.
+  ///
+  /// At the typical ~1 fix/s cadence, [_smoothingFastUp]/
+  /// [_smoothingFastDown] cover ~90% of a step change within one or two
+  /// fixes; [_smoothingSlow] keeps a steady reading from flickering.
+  static const double _smoothingSlow = 0.35;
+  static const double _smoothingFastUp = 0.85;
+  static const double _smoothingFastDown = 0.9;
+
+  /// A one-fix change of at least this size counts as "clear" and is
+  /// followed with the fast factors above instead of the slow one.
+  static const double _fastChangeKmh = 5;
 
   // -- Local equirectangular projection around the first fix --------------
 
@@ -108,10 +121,15 @@ class GpsTripFilter {
 
     final projected = _project(position.latitude, position.longitude);
 
+    // Raw displacement since the previous fix — the teleport gate below
+    // uses it, and section 5 reuses it as the "raw track" witness for the
+    // motion-sustain check.
+    var jumpM = 0.0;
+
     // 2) Teleport gate: compare the raw jump against what physics allows.
     if (lastFix != null && dtSeconds > 0 && dtSeconds <= maxGapSeconds) {
       final lastProjected = _project(lastFix.latitude, lastFix.longitude);
-      final jumpM = _distance(projected, lastProjected);
+      jumpM = _distance(projected, lastProjected);
       final maxJumpM = (maxPlausibleKmh / 3.6) * dtSeconds +
           lastFix.accuracy +
           position.accuracy +
@@ -150,10 +168,12 @@ class GpsTripFilter {
     // 5) Speed: a trustworthy Doppler reading wins whenever it reports
     //    real motion. A silent (~0) or untrusted sensor falls back to the
     //    filtered track — but only once motion sustains across
-    //    [overrideStreakFixes] fixes in a row, so one parked jitter jump
-    //    can never fake a reading (and phantom distance).
+    //    [overrideStreakFixes] fixes in a row on BOTH the filtered track
+    //    and the raw fixes, so parked jitter (and the Kalman catch-up
+    //    right after hard braking) can never fake a reading.
     final filteredStepM = _distance((_xMeters, _yMeters), (prevX, prevY));
     final derivedMs = dtSeconds > 0 ? filteredStepM / dtSeconds : 0.0;
+    final rawDerivedMs = dtSeconds > 0 ? jumpM / dtSeconds : 0.0;
 
     final sensorMs = _sensorSpeedMs(position);
     final double metersPerSecond;
@@ -162,7 +182,8 @@ class GpsTripFilter {
       metersPerSecond = sensorMs;
       _derivedMotionStreak = 0;
     } else {
-      if (derivedMs > deadSensorOverrideMs) {
+      if (derivedMs > deadSensorOverrideMs &&
+          rawDerivedMs > deadSensorOverrideMs) {
         _derivedMotionStreak++;
       } else {
         _derivedMotionStreak = 0;
@@ -174,10 +195,15 @@ class GpsTripFilter {
 
     final speedKmh = _smoothSpeed(metersPerSecond);
 
-    // 6) Distance: no accumulation while inside the stop band — a parked
-    //    car keeps exactly the same trip value instead of creeping up.
+    // 6) Distance: gated by the *instantaneous* motion speed (before the
+    //    display smoothing), so the first metres of every departure count
+    //    immediately instead of waiting for the EMA to climb. While truly
+    //    parked the motion speed is exactly 0, so drift still adds
+    //    nothing.
+    final motionKmh = metersPerSecond * 3.6;
+
     double stepM = 0;
-    if (speedKmh >= stopBandKmh && filteredStepM >= minStepM) {
+    if (motionKmh >= stopBandKmh && filteredStepM >= minStepM) {
       final plausibleM = (maxPlausibleKmh / 3.6) * dtSeconds;
       stepM = math.min(filteredStepM, plausibleM);
     }
@@ -203,9 +229,11 @@ class GpsTripFilter {
     return speed;
   }
 
-  /// Applies the dead-band and a short-memory EMA so the displayed number
-  /// is stable without feeling laggy. [snap] jumps straight to the value
-  /// (used for the first fix and after long gaps).
+  /// Applies the dead-band and an adaptive EMA: clear changes (|delta| >=
+  /// [_fastChangeKmh]) are followed fast — braking even faster than
+  /// acceleration — while small wobble keeps the gentle factor so the
+  /// number stays steady. [snap] jumps straight to the value (used for
+  /// the first fix and after long gaps).
   double _smoothSpeed(double metersPerSecond, {bool snap = false}) {
     double kmh = (metersPerSecond * 3.6).clamp(0, maxPlausibleKmh);
 
@@ -216,7 +244,11 @@ class GpsTripFilter {
     if (snap) {
       _smoothedSpeedKmh = kmh;
     } else {
-      _smoothedSpeedKmh += _speedSmoothing * (kmh - _smoothedSpeedKmh);
+      final deltaKmh = kmh - _smoothedSpeedKmh;
+      final alpha = deltaKmh.abs() >= _fastChangeKmh
+          ? (deltaKmh > 0 ? _smoothingFastUp : _smoothingFastDown)
+          : _smoothingSlow;
+      _smoothedSpeedKmh += alpha * deltaKmh;
     }
 
     if (_smoothedSpeedKmh < stopBandKmh) {
@@ -229,8 +261,17 @@ class GpsTripFilter {
   void _anchor(Position position) {
     _originLat = position.latitude;
     _originLng = position.longitude;
-    _mPerDegLat = 110574;
-    _mPerDegLng = 111320 * math.cos(_originLat * math.pi / 180.0);
+
+    // WGS84 metres-per-degree series evaluated at the anchor latitude —
+    // a single global constant mismeasures latitude motion by ~0.25% at
+    // Egyptian latitudes (more elsewhere), which directly inflates or
+    // shrinks the odometer.
+    final latRad = _originLat * math.pi / 180.0;
+    _mPerDegLat = 111132.954 -
+        559.822 * math.cos(2 * latRad) +
+        1.175 * math.cos(4 * latRad);
+    _mPerDegLng =
+        111412.84 * math.cos(latRad) - 93.5 * math.cos(3 * latRad);
 
     _xMeters = 0;
     _yMeters = 0;
