@@ -53,7 +53,7 @@ class TripCards extends ConsumerWidget {
 
         SecondaryButton(
           onPressed: trip.distanceKm > 0
-              ? () => ref.read(tripProvider.notifier).resetTrip()
+              ? () => _confirmReset(context, ref, trip.distanceKm)
               : null,
           child: Text(l.resetTrip),
         ),
@@ -72,6 +72,40 @@ class TripCards extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  /// Asks for confirmation before zeroing the odometer — the strings, the
+  /// value and the notifier are captured up front so nothing touches
+  /// [WidgetRef] after the await.
+  Future<void> _confirmReset(
+    BuildContext context,
+    WidgetRef ref,
+    double distanceKm,
+  ) async {
+    final l = ref.read(l10nProvider);
+    final tripNotifier = ref.read(tripProvider.notifier);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l.resetTripConfirmTitle),
+        content: Text(l.resetTripConfirmBody(distanceKm.toStringAsFixed(2))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l.resetTrip),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      tripNotifier.resetTrip();
+    }
   }
 }
 

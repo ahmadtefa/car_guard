@@ -54,12 +54,18 @@ class TripState {
 ///
 /// Every raw fix goes through [GpsTripFilter] (quality gates + Kalman
 /// position filter), so the displayed speed is stable and the accumulated
-/// distance ignores parked jitter. Call [resetTrip] to zero the counter.
+/// distance ignores parked jitter. The odometer survives app restarts (it
+/// is reloaded from SharedPreferences on boot); only [resetTrip] zeroes it.
 class TripNotifier extends Notifier<TripState> {
   StreamSubscription<Position>? _sub;
   final GpsTripFilter _filter = GpsTripFilter();
 
   bool _backgroundServiceStarted = false;
+
+  /// The saved odometer is loaded only once per session — later [start]
+  /// calls (permission re-grant, manual restart) must not rewind the live
+  /// counter to whatever happens to be on disk.
+  bool _restored = false;
 
   /// Last time the values were written to SharedPreferences — the disk is
   /// not hit more than once every two seconds for unchanged distances.
@@ -68,9 +74,33 @@ class TripNotifier extends Notifier<TripState> {
   @override
   TripState build() {
     ref.onDispose(() => _sub?.cancel());
-    // Fire and forget; the stream populates the state asynchronously.
-    Future<void>.microtask(start);
+    // Fire and forget: restore the saved odometer first, then the GPS
+    // stream populates the state asynchronously.
+    Future<void>.microtask(() async {
+      await _restoreDistance();
+      await start();
+    });
     return const TripState();
+  }
+
+  /// Brings back the distance saved by [_persist], so closing and reopening
+  /// the app never wipes the odometer — only [resetTrip] zeroes it.
+  Future<void> _restoreDistance() async {
+    if (_restored) {
+      return;
+    }
+    _restored = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getDouble('trip_distance_km');
+
+      if (saved != null && saved > 0 && state.distanceKm == 0) {
+        state = state.copyWith(distanceKm: saved);
+      }
+    } catch (_) {
+      // Best effort: a failed read must not block live tracking.
+    }
   }
 
   /// (Re)starts the GPS stream. Safe to call repeatedly. Never throws:
@@ -161,7 +191,9 @@ class TripNotifier extends Notifier<TripState> {
 
   /// Persists the values under the shared keys (`speed_kmh`,
   /// `trip_distance_km`) so car-screen integrations can read them without
-  /// waiting for the app UI. Writes are throttled unless distance moved.
+  /// waiting for the app UI — and so [_restoreDistance] brings the odometer
+  /// back after the app is closed and reopened. Writes are throttled
+  /// unless the distance moved.
   Future<void> _persist({bool distanceChanged = false}) async {
     final now = DateTime.now();
     final due = distanceChanged ||
@@ -177,8 +209,8 @@ class TripNotifier extends Notifier<TripState> {
       await prefs.setDouble('speed_kmh', state.speedKmh);
       await prefs.setDouble('trip_distance_km', state.distanceKm);
     } catch (_) {
-      // A failed write must never break live readings; this is only a
-      // bridge for secondary displays.
+      // A failed write must never break live readings; the next accepted
+      // fix simply tries again.
     }
   }
 }

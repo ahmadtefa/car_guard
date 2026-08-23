@@ -44,6 +44,11 @@ class AppL10n {
   String get vehicleSpeed => isAr ? 'سرعة العربية' : 'Vehicle speed';
   String get tripDistance => isAr ? 'المسافة المقطوعة' : 'Trip distance';
   String get resetTrip => isAr ? 'تصفير المسافة' : 'Reset trip';
+  String get resetTripConfirmTitle =>
+      isAr ? 'تصفير عداد المسافة؟' : 'Reset trip distance?';
+  String resetTripConfirmBody(String km) => isAr
+      ? 'عداد المسافة (دلوقتي $km كم) هيرجع للصفر نهائيًا — مش هتعرف تسترجع الرقم القديم.'
+      : 'The trip odometer (currently $km km) goes back to zero for good — the old value cannot be recovered.';
   String get kmh => isAr ? 'كم/س' : 'km/h';
   String get km => isAr ? 'كم' : 'km';
   String get gpsOff => isAr
