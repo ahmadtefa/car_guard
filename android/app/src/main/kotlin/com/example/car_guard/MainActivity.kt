@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
+import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -46,6 +47,16 @@ class MainActivity : FlutterActivity() {
                     result.success(pairModuleWifi(ssid, password))
                 }
                 "unpairModuleWifi" -> result.success(unpairModuleWifi())
+                "suggestModuleWifi" -> {
+                    val ssid = call.argument<String>("ssid").orEmpty()
+                    val password = call.argument<String>("password").orEmpty()
+                    result.success(suggestModuleWifi(ssid, password))
+                }
+                "removeModuleWifiSuggestion" -> {
+                    val ssid = call.argument<String>("ssid").orEmpty()
+                    val password = call.argument<String>("password").orEmpty()
+                    result.success(removeModuleWifiSuggestion(ssid, password))
+                }
                 "openInternetSettings" -> result.success(openInternetSettings())
                 else -> result.notImplemented()
             }
@@ -160,6 +171,70 @@ class MainActivity : FlutterActivity() {
             // NEARBY_WIFI_DEVICES (Android 13+) / fine location (older) missing.
             false
         } catch (e: RuntimeException) {
+            false
+        }
+    }
+
+    /**
+     * Builds a system-level Wi-Fi suggestion for the module access point
+     * (Android 10+). Uses WPA2 when a passphrase is provided, otherwise an
+     * open network scheme.
+     */
+    private fun buildWifiSuggestion(
+        ssid: String,
+        password: String,
+    ): WifiNetworkSuggestion? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || ssid.isEmpty()) {
+            return null
+        }
+
+        return WifiNetworkSuggestion.Builder().apply {
+            setSsid(ssid)
+            if (password.isNotEmpty()) {
+                setWpa2Passphrase(password)
+            }
+            // default: the system may auto-connect without any app
+            // interaction (setIsAppInteractionRequired(false)).
+        }.build()
+    }
+
+    /**
+     * SYSTEM-LEVEL auto-join for the module network (WifiNetworkSuggestion).
+     *
+     * Unlike [pairModuleWifi] — a temporary app-scoped link — this registers
+     * the module AP with Android itself: after the user approves the
+     * one-time system prompt, the phone joins the module Wi-Fi automatically
+     * whenever it is in range, like any other saved network, and the
+     * registration survives reboots. Adding the same suggestion again simply
+     * updates it, so re-registering on app start is cheap and idempotent.
+     */
+    private fun suggestModuleWifi(ssid: String, password: String): Boolean {
+        val suggestion = buildWifiSuggestion(ssid, password) ?: return false
+
+        val wifiManager =
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+        return try {
+            wifiManager.addNetworkSuggestions(listOf(suggestion)) ==
+                WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS
+        } catch (e: Exception) {
+            // Some OEM builds reject/queue suggestions — the Dart side turns
+            // that into a snack instead of a crash.
+            false
+        }
+    }
+
+    /** Removes the auto-join registration (matched by suggestion content). */
+    private fun removeModuleWifiSuggestion(ssid: String, password: String): Boolean {
+        val suggestion = buildWifiSuggestion(ssid, password) ?: return false
+
+        val wifiManager =
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+        return try {
+            wifiManager.removeNetworkSuggestions(listOf(suggestion)) ==
+                WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS
+        } catch (e: Exception) {
             false
         }
     }

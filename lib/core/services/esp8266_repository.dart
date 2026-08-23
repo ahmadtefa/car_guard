@@ -73,6 +73,8 @@ class Esp8266Repository implements DeviceRepository {
 
   /// Keys for the optional direct Wi-Fi pairing (WifiNetworkSpecifier) stored
   /// by the settings page through [StorageServiceImpl] (prefix `flutter.`).
+  static const String autoJoinEnabledKey = 'wifi_auto_join';
+
   static const String pairingEnabledKey = 'wifi_direct_pairing';
   static const String pairingSsidKey = 'wifi_direct_pairing_ssid';
   static const String pairingPassKey = 'wifi_direct_pairing_password';
@@ -117,6 +119,10 @@ class Esp8266Repository implements DeviceRepository {
     // connection): keeps the module reachable while 4G stays the phone's
     // internet route without any system dialog.
     await _maybePairModuleWifi();
+
+    // If the user enabled system-level auto-join, (re)register the Wi-Fi
+    // suggestion — idempotent and needed after module Wi-Fi renames.
+    await _maybeReapplyWifiAutoJoin();
 
     // Pin this app's traffic to the module's Wi-Fi network: the module keeps
     // streaming while the phone's internet keeps riding mobile data (4G).
@@ -1532,6 +1538,31 @@ class Esp8266Repository implements DeviceRepository {
       );
     } catch (e) {
       debugPrint('WIFI PAIRING READ FAILED: $e');
+    }
+  }
+
+  /// If the user enabled system-level auto-join in Settings, (re)registers
+  /// the module network as a Wi-Fi suggestion (idempotent) so Android joins
+  /// it automatically whenever the module AP is in range — like any saved
+  /// network. Uses the same stored credentials as the direct pairing.
+  Future<void> _maybeReapplyWifiAutoJoin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (prefs.getString(autoJoinEnabledKey) != 'true') return;
+
+      final ssid = prefs.getString(pairingSsidKey) ?? '';
+      final password = prefs.getString(pairingPassKey) ?? '';
+      if (ssid.isEmpty) return;
+
+      debugPrint('WIFI AUTO-JOIN REAPPLY -> $ssid');
+
+      await NetworkBindingService.suggestModuleWifi(
+        ssid: ssid,
+        password: password,
+      );
+    } catch (e) {
+      debugPrint('WIFI AUTO-JOIN REAPPLY FAILED: $e');
     }
   }
 

@@ -7,6 +7,9 @@ import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
+import '../../../core/services/esp8266_repository.dart';
+import '../../../core/services/network_binding_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
@@ -249,9 +252,52 @@ class _ModuleSettingsSectionState
 
     setState(() => _saving = false);
 
+    if (ok) {
+      await _syncStoredWifiCredentials(ssid, password);
+    }
+
     // The module restarts its access point right after saving, so a missing
     // "OK" reply is not necessarily a failure — mirror the original UX.
     _snack(ok ? l.wifiSent(ssid) : l.wifiSent(ssid));
+  }
+
+  /// The module restarted its AP with the new name/password — keep the
+  /// phone-side stored credentials (direct pairing + system auto-join) in
+  /// sync so both keep working after the rename instead of pointing at a
+  /// dead network.
+  Future<void> _syncStoredWifiCredentials(
+    String ssid,
+    String password,
+  ) async {
+    try {
+      final storage = ref.read(storageServiceProvider);
+
+      final oldSsid =
+          await storage.read(Esp8266Repository.pairingSsidKey) ?? '';
+      final oldPass =
+          await storage.read(Esp8266Repository.pairingPassKey) ?? '';
+
+      await storage.write(Esp8266Repository.pairingSsidKey, ssid);
+      await storage.write(Esp8266Repository.pairingPassKey, password);
+
+      final autoJoin =
+          (await storage.read(Esp8266Repository.autoJoinEnabledKey)) == 'true';
+      if (!autoJoin) return;
+
+      if (oldSsid.isNotEmpty && (oldSsid != ssid || oldPass != password)) {
+        await NetworkBindingService.removeModuleWifiSuggestion(
+          ssid: oldSsid,
+          password: oldPass,
+        );
+      }
+
+      await NetworkBindingService.suggestModuleWifi(
+        ssid: ssid,
+        password: password,
+      );
+    } catch (_) {
+      // Sync is best-effort: the module save itself already succeeded.
+    }
   }
 
   Future<void> _saveSpeedLimit() async {

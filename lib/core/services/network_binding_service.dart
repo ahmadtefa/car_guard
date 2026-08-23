@@ -83,4 +83,49 @@ class NetworkBindingService {
       await _channel.invokeMethod<bool>('unpairModuleWifi');
     } catch (_) {}
   }
+
+  /// Registers the module network with the SYSTEM (WifiNetworkSuggestion,
+  /// Android 10+) so the phone auto-joins it like any saved network —
+  /// after the user approves the one-time Android prompt, joining is
+  /// automatic whenever the module AP is in range, even after reboots.
+  ///
+  /// Unlike [pairWithModuleWifi] (temporary app-scoped link), this changes
+  /// nothing about routing promises: it simply teaches Android the network.
+  /// Re-registering the same credentials is an idempotent update.
+  static Future<bool> suggestModuleWifi({
+    required String ssid,
+    String password = '',
+  }) async {
+    if (!_supported) return false;
+
+    try {
+      final ok = await _channel.invokeMethod<bool>(
+        'suggestModuleWifi',
+        <String, String>{'ssid': ssid, 'password': password},
+      );
+      return ok ?? false;
+    } catch (e) {
+      debugPrint('WIFI SUGGESTION FAILED: $e');
+      return false;
+    }
+  }
+
+  /// Removes the system-level auto-join registration.
+  static Future<bool> removeModuleWifiSuggestion({
+    required String ssid,
+    String password = '',
+  }) async {
+    if (!_supported) return false;
+
+    try {
+      final ok = await _channel.invokeMethod<bool>(
+        'removeModuleWifiSuggestion',
+        <String, String>{'ssid': ssid, 'password': password},
+      );
+      return ok ?? false;
+    } catch (e) {
+      debugPrint('WIFI SUGGESTION REMOVE FAILED: $e');
+      return false;
+    }
+  }
 }

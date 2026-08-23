@@ -29,6 +29,7 @@ class _DevicePairingSectionState
   final _passController = TextEditingController();
 
   bool _pairing = false;
+  bool _autoJoin = false;
   bool _busy = false;
 
   @override
@@ -49,6 +50,8 @@ class _DevicePairingSectionState
 
     final enabled =
         (await storage.read(Esp8266Repository.pairingEnabledKey)) == 'true';
+    final autoJoin =
+        (await storage.read(Esp8266Repository.autoJoinEnabledKey)) == 'true';
     final ssid =
         await storage.read(Esp8266Repository.pairingSsidKey) ?? 'CarGuard';
     final pass = await storage.read(Esp8266Repository.pairingPassKey) ?? '';
@@ -57,6 +60,7 @@ class _DevicePairingSectionState
 
     setState(() {
       _pairing = enabled;
+      _autoJoin = autoJoin;
       _ssidController.text = ssid;
       _passController.text = pass;
     });
@@ -157,6 +161,65 @@ class _DevicePairingSectionState
     });
   }
 
+  /// System-level auto-join (WifiNetworkSuggestion): after a one-time
+  /// Android approval the phone joins the module network on its own,
+  /// exactly like any other saved Wi-Fi network.
+  Future<void> _setAutoJoin(bool enabled) async {
+    final l = ref.read(l10nProvider);
+    final storage = ref.read(storageServiceProvider);
+
+    final ssid = _ssidController.text.trim();
+    final password = _passController.text;
+
+    if (ssid.isEmpty) return;
+
+    setState(() => _busy = true);
+
+    if (enabled) {
+      final ok = await NetworkBindingService.suggestModuleWifi(
+        ssid: ssid,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _busy = false;
+        if (ok) _autoJoin = true;
+      });
+
+      if (ok) {
+        // The same fields identify the module network for both features —
+        // keep the stored credentials in sync so the auto-reapply on the
+        // next app start registers exactly what the user sees here.
+        await storage.write(Esp8266Repository.pairingSsidKey, ssid);
+        await storage.write(Esp8266Repository.pairingPassKey, password);
+        await storage.write(Esp8266Repository.autoJoinEnabledKey, 'true');
+        _snack(l.autoJoinApprovalNote);
+      } else {
+        _snack(l.autoJoinFailed);
+      }
+      return;
+    }
+
+    // Turning auto-join off is best-effort: a missing suggestion is a
+    // harmless no-op, so the switch always settles to OFF.
+    await NetworkBindingService.removeModuleWifiSuggestion(
+      ssid: ssid,
+      password: password,
+    );
+    await storage.write(Esp8266Repository.autoJoinEnabledKey, 'false');
+
+    if (!mounted) return;
+
+    setState(() {
+      _busy = false;
+      _autoJoin = false;
+    });
+
+    _snack(l.settingsSaved);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings =
@@ -175,7 +238,15 @@ class _DevicePairingSectionState
               ? null
               : (value) => value ? _startPairing() : _stopPairing(),
         ),
-        if (_pairing) ...[
+        SwitchListTile(
+          title: Text(l.autoJoinTitle),
+          subtitle: Text(l.autoJoinInfo),
+          value: _autoJoin,
+          onChanged: (settings.demoModeEnabled || _busy)
+              ? null
+              : (value) => _setAutoJoin(value),
+        ),
+        if (_pairing || _autoJoin) ...[
           AppTextField(
             controller: _ssidController,
             labelText: l.ssidLabel,

@@ -239,6 +239,18 @@ class AppL10n {
   String get pairingNeedsGps => isAr
       ? 'شغّل خدمة الموقع (GPS) الأول — أندرويد مش بيسمح بالاتصال المباشر وهي مقفولة.'
       : 'Turn on Location services first — Android blocks direct pairing while they are off.';
+  String get autoJoinTitle => isAr
+      ? 'اتصال تلقائي بشبكة الجهاز'
+      : 'Auto-join module Wi-Fi';
+  String get autoJoinInfo => isAr
+      ? 'الموبايل يوصّل على شبكة الجهاز لوحده أول ما يلاقيها — زي أي شبكة محفوظة. أندرويد هيطلب موافقتك مرة واحدة بس.'
+      : 'The phone joins the module network on its own whenever it is in range — like any saved network. Android asks for approval once.';
+  String get autoJoinApprovalNote => isAr
+      ? 'اتسجّلت الشبكة — لو ظهر إشعار موافقة من أندرويد اختر "اتصال" مرة واحدة.'
+      : 'Network registered — if Android shows an approval notification, tap "Connect" once.';
+  String get autoJoinFailed => isAr
+      ? 'تعذر تسجيل الشبكة عند النظام — جرّب تاني.'
+      : 'Could not register the network with the system — try again.';
   String get buzzerMuted =>
       isAr ? 'تم كتم الصفارة على الجهاز' : 'Buzzer muted on the module';
   String get fanTestStarted =>
