@@ -17,7 +17,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final sub = container.listen(tripProvider, (_, __) {});
+    final sub = container.listen(tripProvider, (_, _) {});
     addTearDown(sub.close);
 
     await Future<void>.delayed(const Duration(milliseconds: 50));

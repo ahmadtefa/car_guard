@@ -8,7 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
-import '../../../core/providers/device_status_provider.dart';
+
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/providers/alarm_provider.dart';

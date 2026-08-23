@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,6 +166,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
 
     final granted = await _askDemoCode(l);
+
+    if (!mounted) return;
 
     if (granted) {
       await _save(_current.copyWith(demoModeEnabled: true));
