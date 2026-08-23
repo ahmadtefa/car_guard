@@ -60,6 +60,19 @@ class TripNotifier extends Notifier<TripState> {
   StreamSubscription<Position>? _sub;
   final GpsTripFilter _filter = GpsTripFilter();
 
+  /// Watches location-service toggles so the tracker (re)starts when GPS
+  /// is switched on after the app was launched.
+  StreamSubscription<ServiceStatus>? _serviceStatusSub;
+
+  /// Fires when no accepted fix arrived for [_gpsSilenceTimeout] — marks
+  /// the feed stale instead of showing the last speed forever. Never
+  /// touches the odometer value.
+  Timer? _gpsWatchdog;
+
+  /// How long the GPS may stay silent before the display stops trusting
+  /// the last reading.
+  static const Duration _gpsSilenceTimeout = Duration(seconds: 6);
+
   bool _backgroundServiceStarted = false;
 
   /// The saved odometer is loaded only once per session — later [start]
@@ -73,7 +86,12 @@ class TripNotifier extends Notifier<TripState> {
 
   @override
   TripState build() {
-    ref.onDispose(() => _sub?.cancel());
+    _watchLocationService();
+    ref.onDispose(() {
+      _sub?.cancel();
+      _gpsWatchdog?.cancel();
+      _serviceStatusSub?.cancel();
+    });
     // Fire and forget: restore the saved odometer first, then the GPS
     // stream populates the state asynchronously.
     Future<void>.microtask(() async {
@@ -81,6 +99,36 @@ class TripNotifier extends Notifier<TripState> {
       await start();
     });
     return const TripState();
+  }
+
+  /// Subscribes once to location-service toggles, so enabling GPS after
+  /// launch restarts the tracker instead of leaving the cards dead until
+  /// the next app start.
+  void _watchLocationService() {
+    if (_serviceStatusSub != null) {
+      return;
+    }
+
+    try {
+      _serviceStatusSub = Geolocator.getServiceStatusStream().listen(
+        _onServiceStatus,
+        onError: (Object error) {
+          debugPrint('GPS SERVICE STATUS UNAVAILABLE: $error');
+        },
+      );
+    } catch (_) {
+      // Platform without the plugin (tests, desktop) — nothing to watch.
+    }
+  }
+
+  void _onServiceStatus(ServiceStatus status) {
+    if (status == ServiceStatus.enabled) {
+      // Safe to call repeatedly: the old stream is replaced.
+      unawaited(start());
+    } else {
+      _gpsWatchdog?.cancel();
+      state = state.copyWith(available: false, hasFix: false);
+    }
   }
 
   /// Brings back the distance saved by [_persist], so closing and reopening
@@ -109,6 +157,8 @@ class TripNotifier extends Notifier<TripState> {
   Future<void> start() async {
     _sub?.cancel();
     _sub = null;
+    _gpsWatchdog?.cancel();
+    _gpsWatchdog = null;
     _filter.reset();
 
     final LocationSettings settings;
@@ -152,9 +202,12 @@ class TripNotifier extends Notifier<TripState> {
     _sub = Geolocator.getPositionStream(locationSettings: settings).listen(
       _onFix,
       onError: (_) {
+        _gpsWatchdog?.cancel();
         state = state.copyWith(hasFix: false);
       },
     );
+
+    _armGpsWatchdog();
   }
 
   void _onFix(Position position) {
@@ -162,6 +215,8 @@ class TripNotifier extends Notifier<TripState> {
 
     if (reading == null) {
       // Rejected as noise; keep showing the last trustworthy reading.
+      // The watchdog is deliberately NOT rearmed: if only garbage fixes
+      // arrive, the feed must go stale instead of clinging to old data.
       return;
     }
 
@@ -171,7 +226,20 @@ class TripNotifier extends Notifier<TripState> {
       hasFix: true,
     );
 
+    _armGpsWatchdog();
+
     unawaited(_persist(distanceChanged: reading.stepKm > 0));
+  }
+
+  /// Rearms the stale-feed watchdog on every accepted fix. When GPS goes
+  /// silent (tunnel, signal loss, a throttled stream) the cards switch to
+  /// "no fix" instead of clinging to a frozen speed — the odometer value
+  /// itself is never touched.
+  void _armGpsWatchdog() {
+    _gpsWatchdog?.cancel();
+    _gpsWatchdog = Timer(_gpsSilenceTimeout, () {
+      state = state.copyWith(hasFix: false);
+    });
   }
 
   /// Zeroes the trip distance; speed keeps streaming.
