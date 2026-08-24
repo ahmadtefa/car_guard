@@ -30,6 +30,25 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Android Auto: entry point of the car UI (see .car.CarGuardCarAppService). -->
+        <service
+            android:name=".car.CarGuardCarAppService"
+            android:exported="true"
+            android:label="Car Guard">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <!-- POI is the closest published category for car status apps;
+                     required so the app shows up in the Android Auto launcher. -->
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+
+        <!-- Android Auto / Android Automotive descriptor: the app ships a
+             template-based car UI. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
