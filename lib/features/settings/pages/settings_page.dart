@@ -262,9 +262,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         child: ListView(
           padding: AppSpacing.padding,
           children: [
-            const DevicePairingSection(),
-
+            // 1) Module settings first, per the layout request.
             const ModuleSettingsSection(),
+            const SizedBox(height: AppSpacing.xl),
+
+            // 2) Dashboard style right below it.
+            SectionTitle(title: l.dashboardStyle),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final name in AppSettings.dashboardStyleNames)
+                    ChoiceChip(
+                      label: Text(_styleLabel(name, l)),
+                      selected: settings.dashboardStyleName == name,
+                      onSelected: (_) => _save(
+                        settings.copyWith(dashboardStyleName: name),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+
+            // 3) Everything else stays in its previous relative order.
+            const DevicePairingSection(),
             const SizedBox(height: AppSpacing.xl),
 
             SectionTitle(
@@ -289,26 +313,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             SecondaryButton(
               onPressed: settings.demoModeEnabled ? null : _restartDevice,
               child: Text(l.restartDevice),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-
-            SectionTitle(title: l.dashboardStyle),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final name in AppSettings.dashboardStyleNames)
-                    ChoiceChip(
-                      label: Text(_styleLabel(name, l)),
-                      selected: settings.dashboardStyleName == name,
-                      onSelected: (_) => _save(
-                        settings.copyWith(dashboardStyleName: name),
-                      ),
-                    ),
-                ],
-              ),
             ),
             const SizedBox(height: AppSpacing.xl),
 
