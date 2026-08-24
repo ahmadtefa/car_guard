@@ -20,19 +20,29 @@ class TripReading {
 /// fix passes through quality gates and a small Kalman filter over the
 /// position, and distance accumulates from the *filtered* positions only.
 class GpsTripFilter {
-  /// Fixes with worse horizontal accuracy than this are pure noise.
-  static const double maxAccuracyM = 20;
+  /// Fixes with worse horizontal accuracy than this are rejected.
+  ///
+  /// Raised from 20 m so ordinary phone GPS in slow/urban driving (where
+  /// accuracy often drifts to 25-30 m) still feeds the speedometer instead
+  /// of going silent at crawling speeds.
+  static const double maxAccuracyM = 35;
 
   /// Sensor-reported speed is trusted when its own accuracy is unknown (0)
   /// or at least this good; otherwise speed comes from the filtered track.
-  static const double maxSpeedAccuracyMs = 2.5;
+  ///
+  /// Relaxed from 2.5 m/s so Doppler speed (the most responsive source at
+  /// low speeds) is used more often instead of being discarded.
+  static const double maxSpeedAccuracyMs = 4.0;
 
   /// A "dead" sensor speed (0.0 while actually driving) is overridden by
   /// the filtered track only once it shows at least this much motion
   /// sustained across [overrideStreakFixes] fixes in a row — on BOTH the
   /// filtered track and the raw fixes (the raw check also stops the
   /// Kalman catch-up after hard braking from faking speed at a standstill).
-  static const double deadSensorOverrideMs = 2.8;
+  ///
+  /// Lowered from 2.8 m/s (~10 km/h) so 3-7 km/h crawling in traffic is
+  /// picked up after a couple of fixes instead of showing 0 the whole time.
+  static const double deadSensorOverrideMs = 0.8;
 
   /// How many fixes in a row must beat [deadSensorOverrideMs] before a
   /// silent/untrusted sensor is overruled by the filtered track. A single
@@ -44,10 +54,13 @@ class GpsTripFilter {
 
   /// Below this speed everything reads as "standing still" — this is what
   /// stops parked GPS jitter from accumulating phantom distance.
-  static const double stopBandKmh = 1.5;
+  ///
+  /// Kept small (under 1 km/h) so real crawling (3-15 km/h) is never
+  /// clamped to zero; parked jitter is a few cm/s, well below this.
+  static const double stopBandKmh = 0.8;
 
   /// Filtered steps smaller than this are round-off, not motion.
-  static const double minStepM = 0.7;
+  static const double minStepM = 0.5;
 
   /// Kalman process noise (m²/s added to the variance per second): how fast
   /// we expect the true position to drift between fixes. Higher tracks
@@ -61,16 +74,23 @@ class GpsTripFilter {
   /// attack/release on clear changes and a gentle factor for small wobble,
   /// so noise stays invisible while the response feels near-real-time.
   ///
-  /// At the typical ~1 fix/s cadence, [_smoothingFastUp]/
-  /// [_smoothingFastDown] cover ~90% of a step change within one or two
-  /// fixes; [_smoothingSlow] keeps a steady reading from flickering.
-  static const double _smoothingSlow = 0.35;
-  static const double _smoothingFastUp = 0.85;
-  static const double _smoothingFastDown = 0.9;
+  /// The slow factors were raised (from 0.35 to 0.55/0.65) because the
+  /// previous values made the displayed speed lag 1-2 fixes behind, which
+  /// is exactly the "تأخير" (delay) complaint. The low-speed region below
+  /// [_lowSpeedKmh] gets an even higher alpha in [_smoothSpeed] so crawling
+  /// in traffic shows up immediately.
+  static const double _smoothingSlowUp = 0.55;
+  static const double _smoothingSlowDown = 0.65;
+  static const double _smoothingFastUp = 0.9;
+  static const double _smoothingFastDown = 0.95;
+
+  /// Speed (km/h) under which the display prioritizes responsiveness over
+  /// smoothing. This is the region where the gauge used to feel dead.
+  static const double _lowSpeedKmh = 25;
 
   /// A one-fix change of at least this size counts as "clear" and is
   /// followed with the fast factors above instead of the slow one.
-  static const double _fastChangeKmh = 5;
+  static const double _fastChangeKmh = 3;
 
   // -- Local equirectangular projection around the first fix --------------
 
@@ -178,7 +198,9 @@ class GpsTripFilter {
     final sensorMs = _sensorSpeedMs(position);
     final double metersPerSecond;
 
-    if (sensorMs >= 0.5) {
+    // Trust any non-trivial Doppler speed. Previously 0.5 m/s (~1.8 km/h)
+    // clipped the first moments of motion; lowered so ~1 km/h registers.
+    if (sensorMs >= 0.25) {
       metersPerSecond = sensorMs;
       _derivedMotionStreak = 0;
     } else {
@@ -231,9 +253,10 @@ class GpsTripFilter {
 
   /// Applies the dead-band and an adaptive EMA: clear changes (|delta| >=
   /// [_fastChangeKmh]) are followed fast — braking even faster than
-  /// acceleration — while small wobble keeps the gentle factor so the
-  /// number stays steady. [snap] jumps straight to the value (used for
-  /// the first fix and after long gaps).
+  /// acceleration — while small wobble keeps a moderate factor. Below
+  /// [_lowSpeedKmh] the alpha is raised further so the crawl region
+  /// responds instantly. [snap] jumps straight to the value (used for the
+  /// first fix and after long gaps).
   double _smoothSpeed(double metersPerSecond, {bool snap = false}) {
     double kmh = (metersPerSecond * 3.6).clamp(0, maxPlausibleKmh);
 
@@ -245,9 +268,20 @@ class GpsTripFilter {
       _smoothedSpeedKmh = kmh;
     } else {
       final deltaKmh = kmh - _smoothedSpeedKmh;
-      final alpha = deltaKmh.abs() >= _fastChangeKmh
-          ? (deltaKmh > 0 ? _smoothingFastUp : _smoothingFastDown)
-          : _smoothingSlow;
+      final accelerating = deltaKmh > 0;
+      final alphaFast = accelerating
+          ? _smoothingFastUp
+          : _smoothingFastDown;
+      final alphaSlow = accelerating
+          ? _smoothingSlowUp
+          : _smoothingSlowDown;
+      var alpha = deltaKmh.abs() >= _fastChangeKmh ? alphaFast : alphaSlow;
+
+      // Low-speed priority: trust new readings much more below ~25 km/h so
+      // crawling / stop-and-go traffic shows immediately instead of lagging.
+      if (kmh < _lowSpeedKmh) {
+        alpha = math.max(alpha, accelerating ? 0.8 : 0.9);
+      }
       _smoothedSpeedKmh += alpha * deltaKmh;
     }
 
