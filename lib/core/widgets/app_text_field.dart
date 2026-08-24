@@ -16,6 +16,7 @@ class AppTextField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.enabled = true,
+    this.onSubmitted,
   });
 
   /// Optional controller for the underlying text field.
@@ -42,6 +43,9 @@ class AppTextField extends StatelessWidget {
   /// Whether the field is enabled.
   final bool enabled;
 
+  /// Called when the user submits the field (keyboard done button).
+  final ValueChanged<String>? onSubmitted;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -51,6 +55,7 @@ class AppTextField extends StatelessWidget {
         obscureText: obscureText,
         keyboardType: keyboardType,
         enabled: enabled,
+        onSubmitted: onSubmitted,
         decoration: InputDecoration(
           labelText: labelText,
           hintText: hintText,

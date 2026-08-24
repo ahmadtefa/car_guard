@@ -5,6 +5,13 @@ abstract class ConnectivityService {
   Future<bool> isConnected();
 
   Future<String> connectionType();
+
+  /// Emits `true` whenever at least one network interface is available
+  /// and `false` as soon as all of them disappear (e.g. WiFi turned off).
+  ///
+  /// Used to detect network drops immediately, because a dead interface
+  /// never notifies open sockets by itself.
+  Stream<bool> get connectivityStream;
 }
 
 class ConnectivityServiceImpl implements ConnectivityService {
@@ -33,6 +40,15 @@ class ConnectivityServiceImpl implements ConnectivityService {
     }
 
     return 'none';
+  }
+
+  @override
+  Stream<bool> get connectivityStream {
+    return _connectivity.onConnectivityChanged.map(
+      (results) => results.any(
+        (result) => result != ConnectivityResult.none,
+      ),
+    );
   }
 }
 

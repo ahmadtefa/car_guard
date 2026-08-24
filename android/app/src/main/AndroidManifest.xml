@@ -1,8 +1,56 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Networking is required to reach the ESP8266 module. Without the
+         INTERNET permission release builds silently fail every request. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Lets the app pin its own traffic to the module Wi-Fi network while
+         the phone keeps internet over mobile data (bindProcessToNetwork). -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- Multicast reception (mDNS) — some vendors filter multicast frames
+         until a lock is held; this permission lets us acquire it. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Direct app-scoped pairing with the module AP (WifiNetworkSpecifier):
+         CHANGE_WIFI_STATE always; NEARBY_WIFI_DEVICES runtime on 13+;
+         fine location covers 10-12. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- GPS speed & trip cards. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+    <!-- Runtime permission required on Android 13+ for alert notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Background monitoring: keep the service alive with the screen off
+         (foreground service) and restart it after the phone reboots. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Keep-alive foreground service (device link + GPS in background). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <application
-        android:label="car_guard"
+        android:label="Car Guard"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic is required for the local ESP8266 module:
+             it speaks plain HTTP on the car's Wi-Fi network, and Android 9+
+             blocks cleartext traffic for the native stack by default. -->
+
+        <!-- Declares that this app provides an Android Auto experience. Without
+             this meta-data (and the referenced XML) the Android Auto host never
+             binds to CarGuardCarAppService and the app does not show up on the
+             head unit — this was missing and is why the app did not work on
+             Android Auto before. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,11 +73,48 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Keeps the device connection and the GPS trip tracking alive
+             while the app is in the background. -->
+        <service
+            android:name=".CarGuardForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Android 14+: foreground services must be declared with their
+             type explicitly or startForeground() is rejected. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Android Auto front-end: live readings on the head unit.
+             The IOT category is the right fit for device-monitoring apps and
+             is allowed both for sideloading and on Google Play. -->
+        <service
+            android:name=".CarGuardCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
+
+        <!-- Home screen widget 2×1: TEMP / BATT / FAN -->
+        <receiver
+            android:name=".CarGuardWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_car_guard_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
