@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers/widget_updater_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../features/analysis/providers/analysis_provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 import 'router.dart';
 
@@ -17,6 +18,9 @@ class CarGuardApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // يفعّل تحديث ويدجت الشاشة الرئيسية تلقائياً مع كل قراءة
     ref.watch(widgetUpdaterProvider);
+    // يشغّل محرك التحليل المحلي من أول التشغيل (سجل التنبيهات + الإشعارات
+    // المحلية للحالات الخطرة) من غير ما يعيد بناء الواجهة مع كل تحديث.
+    ref.listen(analysisProvider, (_, __) {});
     final router = ref.watch(appRouterProvider);
 
     final settings = ref.watch(settingsProvider).value;

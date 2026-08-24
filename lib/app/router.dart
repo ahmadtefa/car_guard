@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../features/analysis/pages/alerts_analysis_page.dart';
 import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/device/pages/advanced_settings_page.dart';
 import '../features/device/pages/ota_update_page.dart';
@@ -14,6 +15,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'dashboard',
         builder: (context, state) =>
             const DashboardPage(),
+      ),
+
+      GoRoute(
+        path: '/alerts-analysis',
+        name: 'alerts-analysis',
+        builder: (context, state) =>
+            const AlertsAnalysisPage(),
       ),
 
       GoRoute(

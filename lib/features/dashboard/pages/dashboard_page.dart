@@ -15,6 +15,7 @@ import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
+import '../../analysis/widgets/analysis_entry_card.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
@@ -389,6 +390,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     // GPS speed + trip distance, side by side.
                     const TripCards(),
+
+                    const SizedBox(height: AppSpacing.md),
+
+                    // زر صفحة التنبيهات والتحليل.
+                    const AnalysisEntryCard(),
 
                     const SizedBox(height: AppSpacing.md),
 

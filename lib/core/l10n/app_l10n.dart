@@ -315,6 +315,156 @@ class AppL10n {
       ? '+$count تنبيه إضافي'
       : '+$count more alert${count > 1 ? 's' : ''}';
 
+  // ---------- Alerts & Analysis page ----------
+  String get alertsAnalysis => isAr ? 'التنبيهات والتحليل' : 'Alerts & Analysis';
+  String get alertsAnalysisSubtitle => isAr
+      ? 'حالة العربية، التوقعات، وسجل التنبيهات.'
+      : 'Vehicle condition, predictions and alert history.';
+
+  String get carConditionTitle => isAr ? 'حالة العربية' : 'Vehicle condition';
+  String get conditionNormalSub => isAr
+      ? 'كل القراءات ضمن المعدل المعتاد — العربية تعمل بشكل طبيعي.'
+      : 'All readings are within their usual range — the car runs normally.';
+  String get conditionAttentionSub => isAr
+      ? 'في قراءة غير معتادة — راقب العدادات.'
+      : 'A reading looks unusual — keep an eye on the gauges.';
+  String get conditionWarningSub => isAr
+      ? 'في مؤشر يحتاج انتباهك قريباً — راجع التنبيهات بالأسفل.'
+      : 'An indicator needs your attention soon — review the alerts below.';
+  String get conditionDangerSub => isAr
+      ? 'خطر محتمل — تصرف فوراً وبأمان.'
+      : 'Possible danger — act now, safely.';
+
+  String get sevNotice => isAr ? 'ملاحظة' : 'Notice';
+  String get sevWarning => isAr ? 'تحذير' : 'Warning';
+  String get sevDanger => isAr ? 'خطر' : 'Danger';
+
+  String get currentAlertsTitle =>
+      isAr ? 'التنبيهات الحالية' : 'Current alerts';
+  String get noAlertsNow => isAr
+      ? 'لا توجد تنبيهات نشطة حالياً.'
+      : 'No active alerts right now.';
+
+  String get voltageUnstableTitle =>
+      isAr ? 'الجهد غير مستقر' : 'Unstable voltage';
+  String get voltageUnstableMessage => isAr
+      ? 'في تغيرات غير معتادة في قراءة الجهد خلال آخر فترة قصيرة.'
+      : 'Unusual voltage swings were detected over the last short window.';
+  String get fanLongRunTitle =>
+      isAr ? 'المروحة تعمل باستمرار' : 'Fan running non-stop';
+  String get fanLongRunMessage => isAr
+      ? 'المروحة شغالة لفترة أطول من المعتاد — راقب عداد الحرارة.'
+      : 'The fan has been running longer than usual — watch the temperature gauge.';
+  String get connectionDrivingTitle => isAr
+      ? 'انقطع الاتصال أثناء القيادة'
+      : 'Connection lost while driving';
+  String get connectionDrivingMessage => isAr
+      ? 'الاتصال بالجهاز اتقطع والعربية كانت متحركة.'
+      : 'The connection dropped while the car was moving.';
+
+  String get behaviorAnalysisTitle =>
+      isAr ? 'تحليل سلوك العربية' : 'Behaviour analysis';
+  String get behaviorAnalysisSub => isAr
+      ? 'ملخص الجلسة الحالية من بياناتك.'
+      : 'Summary of the current session from your own data.';
+  String get avgTempStat => isAr ? 'متوسط الحرارة' : 'Avg temperature';
+  String get maxTempStat => isAr ? 'أعلى حرارة' : 'Max temperature';
+  String get tempRiseRateStat => isAr ? 'معدل تغير الحرارة' : 'Temp change rate';
+  String get cPerMinUnit => isAr ? '°م/د' : '°C/min';
+  String get warningCrossingsStat =>
+      isAr ? 'تجاوزات حد التحذير' : 'Limit crossings';
+  String get fanOnTimeStat => isAr ? 'مدة عمل المروحة' : 'Fan run time';
+  String get avgVoltStat => isAr ? 'متوسط الجهد' : 'Avg voltage';
+  String get minVoltStat => isAr ? 'أقل جهد' : 'Min voltage';
+  String get maxVoltStat => isAr ? 'أعلى جهد' : 'Max voltage';
+  String get voltDeltaStat => isAr ? 'تغير الجهد (90 ث)' : 'Voltage change (90s)';
+  String get abnormalChangesStat =>
+      isAr ? 'تغيرات غير طبيعية' : 'Abnormal changes';
+
+  String get vsUsualTitle => isAr ? 'مقارنة بالمعتاد' : 'Compared to usual';
+  String get currentTempLabel => isAr ? 'الحرارة الحالية' : 'Current temperature';
+  String get usualTempLabel => isAr ? 'المتوسط المعتاد' : 'Usual average';
+  String get currentVoltLabel => isAr ? 'الجهد الحالي' : 'Current voltage';
+  String tempHigherThanUsual(String diff) => isAr
+      ? 'درجة الحرارة أعلى من المعتاد بـ $diff°م.'
+      : 'Temperature is $diff °C higher than usual.';
+  String tempLowerThanUsual(String diff) => isAr
+      ? 'درجة الحرارة أقل من المعتاد بـ $diff°م.'
+      : 'Temperature is $diff °C lower than usual.';
+  String voltHigherThanUsual(String diff) => isAr
+      ? 'الجهد أعلى من المعتاد بـ $diff فولت.'
+      : 'Voltage is $diff V higher than usual.';
+  String voltLowerThanUsual(String diff) => isAr
+      ? 'الجهد أقل من المعتاد بـ $diff فولت.'
+      : 'Voltage is $diff V lower than usual.';
+  String get withinUsual => isAr
+      ? 'القراءات الحالية قريبة من معدلاتها المعتادة.'
+      : 'Current readings are close to their usual averages.';
+  String get baselineCollecting => isAr
+      ? 'لسه بنجمع بيانات عن النمط المعتاد لعربيتك — المقارنة بتتاح بعد قيادة كافية.'
+      : 'Still learning the usual pattern of your car — comparison unlocks after enough driving.';
+  String get insufficientData => isAr
+      ? 'بيانات غير كافية للتحليل'
+      : 'Not enough data for analysis';
+
+  String get predictionsTitle => isAr ? 'التوقعات' : 'Predictions';
+  String get predictionsDisclaimer => isAr
+      ? 'توقعات إحصائية من بيانات عربيتك — مؤشرات للمساعدة وليست تشخيصاً مؤكداً للأعطال.'
+      : 'Statistical hints from your car data — for guidance only, not a confirmed diagnosis.';
+  String predOverheatLikely(String minutes) => isAr
+      ? 'احتمال وصول الحرارة لحد التنبيه خلال حوالي $minutes دقيقة — يُنصح بالمراقبة.'
+      : 'The temperature may reach the alert limit in about $minutes min — monitoring advised.';
+  String predApproachingLimit(String diff) => isAr
+      ? 'مؤشر اقتراب الحرارة من حد التنبيه — متبقٍ حوالي $diff°م.'
+      : 'The temperature looks close to the alert limit — about $diff °C left.';
+  String predTempRisingFast(String rate) => isAr
+      ? 'الحرارة ترتفع بمعدل $rate°م/د — قد يشير ذلك إلى نمط أسرع من المعتاد.'
+      : 'Temperature is rising at $rate °C/min — this may indicate a faster-than-usual pattern.';
+  String predUnusualVoltage(String diff) => isAr
+      ? 'فرق جهد بحوالي $diff فولت عن المعتاد — قد يشير إلى نمط شحن غير معتاد.'
+      : 'A voltage gap of about $diff V from usual — may indicate an unusual charging pattern.';
+  String predCoolingCheck(String count) => isAr
+      ? 'تكرار $count من حالات الضغط على التبريد — يُنصح بالمراقبة وفحص نظام التبريد عند الإمكان.'
+      : '$count cooling-stress episodes — monitoring advised, and have the cooling system checked when possible.';
+  String get predHeatLowSpeed => isAr
+      ? 'ارتفاع الحرارة يتكرر أكثر عند السرعات المنخفضة أو الزحمة — يُنصح بالمراقبة.'
+      : 'High temperature repeats mostly at low speeds or in traffic — monitoring advised.';
+  String confidenceLabel(int percent) =>
+      isAr ? 'درجة الثقة: $percent%' : 'Confidence: $percent%';
+  String get noPredictions => isAr
+      ? 'لا توجد مؤشرات حالياً — التوقعات تظهر مع تراكم البيانات.'
+      : 'No indicators yet — predictions appear as data accumulates.';
+
+  String get historyTitle => isAr ? 'سجل التنبيهات' : 'Alert history';
+  String get noAlertsYet => isAr
+      ? 'لا توجد تنبيهات مسجلة بعد.'
+      : 'No alerts recorded yet.';
+  String get clearHistory => isAr ? 'مسح السجل' : 'Clear history';
+  String get clearHistoryConfirmTitle =>
+      isAr ? 'مسح سجل التنبيهات؟' : 'Clear alert history?';
+  String get clearHistoryConfirmBody => isAr
+      ? 'سيتم حذف كل التنبيهات المسجلة على هذا الجهاز — لا يمكن التراجع.'
+      : 'All alerts recorded on this device will be deleted — this cannot be undone.';
+  String get clearAction => isAr ? 'مسح' : 'Clear';
+  String get escalatedTag => isAr ? 'مُصعّد' : 'Escalated';
+  String occurrencesLabel(int count) =>
+      isAr ? 'تكرر: $count' : 'Fired $count×';
+
+  String get tripStatsTitle =>
+      isAr ? 'إحصائيات الرحلة الحالية' : 'Current trip stats';
+  String get avgSpeedStat => isAr ? 'متوسط السرعة' : 'Avg speed';
+  String get maxSpeedStat => isAr ? 'أقصى سرعة' : 'Top speed';
+  String get tripDurationLabel => isAr ? 'مدة الرحلة' : 'Trip duration';
+
+  String get unitVolt => isAr ? 'فولت' : 'V';
+  String get celsiusUnit => isAr ? '°م' : '°C';
+  String get tempShort => isAr ? 'الحرارة' : 'Temp';
+  String get voltShort => isAr ? 'الجهد' : 'Volt';
+  String get speedShort => isAr ? 'السرعة' : 'Speed';
+  String get minutesShort => isAr ? 'د' : 'm';
+  String get secondsShort => isAr ? 'ث' : 's';
+  String get hoursShort => isAr ? 'س' : 'h';
+
   // ---------- Settings page ----------
   String get settings => isAr ? 'الإعدادات' : 'Settings';
   String get advancedModuleSettings =>
