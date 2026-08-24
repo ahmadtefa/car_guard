@@ -2,6 +2,29 @@
 
 A new Flutter project.
 
+## Android Auto 🚗
+
+The app ships a native car UI (Android for Cars App Library) that shows the
+live device status (engine temperature, battery voltage, coolant level, fan
+state) on the Android Auto display.
+
+To try it locally with the **Desktop Head Unit (DHU)** simulator:
+
+```bash
+flutter run                                            # install the app on a USB-debugged phone
+./scripts/android-auto/run-dhu.sh                     # macOS / Linux (run-dhu.ps1 on Windows)
+```
+
+No physical phone? Use the emulator-only flow:
+
+```bash
+./scripts/android-auto/setup-emulator.sh --boot --aa-apk android-auto.apk   # one-time setup
+flutter run
+./scripts/android-auto/run-dhu.sh
+```
+
+See [docs/android_auto.md](docs/android_auto.md) for the full Arabic guide.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Declares the car capabilities of the app to Android Auto / Android
+    Automotive OS. "template" means the app provides its car UI through the
+    Android for Cars App Library (CarAppService + Screen templates).
+-->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>
