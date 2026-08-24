@@ -15,6 +15,14 @@ flutter run                                            # install the app on a US
 ./scripts/android-auto/run-dhu.sh                     # macOS / Linux (run-dhu.ps1 on Windows)
 ```
 
+No physical phone? Use the emulator-only flow:
+
+```bash
+./scripts/android-auto/setup-emulator.sh --boot --aa-apk android-auto.apk   # one-time setup
+flutter run
+./scripts/android-auto/run-dhu.sh
+```
+
 See [docs/android_auto.md](docs/android_auto.md) for the full Arabic guide.
 
 ## Getting Started

@@ -80,6 +80,22 @@ if (-not $deviceLines) {
 # ---------------------------------------------------------------------------
 # 4. Tunnel + launch
 # ---------------------------------------------------------------------------
+# Best effort: try to start the head unit server on the phone/emulator
+# without the manual "tap the version 10 times" dance.
+$gearhead = & $Adb shell pm list packages 2>$null | Select-String "com.google.android.projection.gearhead"
+if ($gearhead) {
+  Write-Host "Trying to start the Android Auto head unit server via adb..."
+  & $Adb shell am startservice -W "com.google.android.projection.gearhead/com.google.android.projection.gearhead.companion.DeveloperHeadUnitNetworkService" 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    & $Adb shell am start-foreground-service "com.google.android.projection.gearhead/com.google.android.projection.gearhead.companion.DeveloperHeadUnitNetworkService" 2>$null
+  }
+}
+else {
+  Write-Host "Android Auto app not found on the device."
+  Write-Host "  * Physical phone: install it from Google Play, or"
+  Write-Host "  * Emulator: see 'emulator-only flow' in docs/android_auto.md."
+}
+
 Write-Host "Forwarding tcp:$Port -> device tcp:$Port ..."
 & $Adb forward "tcp:$Port" "tcp:$Port" | Out-Null
 

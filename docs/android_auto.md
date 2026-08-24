@@ -55,6 +55,8 @@ ESP8266 → WebSocket → Flutter (deviceStatusProvider → dashboardProvider)
 
 ## 4) خطوات التشغيل
 
+> **عندك طريقتين:** 📱 بموبايل حقيقي (أسهل وأسرع) — أو 💻 بالإيموليتور بس من غير موبايل (الطريقة تحت).
+
 ### الخطوة 1 — فعّل خيار الـ Head Unit Server على الموبايل (مرة واحدة)
 
 1. افتح تطبيق **Android Auto** على الموبايل.
@@ -88,6 +90,63 @@ flutter build apk --debug && adb install build/app/outputs/flutter-apk/app-debug
 adb forward tcp:5277 tcp:5277
 cd $ANDROID_HOME/extras/google/auto      # ويندوز: %LOCALAPPDATA%\Android\Sdk\extras\google\auto
 ./desktop-head-unit                      # ويندوز: desktop-head-unit.exe
+```
+
+> 💡 السكريبت كمان بيحاول يشغّل الـ Head Unit Server أوتوماتيك عن طريق adb — لو مانفع، هتضطر تعمل الخطوة 1 اليدوية مرة واحدة بس.
+
+---
+
+## 4.5) 💻 طريقة الإيموليتور بس (من غير موبايل حقيقي)
+
+طريقة مجرّبة ومظبوطة، مبنية على [التجربة دي](https://stackoverflow.com/questions/76482834/can-we-test-android-auto-purely-in-emulators-2023):
+
+### أولًا: Setup (مرة واحدة)
+
+```bash
+# macOS / Linux
+./scripts/android-auto/setup-emulator.sh
+
+# Windows (PowerShell)
+.\scripts\android-auto\setup-emulator.ps1
+```
+
+السكريبت ده بيركّب: platform-tools + emulator + صورة النظام
+`system-images;android-33;google_apis_playstore;x86_64` + الـ DHU،
+وبيعمل AVD جاهزة اسمها `CarGuard_Auto`.
+
+### ثانيًا: نزّل تطبيق Android Auto (نسخة x86_64)
+
+الإيموليتور مش بيجي فيه تطبيق Android Auto، ولا ينفع نجيبه من Play Store
+من غير تسجيل دخول. الحل: نزّله كـ APK يدويًا من
+[APKMirror — Android Auto](https://www.apkmirror.com/apk/google-inc/android-auto/)
+واختار **نسخة x86_64** (نسخ مجربة وشغالة: **12.4.642858** أو **11.5.641018** —
+خد بالك: النسخ الأحدث ممكن تتطلب صورة نظام أحدث).
+
+### ثالثًا: شغّل الإيموليتور وثبّت
+
+```bash
+./scripts/android-auto/setup-emulator.sh --boot --aa-apk android-auto.apk
+```
+
+(على ويندوز: `.\setup-emulator.ps1 -Boot -AaApk android-auto.apk`)
+
+### رابعًا: فعّل الـ Head Unit Server جوّه الإيموليتور (مرة واحدة)
+
+1. فعّل Developer options في الإيموليتور: Settings → About emulated device →
+   دوس على **Build number** 7 مرات.
+2. افتح **Settings → Connection preferences → Android Auto**.
+3. دوس على **Version and permissions / الإصدار** حوالي 10 مرات → هيقولك
+   إن وضع المطور اتفعّل.
+4. من قائمة ⋮ فوق يمين → **Developer settings** → **Start head unit server**.
+
+> ملحوظة: سكريبت `run-dhu` بيحاول يعمل الخطوة دي أوتوماتيك عن طريق adb،
+> لو مانفع اعملها بإيدك مرة واحدة.
+
+### خامسًا: شغّل التطبيق والمحاكي
+
+```bash
+flutter run                             # ثبّت Car Guard على الإيموليتور
+./scripts/android-auto/run-dhu.sh       # شاشة العربية! 🚗
 ```
 
 ### الخطوة 4 — افتح التطبيق من شاشة العربية

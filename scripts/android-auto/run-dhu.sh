@@ -86,6 +86,23 @@ fi
 # ---------------------------------------------------------------------------
 # 4. Tunnel + launch
 # ---------------------------------------------------------------------------
+# Best effort: try to start the head unit server on the phone/emulator
+# without the manual "tap the version 10 times" dance. On emulators with a
+# rooted adb shell this usually works; otherwise we print manual steps.
+GEARHEAD_INSTALLED="$("$ADB" shell pm list packages 2>/dev/null | grep -c 'com.google.android.projection.gearhead' || true)"
+if [[ "${GEARHEAD_INSTALLED:-0}" -gt 0 ]]; then
+  echo "🤖 Trying to start the Android Auto head unit server via adb…"
+  if ! "$ADB" shell am startservice -W \
+      com.google.android.projection.gearhead/com.google.android.projection.gearhead.companion.DeveloperHeadUnitNetworkService >/dev/null 2>&1; then
+    "$ADB" shell am start-foreground-service \
+      com.google.android.projection.gearhead/com.google.android.projection.gearhead.companion.DeveloperHeadUnitNetworkService >/dev/null 2>&1 || true
+  fi
+else
+  echo "ℹ️  Android Auto app not found on the device."
+  echo "   • Physical phone: install/update it from Google Play, or"
+  echo "   • Emulator: see 'emulator-only flow' in docs/android_auto.md."
+fi
+
 echo "🔌 Forwarding tcp:$PORT → device tcp:$PORT …"
 "$ADB" forward "tcp:$PORT" "tcp:$PORT"
 
