@@ -32,14 +32,6 @@ class AlertsAnalysisPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l.alertsAnalysis),
-        actions: [
-          if (analysis.history.isNotEmpty)
-            IconButton(
-              tooltip: l.clearHistory,
-              icon: const Icon(Icons.delete_sweep_outlined),
-              onPressed: () => _confirmClearHistory(context, ref, l),
-            ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -70,7 +62,7 @@ class AlertsAnalysisPage extends ConsumerWidget {
           _BaselineCard(analysis: analysis, status: status, l: l),
           const SizedBox(height: AppSpacing.md),
 
-          // 4) + 5) Predictions, each with its data-backed confidence.
+          // 4) Predictions — placed ABOVE the current-trip stats per request.
           SectionTitle(
             title: l.predictionsTitle,
             subtitle: l.predictionsDisclaimer,
@@ -84,19 +76,26 @@ class AlertsAnalysisPage extends ConsumerWidget {
             ),
           const SizedBox(height: AppSpacing.md),
 
-          // 6) Persisted alert history.
+          // 5) Current trip statistics — directly under the predictions.
+          SectionTitle(title: l.tripStatsTitle),
+          _TripStatsCard(trip: analysis.trip, l: l),
+          const SizedBox(height: AppSpacing.md),
+
+          // 6) Persisted alert history — the LAST section, with its own
+          //    clear button right beneath the list.
           SectionTitle(title: l.historyTitle),
           if (analysis.history.isEmpty)
             _EmptyNote(icon: Icons.history_toggle_off, text: l.noAlertsYet)
-          else
+          else ...[
             ...analysis.history.map(
               (entry) => _HistoryCard(entry: entry, l: l),
             ),
-          const SizedBox(height: AppSpacing.md),
-
-          // 7) Current trip statistics (GPS-based, only when available).
-          SectionTitle(title: l.tripStatsTitle),
-          _TripStatsCard(trip: analysis.trip, l: l),
+            const SizedBox(height: AppSpacing.sm),
+            _ClearHistoryButton(
+              label: l.clearHistory,
+              onPressed: () => _confirmClearHistory(context, ref, l),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
@@ -133,6 +132,34 @@ class AlertsAnalysisPage extends ConsumerWidget {
     if (confirmed ?? false) {
       await ref.read(analysisProvider.notifier).clearHistory();
     }
+  }
+}
+
+// =====================================================================
+// Clear-history button (rendered directly under the alert log)
+// =====================================================================
+
+class _ClearHistoryButton extends StatelessWidget {
+  const _ClearHistoryButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.delete_sweep_outlined),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          side: BorderSide(color: AppColors.danger.withValues(alpha: 0.5)),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        ),
+      ),
+    );
   }
 }
 
