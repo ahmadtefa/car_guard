@@ -29,9 +29,11 @@ class AnalysisEntryCard extends ConsumerWidget {
         ),
         title: Text(l.alertsAnalysis),
         subtitle: Text(l.alertsAnalysisSubtitle),
-        trailing: const Icon(
-          Icons.chevron_right_rounded,
-          matchTextDirection: true,
+        // Chevron points into the page in both RTL and LTR layouts.
+        trailing: Icon(
+          Directionality.of(context) == TextDirection.rtl
+              ? Icons.chevron_left_rounded
+              : Icons.chevron_right_rounded,
         ),
       ),
     );

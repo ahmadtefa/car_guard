@@ -76,7 +76,7 @@ void main() {
     final t0 = DateTime(2026, 8, 24, 14, 30);
 
     test('opens exactly one episode per kind and logs it once', () {
-      final tracker = AnalysisEngine.SmartAlertTracker();
+      final tracker = SmartAlertTracker();
 
       final first = tracker.update(
         AnalysisAlertKind.engineTempHigh,
@@ -85,7 +85,7 @@ void main() {
         now: t0,
         readings: const {'temp': 97},
       );
-      expect(first, AnalysisEngine.TrackerEvent.started);
+      expect(first, AlertTrackerEvent.started);
       expect(tracker.active.length, 1);
       expect(tracker.active[AnalysisAlertKind.engineTempHigh]!.occurrences, 1);
 
@@ -110,7 +110,7 @@ void main() {
 
     test('escalates one tier after the cooldown while the problem persists',
         () {
-      final tracker = AnalysisEngine.SmartAlertTracker();
+      final tracker = SmartAlertTracker();
 
       tracker.update(
         AnalysisAlertKind.coolantLow,
@@ -126,14 +126,14 @@ void main() {
         now: t0.add(const Duration(minutes: 11)),
       );
 
-      expect(escalated, AnalysisEngine.TrackerEvent.escalated);
+      expect(escalated, AlertTrackerEvent.escalated);
       final alert = tracker.active[AnalysisAlertKind.coolantLow]!;
       expect(alert.severity, AnalysisSeverity.danger);
       expect(alert.occurrences, 2);
     });
 
     test('danger never escalates past danger', () {
-      final tracker = AnalysisEngine.SmartAlertTracker();
+      final tracker = SmartAlertTracker();
 
       tracker.update(
         AnalysisAlertKind.engineTempHigh,
@@ -155,7 +155,7 @@ void main() {
     });
 
     test('clears only after the condition is gone for long enough', () {
-      final tracker = AnalysisEngine.SmartAlertTracker();
+      final tracker = SmartAlertTracker();
 
       tracker.update(
         AnalysisAlertKind.batteryLow,
@@ -202,7 +202,7 @@ void main() {
         severity: AnalysisSeverity.warning,
         now: t0.add(const Duration(minutes: 2, seconds: 50)),
       );
-      expect(cleared, AnalysisEngine.TrackerEvent.cleared);
+      expect(cleared, AlertTrackerEvent.cleared);
       expect(tracker.active.length, 0);
 
       // Next fire is a brand new episode (logged separately upstream).
@@ -212,12 +212,12 @@ void main() {
         severity: AnalysisSeverity.warning,
         now: t0.add(const Duration(minutes: 3)),
       );
-      expect(restarted, AnalysisEngine.TrackerEvent.started);
+      expect(restarted, AlertTrackerEvent.started);
       expect(tracker.active[AnalysisAlertKind.batteryLow]!.occurrences, 1);
     });
 
     test('activeAlerts lists the most severe episode first', () {
-      final tracker = AnalysisEngine.SmartAlertTracker();
+      final tracker = SmartAlertTracker();
 
       tracker.update(
         AnalysisAlertKind.voltageUnstable,

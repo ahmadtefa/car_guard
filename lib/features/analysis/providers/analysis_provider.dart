@@ -120,8 +120,7 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   static const double _tempJumpC = 0.5;
   static const double _voltJumpV = 0.2;
 
-  final AnalysisEngine.SmartAlertTracker _tracker =
-      AnalysisEngine.SmartAlertTracker();
+  final SmartAlertTracker _tracker = SmartAlertTracker();
 
   bool _everConnected = false;
 
@@ -528,11 +527,11 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
       readings: readings,
     );
 
-    if (event == AnalysisEngine.TrackerEvent.started) {
+    if (event == AlertTrackerEvent.started) {
       onStarted?.call();
       _logHistory(_tracker.active[kind]!, escalated: false);
       unawaited(_maybeNotify(_tracker.active[kind]!));
-    } else if (event == AnalysisEngine.TrackerEvent.escalated) {
+    } else if (event == AlertTrackerEvent.escalated) {
       _logHistory(_tracker.active[kind]!, escalated: true);
       unawaited(_maybeNotify(_tracker.active[kind]!));
     }

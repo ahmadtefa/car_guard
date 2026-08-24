@@ -26,7 +26,7 @@ class AlertsAnalysisPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     final analysis = ref.watch(analysisProvider);
-    final status = ref.watch(deviceStatusProvider).valueOrNull;
+    final status = ref.watch(deviceStatusProvider).value;
     final history = ref.watch(readingsHistoryProvider);
 
     return Scaffold(

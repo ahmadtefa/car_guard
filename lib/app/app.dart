@@ -20,7 +20,7 @@ class CarGuardApp extends ConsumerWidget {
     ref.watch(widgetUpdaterProvider);
     // يشغّل محرك التحليل المحلي من أول التشغيل (سجل التنبيهات + الإشعارات
     // المحلية للحالات الخطرة) من غير ما يعيد بناء الواجهة مع كل تحديث.
-    ref.listen(analysisProvider, (_, __) {});
+    ref.listen(analysisProvider, (_, _) {});
     final router = ref.watch(appRouterProvider);
 
     final settings = ref.watch(settingsProvider).value;
