@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
                         connected = call.argument<Boolean>("connected") ?: false,
                         engineTemperatureC = call.argument<Double>("engineTemperatureC"),
                         batteryVoltage = call.argument<Double>("batteryVoltage"),
+                        voltageDifference = call.argument<Double>("voltageDifference"),
                         coolantAvailable = call.argument<Boolean>("coolantAvailable"),
                         fanRunning = call.argument<Boolean>("fanRunning"),
                         lastUpdatedMs = System.currentTimeMillis(),

@@ -20,6 +20,7 @@ object CarStatusStore {
         val connected: Boolean = false,
         val engineTemperatureC: Double? = null,
         val batteryVoltage: Double? = null,
+        val voltageDifference: Double? = null,
         val coolantAvailable: Boolean? = null,
         val fanRunning: Boolean? = null,
         val lastUpdatedMs: Long = 0L,
@@ -29,6 +30,7 @@ object CarStatusStore {
     private const val KEY_CONNECTED = "connected"
     private const val KEY_ENGINE_TEMP = "engine_temperature_c"
     private const val KEY_BATTERY_VOLTAGE = "battery_voltage"
+    private const val KEY_VOLTAGE_DIFF = "voltage_difference"
     private const val KEY_COOLANT_AVAILABLE = "coolant_available"
     private const val KEY_FAN_RUNNING = "fan_running"
     private const val KEY_LAST_UPDATED = "last_updated_ms"
@@ -56,6 +58,11 @@ object CarStatusStore {
                 } else {
                     remove(KEY_BATTERY_VOLTAGE)
                 }
+                if (snapshot.voltageDifference != null) {
+                    putString(KEY_VOLTAGE_DIFF, snapshot.voltageDifference.toString())
+                } else {
+                    remove(KEY_VOLTAGE_DIFF)
+                }
                 if (snapshot.coolantAvailable != null) {
                     putBoolean(KEY_COOLANT_AVAILABLE, snapshot.coolantAvailable)
                 } else {
@@ -81,6 +88,7 @@ object CarStatusStore {
             connected = prefs.getBoolean(KEY_CONNECTED, false),
             engineTemperatureC = prefs.getString(KEY_ENGINE_TEMP, null)?.toDoubleOrNull(),
             batteryVoltage = prefs.getString(KEY_BATTERY_VOLTAGE, null)?.toDoubleOrNull(),
+            voltageDifference = prefs.getString(KEY_VOLTAGE_DIFF, null)?.toDoubleOrNull(),
             coolantAvailable = if (prefs.contains(KEY_COOLANT_AVAILABLE)) {
                 prefs.getBoolean(KEY_COOLANT_AVAILABLE, true)
             } else {

@@ -36,6 +36,9 @@ class DashboardNotifier extends Notifier<DashboardState> {
                 batteryVoltage: deviceStatus.connected
                     ? deviceStatus.batteryData.voltage
                     : null,
+                voltageDifference: deviceStatus.connected
+                    ? deviceStatus.batteryData.voltageDifference
+                    : null,
                 coolantAvailable: deviceStatus.connected
                     ? deviceStatus.coolantLevelData.coolantAvailable
                     : null,
@@ -62,7 +65,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
 
 
               voltageDifference:
-                  state.voltageDifference,
+                  '${deviceStatus.batteryData.voltageDifference.toStringAsFixed(2)} V',
 
 
               coolantLevel:

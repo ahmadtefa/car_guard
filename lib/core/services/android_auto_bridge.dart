@@ -22,6 +22,7 @@ class AndroidAutoBridge {
     required bool connected,
     double? engineTemperatureC,
     double? batteryVoltage,
+    double? voltageDifference,
     bool? coolantAvailable,
     bool? fanRunning,
   }) async {
@@ -30,6 +31,7 @@ class AndroidAutoBridge {
         'connected': connected,
         if (engineTemperatureC != null) 'engineTemperatureC': engineTemperatureC,
         if (batteryVoltage != null) 'batteryVoltage': batteryVoltage,
+        if (voltageDifference != null) 'voltageDifference': voltageDifference,
         if (coolantAvailable != null) 'coolantAvailable': coolantAvailable,
         if (fanRunning != null) 'fanRunning': fanRunning,
       });
