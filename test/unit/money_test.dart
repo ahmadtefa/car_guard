@@ -101,10 +101,52 @@ void main() {
       expect(formatted.contains('ج.م'), true);
     });
 
+    test('format without symbol returns bare number', () {
+      expect(Money.fromInt(1500).format(showSymbol: false), '1,500');
+    });
+
+    test('format keeps millime precision (up to 3 decimals)', () {
+      expect(Money.fromMillimes(1500500).format(showSymbol: false), '1,500.5');
+      expect(Money.fromMillimes(500).format(showSymbol: false), '0.5');
+    });
+
     test('formatWhole rounds correctly', () {
       final m = Money.fromMillimes(1500500); // 1500.5 EGP
       final formatted = m.formatWhole(showSymbol: false);
       expect(formatted, '1,501'); // rounds up
+    });
+  });
+
+  group('Money - Parsing', () {
+    test('parse handles plain amounts', () {
+      expect(Money.parse('8500').millimes, 8500000);
+    });
+
+    test('parse handles comma separators', () {
+      expect(Money.parse('1,850,000.50').millimes, 1850000500);
+    });
+
+    test('parse handles surrounding whitespace', () {
+      expect(Money.parse(' 125.25 ').millimes, 125250);
+    });
+
+    test('parse throws FormatException on invalid input', () {
+      expect(() => Money.parse('abc'), throwsFormatException);
+    });
+
+    test('parse throws FormatException on empty input', () {
+      expect(() => Money.parse('   '), throwsFormatException);
+    });
+
+    test('tryParse returns null on invalid input', () {
+      expect(Money.tryParse('abc'), isNull);
+      expect(Money.tryParse(''), isNull);
+      expect(Money.tryParse('12.3.4'), isNull);
+    });
+
+    test('tryParse parses valid values', () {
+      expect(Money.tryParse('8500')!.millimes, 8500000);
+      expect(Money.tryParse('1,234.5')!.millimes, 1234500);
     });
   });
 
@@ -114,7 +156,8 @@ void main() {
       final qty = 10;
       final pricePerUnit = Money.fromInt(8500);
       final qtyMilliunits = qty * 1000;
-      final qtyDecimal = Decimal.fromInt(qtyMilliunits) / Decimal.fromInt(1000);
+      final qtyDecimal =
+          (Decimal.fromInt(qtyMilliunits) / Decimal.fromInt(1000)).toDecimal();
       final total = pricePerUnit.multiplyByDecimal(qtyDecimal);
       expect(total.toDouble, 85000.0);
     });
@@ -127,7 +170,7 @@ void main() {
       expect(subtotal.toDouble, 85000.0);
 
       final discountPct = Decimal.parse('10');
-      final discountAmt = subtotal.multiplyByDecimal(discountPct / Decimal.fromInt(100));
+      final discountAmt = subtotal.percentage(discountPct);
       expect(discountAmt.toDouble, 8500.0);
 
       final afterDiscount = subtotal - discountAmt;
@@ -138,7 +181,7 @@ void main() {
       // 85000 EGP × 14% tax = 85000 + 11900 = 96900
       final amount = Money.fromInt(85000);
       final taxPct = Decimal.parse('14');
-      final taxAmt = amount.multiplyByDecimal(taxPct / Decimal.fromInt(100));
+      final taxAmt = amount.percentage(taxPct);
       expect(taxAmt.toDouble, closeTo(11900.0, 0.01));
 
       final total = amount + taxAmt;
@@ -233,6 +276,31 @@ void main() {
       expect(b > a, true);
       expect(a <= a, true);
       expect(a >= a, true);
+    });
+
+    test('fromDouble rounds to the nearest millime', () {
+      // 2.675 cannot be represented exactly as a double
+      expect(Money.fromDouble(2.675).millimes, 2675);
+    });
+  });
+
+  group('profitMargin - Rounding', () {
+    test('profitMargin rounds to 2 decimals', () {
+      final margin = profitMargin(
+        cost: Money.fromInt(100),
+        sellingPrice: Money.fromInt(300),
+      );
+      // (300 - 100) / 300 × 100 = 66.666...% → 66.67
+      expect(margin.toString(), '66.67');
+    });
+
+    test('profitMargin handles non-terminating division', () {
+      final margin = profitMargin(
+        cost: Money.fromInt(1),
+        sellingPrice: Money.fromInt(3),
+      );
+      // (3 - 1) / 3 × 100 = 66.666...% → 66.67
+      expect(margin.toDouble, closeTo(66.67, 0.01));
     });
   });
 }

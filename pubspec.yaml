@@ -5,7 +5,9 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.0
+  # Color.withValues used in the presentation layer requires
+  # Flutter 3.27+ / Dart 3.6+
+  sdk: ^3.6.0
 
 dependencies:
   flutter:
@@ -68,6 +70,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
-    - assets/images/
+  # NOTE: only declare asset directories that actually exist in the repo.
+  # Declaring a missing directory (e.g. assets/images/) makes
+  # `flutter test` / `flutter build` fail during asset bundling.
 

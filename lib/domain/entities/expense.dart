@@ -5,6 +5,10 @@ import 'package:equatable/equatable.dart';
 import '../../core/utils/money.dart';
 
 class Expense extends Equatable {
+  /// Sentinel that lets [copyWith] distinguish "argument not provided"
+  /// from "argument explicitly set to null" for nullable fields.
+  static const _unset = Object();
+
   final String id;
   final String stationId;
   final DateTime expenseDate;
@@ -21,7 +25,7 @@ class Expense extends Equatable {
   final DateTime createdAt;
   final DateTime? updatedAt;
 
-  Expense({
+  const Expense({
     required this.id,
     required this.stationId,
     required this.expenseDate,
@@ -37,7 +41,8 @@ class Expense extends Equatable {
   });
 
   Decimal get quantity =>
-      Decimal.fromInt(quantityMilliunits) / Decimal.fromInt(1000);
+      (Decimal.fromInt(quantityMilliunits) / Decimal.fromInt(1000))
+          .toDecimal();
 
   /// Total = Quantity × UnitPrice
   Money get total => unitPrice.multiplyByDecimal(quantity);
@@ -49,12 +54,12 @@ class Expense extends Equatable {
     String? categoryId,
     String? description,
     int? quantityMilliunits,
-    String? unit,
+    Object? unit = _unset,
     Money? unitPrice,
-    String? addedBy,
-    String? notes,
+    Object? addedBy = _unset,
+    Object? notes = _unset,
     DateTime? createdAt,
-    DateTime? updatedAt,
+    Object? updatedAt = _unset,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -63,15 +68,29 @@ class Expense extends Equatable {
       categoryId: categoryId ?? this.categoryId,
       description: description ?? this.description,
       quantityMilliunits: quantityMilliunits ?? this.quantityMilliunits,
-      unit: unit ?? this.unit,
+      unit: unit == _unset ? this.unit : unit as String?,
       unitPrice: unitPrice ?? this.unitPrice,
-      addedBy: addedBy ?? this.addedBy,
-      notes: notes ?? this.notes,
+      addedBy: addedBy == _unset ? this.addedBy : addedBy as String?,
+      notes: notes == _unset ? this.notes : notes as String?,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
+      updatedAt:
+          updatedAt == _unset ? this.updatedAt : updatedAt as DateTime?,
     );
   }
 
   @override
-  List<Object?> get props => [id, stationId, categoryId, description, quantityMilliunits, unitPrice];
+  List<Object?> get props => [
+        id,
+        stationId,
+        expenseDate,
+        categoryId,
+        description,
+        quantityMilliunits,
+        unit,
+        unitPrice,
+        addedBy,
+        notes,
+        createdAt,
+        updatedAt,
+      ];
 }

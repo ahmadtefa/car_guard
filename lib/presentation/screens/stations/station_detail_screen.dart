@@ -1,12 +1,15 @@
 // lib/presentation/screens/stations/station_detail_screen.dart
 
-import "../../../core/constants/enums.dart";
+import '../../core/constants/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/money.dart';
-import '../../../domain/entities/expense.dart';
-import '../../../domain/entities/station_item.dart';
+import '../../core/constants/project_status.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
+import '../../domain/entities/customer.dart';
+import '../../domain/entities/expense.dart';
+import '../../domain/entities/station.dart';
+import '../../domain/entities/station_item.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/item_provider.dart';
 import '../../providers/station_provider.dart';
@@ -171,8 +174,8 @@ class _StationDetailScreenState extends State<StationDetailScreen>
 
 // ========== INFO TAB ==========
 class _InfoTab extends StatelessWidget {
-  final dynamic station;
-  final dynamic customer;
+  final Station station;
+  final Customer? customer;
   const _InfoTab({required this.station, required this.customer});
 
   @override
@@ -225,9 +228,8 @@ class _InfoTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _InfoRow('رقم المحطة', station.stationNumber),
-                  if (customer != null)
-                    _InfoRow('العميل', customer.name),
-                  if (customer?.phone != null)
+                  if (customer != null) _InfoRow('العميل', customer!.name),
+                  if (customer?.phone != null && customer!.phone!.isNotEmpty)
                     _InfoRow('هاتف العميل', customer!.phone!),
                   if (station.address != null)
                     _InfoRow('العنوان', station.address!),
@@ -326,18 +328,10 @@ class _InfoTab extends StatelessWidget {
   }
 
   String _statusName(String status) {
-    const map = {
-      'study': 'دراسة',
-      'inspection': 'معاينة',
-      'pricing': 'تسعير',
-      'quotation': 'عرض سعر',
-      'contracted': 'تعاقد',
-      'under_execution': 'تحت التنفيذ',
-      'completed': 'مكتمل',
-      'suspended': 'متوقف',
-      'cancelled': 'ملغي',
-    };
-    return map[status] ?? status;
+    for (final s in ProjectStatus.defaults) {
+      if (s['key'] == status) return s['nameAr'] ?? status;
+    }
+    return status;
   }
 }
 

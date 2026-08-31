@@ -31,18 +31,41 @@ class Money {
   /// Create from stored integer millimes
   factory Money.fromMillimes(int millimes) => Money._(millimes);
 
-  /// Parse from string
+  /// Parse from string.
+  ///
+  /// Throws a [FormatException] when [value] is not a valid decimal number.
   factory Money.parse(String value) {
+    final money = Money.tryParse(value);
+    if (money == null) {
+      throw FormatException('Invalid money value', value);
+    }
+    return money;
+  }
+
+  /// Parse from string, returning `null` instead of throwing when [value]
+  /// is not a valid decimal number.
+  static Money? tryParse(String value) {
     final cleaned = value.replaceAll(',', '').trim();
-    return Money.fromDecimal(Decimal.parse(cleaned));
+    if (cleaned.isEmpty) return null;
+    try {
+      return Money.fromDecimal(Decimal.parse(cleaned));
+    } on FormatException {
+      return null;
+    } on ArgumentError {
+      return null;
+    }
   }
 
   /// The value stored as millimes (for database storage)
   int get millimes => _millimes;
 
-  /// Convert to Decimal for display/calculations
+  /// Convert to Decimal for display/calculations.
+  ///
+  /// Note: `Decimal operator /` in package:decimal 2.x returns a [Rational],
+  /// so the result must be converted back with `.toDecimal()` (always exact
+  /// here since we divide by 1000).
   Decimal get toDecimal =>
-      Decimal.fromInt(_millimes) / Decimal.fromInt(1000);
+      (Decimal.fromInt(_millimes) / Decimal.fromInt(1000)).toDecimal();
 
   /// Convert to double (for display only, not for calculations)
   double get toDouble => _millimes / 1000.0;
@@ -60,7 +83,7 @@ class Money {
 
   /// Multiply by a percentage (0-100)
   Money percentage(Decimal percent) {
-    return multiplyByDecimal(percent / Decimal.fromInt(100));
+    return multiplyByDecimal((percent / Decimal.fromInt(100)).toDecimal());
   }
 
   bool operator >(Money other) => _millimes > other._millimes;
@@ -76,7 +99,7 @@ class Money {
   @override
   int get hashCode => _millimes.hashCode;
 
-  /// Format for display (e.g., "1,850,000.000")
+  /// Format for display (e.g., "1,850,000" or "1,850.5")
   String format({String symbol = 'ج.م', bool showSymbol = true}) {
     final formatter = NumberFormat('#,##0.###', 'en');
     final formatted = formatter.format(toDouble);
@@ -101,8 +124,11 @@ class Money {
 /// Calculate profit margin as a percentage
 Decimal profitMargin({required Money cost, required Money sellingPrice}) {
   if (sellingPrice.millimes == 0) return Decimal.zero;
-  final margin = (sellingPrice.toDecimal - cost.toDecimal) /
-      sellingPrice.toDecimal *
-      Decimal.fromInt(100);
-  return margin.round(scale: 2);
+  // Multiply before dividing to stay inside Decimal for as long as possible.
+  // The final division may be non-terminating (e.g. 1/3), so cap its scale
+  // before rounding to 2 decimal places.
+  final ratio = (sellingPrice.toDecimal - cost.toDecimal) *
+      Decimal.fromInt(100) /
+      sellingPrice.toDecimal;
+  return ratio.toDecimal(scaleOnInfinitePrecision: 6).round(scale: 2);
 }

@@ -52,15 +52,18 @@ class StationItem extends Equatable {
 
   /// Quantity as decimal
   Decimal get quantity =>
-      Decimal.fromInt(quantityMilliunits) / Decimal.fromInt(1000);
+      (Decimal.fromInt(quantityMilliunits) / Decimal.fromInt(1000))
+          .toDecimal();
 
   /// Discount percentage as decimal
   Decimal get discountPercent =>
-      Decimal.fromInt(discountPercentageCents) / Decimal.fromInt(100);
+      (Decimal.fromInt(discountPercentageCents) / Decimal.fromInt(100))
+          .toDecimal();
 
   /// Tax percentage as decimal
   Decimal get taxPercent =>
-      Decimal.fromInt(taxPercentageCents) / Decimal.fromInt(100);
+      (Decimal.fromInt(taxPercentageCents) / Decimal.fromInt(100))
+          .toDecimal();
 
   /// Subtotal before discount and tax
   Money get subtotal {
@@ -70,7 +73,7 @@ class StationItem extends Equatable {
   /// Discount amount
   Money get discountAmount {
     if (discountPercentageCents == 0) return Money.fromMillimes(0);
-    return subtotal.multiplyByDecimal(discountPercent / Decimal.fromInt(100));
+    return subtotal.percentage(discountPercent);
   }
 
   /// After discount
@@ -79,51 +82,73 @@ class StationItem extends Equatable {
   /// Tax amount
   Money get taxAmount {
     if (taxPercentageCents == 0) return Money.fromMillimes(0);
-    return afterDiscount.multiplyByDecimal(taxPercent / Decimal.fromInt(100));
+    return afterDiscount.percentage(taxPercent);
   }
 
   /// Total = (Quantity × UnitPrice) - Discount + Tax
   Money get total => afterDiscount + taxAmount;
 
+  /// Sentinel that lets [copyWith] distinguish "argument not provided"
+  /// from "argument explicitly set to null" for nullable fields.
+  static const _unset = Object();
+
   StationItem copyWith({
     String? id,
     String? stationId,
-    String? itemId,
+    Object? itemId = _unset,
     String? description,
-    String? brand,
-    String? model,
-    String? unit,
+    Object? brand = _unset,
+    Object? model = _unset,
+    Object? unit = _unset,
     int? quantityMilliunits,
     Money? unitPriceSnapshot,
     int? discountPercentageCents,
     int? taxPercentageCents,
-    String? notes,
+    Object? notes = _unset,
     int? sortOrder,
     DateTime? createdAt,
-    DateTime? updatedAt,
-    String? addedBy,
+    Object? updatedAt = _unset,
+    Object? addedBy = _unset,
   }) {
     return StationItem(
       id: id ?? this.id,
       stationId: stationId ?? this.stationId,
-      itemId: itemId ?? this.itemId,
+      itemId: itemId == _unset ? this.itemId : itemId as String?,
       description: description ?? this.description,
-      brand: brand ?? this.brand,
-      model: model ?? this.model,
-      unit: unit ?? this.unit,
+      brand: brand == _unset ? this.brand : brand as String?,
+      model: model == _unset ? this.model : model as String?,
+      unit: unit == _unset ? this.unit : unit as String?,
       quantityMilliunits: quantityMilliunits ?? this.quantityMilliunits,
       unitPriceSnapshot: unitPriceSnapshot ?? this.unitPriceSnapshot,
       discountPercentageCents:
           discountPercentageCents ?? this.discountPercentageCents,
       taxPercentageCents: taxPercentageCents ?? this.taxPercentageCents,
-      notes: notes ?? this.notes,
+      notes: notes == _unset ? this.notes : notes as String?,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      addedBy: addedBy ?? this.addedBy,
+      updatedAt:
+          updatedAt == _unset ? this.updatedAt : updatedAt as DateTime?,
+      addedBy: addedBy == _unset ? this.addedBy : addedBy as String?,
     );
   }
 
   @override
-  List<Object?> get props => [id, stationId, itemId, description, quantityMilliunits, unitPriceSnapshot];
+  List<Object?> get props => [
+        id,
+        stationId,
+        itemId,
+        description,
+        brand,
+        model,
+        unit,
+        quantityMilliunits,
+        unitPriceSnapshot,
+        discountPercentageCents,
+        taxPercentageCents,
+        notes,
+        sortOrder,
+        createdAt,
+        updatedAt,
+        addedBy,
+      ];
 }

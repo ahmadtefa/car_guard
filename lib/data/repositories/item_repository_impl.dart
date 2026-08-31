@@ -83,8 +83,20 @@ class ItemRepositoryImpl implements ItemRepository {
   Future<Result<CatalogItem>> updateItem(CatalogItem item) async {
     try {
       final now = DateTime.now();
-      // Record price history if price changed
+
+      // Read the stored row first so price history can compare against the
+      // previous price.
       final existing = await getItemById(item.id);
+
+      final updated = item.copyWith(updatedAt: now);
+      final count = await (_db.update(_db.itemCatalogTable)
+            ..where((t) => t.id.equals(item.id)))
+          .write(updated.toCompanion());
+      if (count == 0) {
+        return Result.failure(const NotFoundFailure('Item not found'));
+      }
+
+      // Record price history if price changed
       if (existing.isSuccess &&
           existing.value.unitPrice.millimes != item.unitPrice.millimes) {
         await _db.into(_db.priceHistoryTable).insert(
@@ -99,10 +111,6 @@ class ItemRepositoryImpl implements ItemRepository {
             );
       }
 
-      final updated = item.copyWith(updatedAt: now);
-      await (_db.update(_db.itemCatalogTable)
-            ..where((t) => t.id.equals(item.id)))
-          .write(updated.toCompanion());
       return Result.success(updated);
     } catch (e) {
       return Result.failure(DatabaseFailure('Failed to update item: $e'));
@@ -191,9 +199,12 @@ class ItemRepositoryImpl implements ItemRepository {
   @override
   Future<Result<ItemCategory>> updateCategory(ItemCategory category) async {
     try {
-      await (_db.update(_db.itemCategoriesTable)
+      final count = await (_db.update(_db.itemCategoriesTable)
             ..where((t) => t.id.equals(category.id)))
           .write(category.toCompanion());
+      if (count == 0) {
+        return Result.failure(const NotFoundFailure('Category not found'));
+      }
       return Result.success(category);
     } catch (e) {
       return Result.failure(DatabaseFailure('Failed to update category: $e'));

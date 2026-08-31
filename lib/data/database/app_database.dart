@@ -7,6 +7,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/constants/app_constants.dart';
 import 'tables/customers_table.dart';
 import 'tables/stations_table.dart';
 import 'tables/station_items_table.dart';
@@ -47,7 +48,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => AppConstants.databaseVersion;
 
   @override
   MigrationStrategy get migration {
@@ -59,6 +60,12 @@ class AppDatabase extends _$AppDatabase {
       onUpgrade: (m, from, to) async {
         // Future schema migrations go here
         // Always add addColumn, createTable calls - never drop
+      },
+      beforeOpen: (details) async {
+        // SQLite disables foreign key constraints on every connection by
+        // default; enable them so referential integrity is enforced if/when
+        // foreign keys are declared on tables.
+        await customStatement('PRAGMA foreign_keys = ON');
       },
     );
   }
@@ -80,8 +87,8 @@ class AppDatabase extends _$AppDatabase {
       (key: 'cancelled', nameAr: 'ملغي', nameEn: 'Cancelled', order: 9),
     ];
 
-    for (final s in statuses) {
-      await into(projectStatusesTable).insert(
+    final statusRows = [
+      for (final s in statuses)
         ProjectStatusesTableCompanion.insert(
           id: s.key,
           nameAr: s.nameAr,
@@ -90,8 +97,8 @@ class AppDatabase extends _$AppDatabase {
           isDefault: const Value(true),
           createdAt: Value(now),
         ),
-      );
-    }
+    ];
+    await batch((b) => b.insertAll(projectStatusesTable, statusRows));
 
     // Default item categories (user can add more)
     const categories = [
@@ -108,8 +115,8 @@ class AppDatabase extends _$AppDatabase {
       (key: 'other', nameAr: 'أخرى', nameEn: 'Other', order: 11),
     ];
 
-    for (final c in categories) {
-      await into(itemCategoriesTable).insert(
+    final categoryRows = [
+      for (final c in categories)
         ItemCategoriesTableCompanion.insert(
           id: c.key,
           nameAr: c.nameAr,
@@ -118,8 +125,8 @@ class AppDatabase extends _$AppDatabase {
           isDefault: const Value(true),
           createdAt: Value(now),
         ),
-      );
-    }
+    ];
+    await batch((b) => b.insertAll(itemCategoriesTable, categoryRows));
 
     // Default expense categories (user can add more)
     const expenseCategories = [
@@ -138,8 +145,8 @@ class AppDatabase extends _$AppDatabase {
       (key: 'other', nameAr: 'أخرى', nameEn: 'Other', order: 13),
     ];
 
-    for (final ec in expenseCategories) {
-      await into(expenseCategoriesTable).insert(
+    final expenseCategoryRows = [
+      for (final ec in expenseCategories)
         ExpenseCategoriesTableCompanion.insert(
           id: ec.key,
           nameAr: ec.nameAr,
@@ -148,8 +155,8 @@ class AppDatabase extends _$AppDatabase {
           isDefault: const Value(true),
           createdAt: Value(now),
         ),
-      );
-    }
+    ];
+    await batch((b) => b.insertAll(expenseCategoriesTable, expenseCategoryRows));
 
     // Default system user (for local single-user mode)
     await into(usersTable).insert(

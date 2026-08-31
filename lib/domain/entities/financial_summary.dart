@@ -52,9 +52,8 @@ class FinancialSummary {
   /// Tax amount
   Money get taxAmount {
     if (taxPercentage == 0) return Money.fromMillimes(0);
-    return sellingPriceAfterDiscount.multiplyByDecimal(
-      Decimal.fromInt(taxPercentage) / Decimal.fromInt(100),
-    );
+    return sellingPriceAfterDiscount
+        .percentage(Decimal.fromInt(taxPercentage));
   }
 
   /// Net selling value = Selling Price - Discount + Tax
@@ -66,9 +65,12 @@ class FinancialSummary {
   /// Profit Margin = (Profit / NetSellingValue) × 100
   Decimal get profitMarginPercent {
     if (netSellingValue.millimes == 0) return Decimal.zero;
-    final margin = (profit.toDecimal / netSellingValue.toDecimal) *
-        Decimal.fromInt(100);
-    return margin.round(scale: 2);
+    // Multiply before dividing to stay inside Decimal for as long as
+    // possible. The final division may be non-terminating (e.g. 1/3), so
+    // cap its scale before rounding to 2 decimal places.
+    final ratio = profit.toDecimal * Decimal.fromInt(100) /
+        netSellingValue.toDecimal;
+    return ratio.toDecimal(scaleOnInfinitePrecision: 6).round(scale: 2);
   }
 
   bool get isProfitable => profit.isPositive;
