@@ -1,0 +1,10 @@
+# build.yaml - Configuration for code generation
+# Run: flutter pub run build_runner build --delete-conflicting-outputs
+
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # Generate data classes
+          generate_connect_constructor: true
