@@ -611,8 +611,8 @@ void handleSaveAllSettings() {
 
     if (newMaxTemp   >= 50  && newMaxTemp   <= 150 &&
         newFanOnTemp >= 40  && newFanOnTemp <= 140 &&
-        newMinVolt   >= 8.0 && newMinVolt   <= 14.0 &&
-        newMaxVolt   >= 12.0 && newMaxVolt  <= 18.0 &&
+        newMinVolt   >= 8.0 && newMinVolt   <= 28.0 &&
+        newMaxVolt   >= 12.0 && newMaxVolt  <= 30.0 &&
         newOffset    >= -10 && newOffset    <= 10) {
 
       MAX_TEMP    = newMaxTemp;
@@ -801,7 +801,7 @@ void handleCalibrateVoltage() {
   }
 
   float realVolt = server.arg("realVolt").toFloat();
-  if (realVolt < 8.0 || realVolt > 18.0) {
+  if (realVolt < 8.0 || realVolt > 30.0) {
     server.send(400, "text/plain", "Invalid voltage range");
     return;
   }
