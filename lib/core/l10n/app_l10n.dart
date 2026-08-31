@@ -492,6 +492,14 @@ class AppL10n {
   String get alertsEnabledInfo => isAr
       ? 'المفتاح الرئيسي لكل الإشعارات.'
       : 'Master switch for all notifications.';
+  String get engineTempWarningLabel =>
+      isAr ? 'تحذير حرارة المحرك' : 'Engine temperature warning';
+  String get engineTempCriticalLabel =>
+      isAr ? 'حرارة المحرك الحرجة' : 'Critical engine temperature';
+  String get minBatteryVoltageLabel =>
+      isAr ? 'أقل جهد للبطارية' : 'Minimum battery voltage';
+  String get maxBatteryVoltageLabel =>
+      isAr ? 'أقصى جهد للبطارية' : 'Maximum battery voltage';
   String get moduleLimitsNote => isAr
       ? 'تنبيهات الحرارة وجهد البطارية بتتبع حدود الإنذار المحفوظة على الوحدة نفسها (قسم إعدادات الجهاز فوق).'
       : 'Temperature and voltage alerts follow the alarm limits saved on the module itself (Module settings above).';
