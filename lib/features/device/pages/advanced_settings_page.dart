@@ -203,7 +203,7 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
     if (realVolt == null) return;
 
-    if (realVolt < 8 || realVolt > 18) {
+    if (realVolt < 8 || realVolt > 30) {
       _snack(ref.read(l10nProvider).voltageRangeError);
       return;
     }

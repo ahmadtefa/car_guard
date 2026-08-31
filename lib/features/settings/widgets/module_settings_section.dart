@@ -145,8 +145,8 @@ class _ModuleSettingsSectionState
     // Ranges enforced by the firmware itself (handleSaveAllSettings).
     if (alarmTemp < 50 || alarmTemp > 150 ||
         fanOnTemp < 40 || fanOnTemp > 140 ||
-        minVolt < 8 || minVolt > 14 ||
-        maxVolt < 12 || maxVolt > 18) {
+        minVolt < 8 || minVolt > 28 ||
+        maxVolt < 12 || maxVolt > 30) {
       _snack(l.valueOutOfRange(l.alarmLimits));
       return;
     }
