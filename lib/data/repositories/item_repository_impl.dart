@@ -105,7 +105,7 @@ class ItemRepositoryImpl implements ItemRepository {
                 itemId: item.id,
                 oldPriceMillimes: existing.value.unitPrice.millimes,
                 newPriceMillimes: item.unitPrice.millimes,
-                changedAt: Value(now),
+                changedAt: now,
                 changedBy: Value(item.createdBy),
               ),
             );

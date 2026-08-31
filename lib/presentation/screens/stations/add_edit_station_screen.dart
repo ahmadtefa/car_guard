@@ -201,7 +201,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SectionHeader(title: 'البيانات الأساسية'),
+                const _SectionHeader(title: 'البيانات الأساسية'),
                 const SizedBox(height: 12),
 
                 // Station Number
@@ -230,14 +230,13 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
 
                 // Customer dropdown
                 DropdownButtonFormField<String>(
-                  value: _selectedCustomerId,
+                  initialValue: _selectedCustomerId,
                   decoration: const InputDecoration(
                     labelText: 'العميل',
                     prefixIcon: Icon(Icons.person),
                   ),
                   items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('بدون عميل')),
+                    const DropdownMenuItem(child: Text('بدون عميل')),
                     ...customers.map(
                       (c) => DropdownMenuItem(
                         value: c.id,
@@ -252,7 +251,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
 
                 // Status
                 DropdownButtonFormField<String>(
-                  value: _selectedStatus,
+                  initialValue: _selectedStatus,
                   decoration: const InputDecoration(
                     labelText: 'حالة المشروع',
                     prefixIcon: Icon(Icons.flag),
@@ -272,7 +271,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                _SectionHeader(title: 'الموقع'),
+                const _SectionHeader(title: 'الموقع'),
                 const SizedBox(height: 12),
 
                 TextFormField(
@@ -327,7 +326,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                _SectionHeader(title: 'المساحات (م²)'),
+                const _SectionHeader(title: 'المساحات (م²)'),
                 const SizedBox(height: 12),
 
                 Row(
@@ -367,7 +366,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                _SectionHeader(title: 'التفاصيل التقنية'),
+                const _SectionHeader(title: 'التفاصيل التقنية'),
                 const SizedBox(height: 12),
 
                 TextFormField(
@@ -414,7 +413,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                _SectionHeader(title: 'التسعير'),
+                const _SectionHeader(title: 'التسعير'),
                 const SizedBox(height: 12),
 
                 TextFormField(
@@ -461,7 +460,7 @@ class _AddEditStationScreenState extends State<AddEditStationScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                _SectionHeader(title: 'ملاحظات'),
+                const _SectionHeader(title: 'ملاحظات'),
                 const SizedBox(height: 12),
 
                 TextFormField(

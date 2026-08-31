@@ -34,7 +34,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   }
 
   void _openAddDialog([Customer? existing]) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -260,7 +260,7 @@ class _CustomerFormSheetState extends State<_CustomerFormSheet> {
         child: DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.9,
-          child: Column(
+          builder: (context, scrollController) => Column(
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -298,6 +298,7 @@ class _CustomerFormSheetState extends State<_CustomerFormSheet> {
                 child: Form(
                   key: _formKey,
                   child: ListView(
+                    controller: scrollController,
                     padding: const EdgeInsets.all(16),
                     children: [
                       TextFormField(

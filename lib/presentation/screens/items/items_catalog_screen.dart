@@ -156,7 +156,7 @@ class _ItemsTab extends StatelessWidget {
                               ],
                             ),
                             onLongPress: () {
-                              showModalBottomSheet(
+                              showModalBottomSheet<void>(
                                 context: context,
                                 builder: (_) => _ItemOptions(item: item),
                               );
@@ -173,7 +173,7 @@ class _ItemsTab extends StatelessWidget {
   }
 
   void _openAddItem(BuildContext context, ItemProvider provider) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -195,6 +195,26 @@ class _ItemOptions extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('تعديل البند'),
+            onTap: () {
+              // Capture what we need before popping this sheet: its context
+              // is defunct afterwards. The navigator's context stays valid.
+              final navigator = Navigator.of(context);
+              final provider = context.read<ItemProvider>();
+              navigator.pop();
+              showModalBottomSheet<void>(
+                context: navigator.context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                builder: (_) => ChangeNotifierProvider.value(
+                  value: provider,
+                  child: _ItemFormSheet(item: item),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
             title: const Text('حذف البند'),
@@ -310,7 +330,7 @@ class _ItemFormSheetState extends State<_ItemFormSheet> {
         child: DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.9,
-          child: Column(
+          builder: (context, scrollController) => Column(
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -340,6 +360,7 @@ class _ItemFormSheetState extends State<_ItemFormSheet> {
                 child: Form(
                   key: _formKey,
                   child: ListView(
+                    controller: scrollController,
                     padding: const EdgeInsets.all(16),
                     children: [
                       TextFormField(
@@ -350,7 +371,7 @@ class _ItemFormSheetState extends State<_ItemFormSheet> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: _selectedCategoryId,
+                        initialValue: _selectedCategoryId,
                         decoration: const InputDecoration(labelText: 'التصنيف *'),
                         items: categories.map((cat) {
                           return DropdownMenuItem(
@@ -491,7 +512,7 @@ class _CategoriesTab extends StatelessWidget {
   void _addCategory(BuildContext context) {
     final nameArCtrl = TextEditingController();
     final nameEnCtrl = TextEditingController();
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تصنيف جديد'),

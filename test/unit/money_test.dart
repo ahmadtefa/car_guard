@@ -153,7 +153,7 @@ void main() {
   group('StationItem - Financial Calculations', () {
     test('total = qty × price', () {
       // 10 panels × 8500 EGP = 85,000 EGP
-      final qty = 10;
+      const qty = 10;
       final pricePerUnit = Money.fromInt(8500);
       final qtyMilliunits = qty * 1000;
       final qtyDecimal =
@@ -209,7 +209,6 @@ void main() {
       final otherExpenses = Money.fromInt(45000);
       final sellingPrice = Money.fromInt(1850000);
       final discount = Money.fromMillimes(0);
-      const taxPercentage = 0;
 
       final totalCost = materialCost + laborCost + transportationCost + otherExpenses;
       expect(totalCost.toDouble, 1450000.0);

@@ -26,12 +26,12 @@ void main() {
 
   group('StationItem - Basic Calculations', () {
     test('subtotal = qty × price (1 unit)', () {
-      final item = makeItem(quantityMilliunits: 1000, priceMillimes: 8500000);
+      final item = makeItem();
       expect(item.subtotal.toDouble, 8500.0);
     });
 
     test('subtotal = qty × price (10 units)', () {
-      final item = makeItem(quantityMilliunits: 10000, priceMillimes: 8500000);
+      final item = makeItem(quantityMilliunits: 10000);
       expect(item.subtotal.toDouble, 85000.0);
     });
 
@@ -51,7 +51,6 @@ void main() {
     test('10% discount on 85000 = 76500', () {
       final item = makeItem(
         quantityMilliunits: 10000, // 10 units
-        priceMillimes: 8500000, // 8500 EGP each
         discountCents: 1000, // 10.00%
       );
       expect(item.subtotal.toDouble, 85000.0);
@@ -61,7 +60,7 @@ void main() {
     });
 
     test('0% discount changes nothing', () {
-      final item = makeItem(discountCents: 0);
+      final item = makeItem();
       expect(item.discountAmount.isZero, true);
       expect(item.total, equals(item.subtotal));
     });
@@ -80,7 +79,6 @@ void main() {
     test('14% tax on 85000', () {
       final item = makeItem(
         quantityMilliunits: 10000,
-        priceMillimes: 8500000,
         taxCents: 1400, // 14.00%
       );
       expect(item.subtotal.toDouble, 85000.0);
@@ -89,7 +87,7 @@ void main() {
     });
 
     test('0% tax adds nothing', () {
-      final item = makeItem(taxCents: 0);
+      final item = makeItem();
       expect(item.taxAmount.isZero, true);
     });
   });
@@ -101,7 +99,6 @@ void main() {
       // Total = 76500 + 10710 = 87210
       final item = makeItem(
         quantityMilliunits: 10000,
-        priceMillimes: 8500000,
         discountCents: 1000, // 10%
         taxCents: 1400, // 14%
       );

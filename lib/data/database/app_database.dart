@@ -1,11 +1,8 @@
 // lib/data/database/app_database.dart
 // Drift database - run `flutter pub run build_runner build` to generate app_database.g.dart
 
-import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 
 import '../../core/constants/app_constants.dart';
 import 'tables/customers_table.dart';
@@ -42,7 +39,10 @@ part 'app_database.g.dart';
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  /// `name` is the database file stem used by drift_flutter; on native
+  /// platforms the file is created as `<name>.sqlite` inside the
+  /// application documents directory automatically.
+  AppDatabase() : super(driftDatabase(name: 'solar_manager'));
 
   /// Constructor for testing with an in-memory database
   AppDatabase.forTesting(super.e);
@@ -95,7 +95,7 @@ class AppDatabase extends _$AppDatabase {
           nameEn: s.nameEn,
           sortOrder: Value(s.order),
           isDefault: const Value(true),
-          createdAt: Value(now),
+          createdAt: now,
         ),
     ];
     await batch((b) => b.insertAll(projectStatusesTable, statusRows));
@@ -123,7 +123,7 @@ class AppDatabase extends _$AppDatabase {
           nameEn: c.nameEn,
           sortOrder: Value(c.order),
           isDefault: const Value(true),
-          createdAt: Value(now),
+          createdAt: now,
         ),
     ];
     await batch((b) => b.insertAll(itemCategoriesTable, categoryRows));
@@ -153,7 +153,7 @@ class AppDatabase extends _$AppDatabase {
           nameEn: ec.nameEn,
           sortOrder: Value(ec.order),
           isDefault: const Value(true),
-          createdAt: Value(now),
+          createdAt: now,
         ),
     ];
     await batch((b) => b.insertAll(expenseCategoriesTable, expenseCategoryRows));
@@ -165,16 +165,8 @@ class AppDatabase extends _$AppDatabase {
         name: 'مدير النظام',
         role: const Value('admin'),
         isActive: const Value(true),
-        createdAt: Value(now),
+        createdAt: now,
       ),
     );
   }
-}
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'solar_manager.db'));
-    return driftDatabase(path: file.path);
-  });
 }

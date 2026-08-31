@@ -23,7 +23,7 @@ class Result<T> {
 
   Failure get failure {
     if (_failure == null) throw StateError('Result is a success');
-    return _failure!;
+    return _failure;
   }
 
   R fold<R>({

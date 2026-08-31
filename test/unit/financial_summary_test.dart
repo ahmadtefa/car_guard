@@ -65,7 +65,7 @@ void main() {
     });
 
     test('zero tax gives no tax amount', () {
-      final summary = makeSummary(taxPercentage: 0);
+      final summary = makeSummary();
       expect(summary.taxAmount.isZero, true);
     });
 
@@ -99,7 +99,6 @@ void main() {
         otherExpenses: Money.fromInt(45000),
         sellingPrice: Money.fromInt(1850000),
         discount: Money.fromMillimes(0),
-        taxPercentage: 0,
       );
       // netSelling = 1,850,000, totalCost = 1,450,000
       // profit = 400,000
@@ -135,7 +134,6 @@ void main() {
         otherExpenses: Money.fromInt(45000),
         sellingPrice: Money.fromInt(1850000),
         discount: Money.fromMillimes(0),
-        taxPercentage: 0,
       );
       expect(summary.profitMarginPercent.toDouble, closeTo(21.62, 0.01));
     });
@@ -144,7 +142,6 @@ void main() {
       final summary = makeSummary(
         sellingPrice: Money.fromMillimes(0),
         discount: Money.fromMillimes(0),
-        taxPercentage: 0,
       );
       expect(summary.profitMarginPercent, equals(Decimal.zero));
     });
@@ -159,7 +156,6 @@ void main() {
         otherExpenses: Money.fromMillimes(0),
         sellingPrice: Money.fromMillimes(0),
         discount: Money.fromMillimes(0),
-        taxPercentage: 0,
       );
       expect(summary.totalActualCost.isZero, true);
       expect(summary.profit.isZero, true);

@@ -67,7 +67,7 @@ class _StationsListScreenState extends State<StationsListScreen> {
             tooltip: 'محطة جديدة',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(
+              MaterialPageRoute<void>(
                 builder: (_) => const AddEditStationScreen(),
               ),
             ),
@@ -118,7 +118,7 @@ class _StationsListScreenState extends State<StationsListScreen> {
                             style: const TextStyle(fontSize: 11)),
                         selected: isSelected,
                         onSelected: (_) {
-                          setState(() => _selectedStatus = opt['key'] as String?);
+                          setState(() => _selectedStatus = opt['key']);
                           _doSearch();
                         },
                         selectedColor:
@@ -149,7 +149,7 @@ class _StationsListScreenState extends State<StationsListScreen> {
                     action: ElevatedButton.icon(
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => const AddEditStationScreen(),
                         ),
                       ),
@@ -181,7 +181,7 @@ class _StationsListScreenState extends State<StationsListScreen> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
+                              MaterialPageRoute<void>(
                                 builder: (_) =>
                                     StationDetailScreen(stationId: station.id),
                               ),
@@ -287,7 +287,7 @@ class _StationsListScreenState extends State<StationsListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const AddEditStationScreen()),
+          MaterialPageRoute<void>(builder: (_) => const AddEditStationScreen()),
         ),
         icon: const Icon(Icons.add),
         label: const Text('محطة جديدة'),

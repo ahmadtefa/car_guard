@@ -350,19 +350,14 @@ class StationRepositoryImpl implements StationRepository {
           case 'quotation':
           case 'contracted':
             study++;
-            break;
           case 'under_execution':
             underExecution++;
-            break;
           case 'completed':
             completed++;
-            break;
           case 'suspended':
             suspended++;
-            break;
           case 'cancelled':
             cancelled++;
-            break;
         }
         totalKwp += s.totalPanelsCapacityKwp ?? s.requiredCapacityKwp ?? 0;
       }

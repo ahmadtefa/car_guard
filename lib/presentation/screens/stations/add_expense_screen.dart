@@ -119,7 +119,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               children: [
                 // Category
                 DropdownButtonFormField<String>(
-                  value: _selectedCategoryId,
+                  initialValue: _selectedCategoryId,
                   decoration: const InputDecoration(
                     labelText: 'نوع المصروف *',
                     prefixIcon: Icon(Icons.category),

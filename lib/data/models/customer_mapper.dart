@@ -1,5 +1,6 @@
 // lib/data/models/customer_mapper.dart
 
+import 'package:drift/drift.dart' show Value;
 import '../database/app_database.dart';
 import '../../domain/entities/customer.dart';
 

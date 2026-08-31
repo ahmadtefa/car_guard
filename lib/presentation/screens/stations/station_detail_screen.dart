@@ -35,11 +35,41 @@ class _StationDetailScreenState extends State<StationDetailScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context
           .read<StationProvider>()
           .loadStationDetail(widget.stationId);
       context.read<ItemProvider>().loadAll();
     });
+  }
+
+  /// Confirmation dialog + station deletion. Lives on the State so that
+  /// `mounted` guards and `context` belong to the same object.
+  Future<void> _confirmAndDelete(Station station) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف المحطة'),
+        content: const Text(
+            'هل أنت متأكد من حذف هذه المحطة؟ لا يمكن التراجع.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('حذف',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    if (!mounted) return;
+    await context.read<StationProvider>().deleteStation(station.id);
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   @override
@@ -65,7 +95,6 @@ class _StationDetailScreenState extends State<StationDetailScreen>
           final station = provider.currentStation;
           if (station == null) return const Scaffold(body: SizedBox());
 
-          final statusColor = AppTheme.getStatusColor(station.status);
           final customer = context
               .read<CustomerProvider>()
               .getById(station.customerId ?? '');
@@ -79,12 +108,12 @@ class _StationDetailScreenState extends State<StationDetailScreen>
                   onPressed: () async {
                     final updated = await Navigator.push<bool>(
                       context,
-                      MaterialPageRoute(
+                      MaterialPageRoute<bool>(
                         builder: (_) =>
                             AddEditStationScreen(station: station),
                       ),
                     );
-                    if (updated == true) {
+                    if (updated == true && mounted) {
                       context
                           .read<StationProvider>()
                           .loadStationDetail(widget.stationId);
@@ -105,34 +134,8 @@ class _StationDetailScreenState extends State<StationDetailScreen>
                       ),
                     ),
                   ],
-                  onSelected: (v) async {
-                    if (v == 'delete') {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('حذف المحطة'),
-                          content: const Text(
-                              'هل أنت متأكد من حذف هذه المحطة؟ لا يمكن التراجع.'),
-                          actions: [
-                            TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(context, false),
-                                child: const Text('إلغاء')),
-                            TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(context, true),
-                                child: const Text('حذف',
-                                    style: TextStyle(color: Colors.red))),
-                          ],
-                        ),
-                      );
-                      if (confirm == true && mounted) {
-                        await context
-                            .read<StationProvider>()
-                            .deleteStation(station.id);
-                        if (mounted) Navigator.pop(context);
-                      }
-                    }
+                  onSelected: (v) {
+                    if (v == 'delete') _confirmAndDelete(station);
                   },
                 ),
               ],
@@ -454,7 +457,7 @@ class _ItemsTab extends StatelessWidget {
   void _addItem(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => AddStationItemScreen(stationId: stationId),
       ),
     );
@@ -621,7 +624,7 @@ class _ExpensesTab extends StatelessWidget {
   void _addExpense(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => AddExpenseScreen(stationId: stationId),
       ),
     );

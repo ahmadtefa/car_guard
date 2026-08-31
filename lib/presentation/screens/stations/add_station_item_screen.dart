@@ -65,7 +65,6 @@ class _AddStationItemScreenState extends State<AddStationItemScreen> {
       taxPercentageCents: (tax * 100).round(),
       notes:
           _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      sortOrder: 0,
       createdAt: DateTime.now(),
     );
 
@@ -158,7 +157,7 @@ class _AddStationItemScreenState extends State<AddStationItemScreen> {
                   const Text('اختر من الكتالوج:'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<CatalogItem>(
-                    value: _selectedItem,
+                    initialValue: _selectedItem,
                     decoration: const InputDecoration(
                       labelText: 'اختر بنداً',
                       prefixIcon: Icon(Icons.inventory_2),
