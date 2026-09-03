@@ -106,7 +106,7 @@ class _ExitButton extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.close_fullscreen_rounded,
+                Icons.fullscreen_exit_rounded,
                 color: Colors.white,
                 size: 22,
               ),

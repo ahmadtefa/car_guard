@@ -224,7 +224,7 @@ class _FanControlCardState extends ConsumerState<FanControlCard> {
                     icon: Icon(
                       fan.forced
                           ? Icons.stop_circle_outlined
-                          : Icons.air_rounded,
+                          : Icons.air,
                       size: 22,
                     ),
                     // The label wraps instead of being cut on narrow phones.
