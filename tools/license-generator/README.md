@@ -88,16 +88,27 @@ math. The generator's displayed "Expiration" is therefore informational.
 ## Tests
 
 ```bash
-# 1. Build the end-to-end firmware-compat harness (requires BearSSL sources).
+# 1. Build the two end-to-end firmware-compat harnesses (requires BearSSL).
 #    BEARSSL_INC  -> dir containing bearssl/bearssl.h  (e.g. .../bearssl inc/)
 #    BEARSSL_LIB  -> path to libbearssl.a
-#    This also generates the git-ignored external TEST key if not present.
+#
+# 1a. Default harness using the git-ignored RANDOM external TEST key
+#     (used by the generator tests). Also generates that key if missing.
 BEARSSL_INC=/tmp/bearssl-host-inc \
 BEARSSL_LIB=/tmp/bearssl-src/build/libbearssl.a \
+  python3 tests/build_compat.sh                                  # -> /tmp/compat/testing_compat
+
+# 1b. Known-answer harness compiled with the fixed PUBLIC-only witness key,
+#     used by the [known-answer] regression vector.
+BEARSSL_INC=/tmp/bearssl-host-inc \
+BEARSSL_LIB=/tmp/bearssl-src/build/libbearssl.a \
+  COMPAT_OUT=/tmp/compat/testing_compat_known PUBKEY_HEADER=known_pubkey.h \
   python3 tests/build_compat.sh
 
-# 2. Run the full suite (51 checks) incl. end-to-end firmware compatibility.
-COMPAT_BIN=/tmp/compat/testing_compat .venv/bin/python tests/test_license_generator.py
+# 2. Run the full suite (66 checks) incl. firmware compatibility + known-answer.
+COMPAT_BIN=/tmp/compat/testing_compat \
+COMPAT_KNOWN_BIN=/tmp/compat/testing_compat_known \
+  .venv/bin/python tests/test_license_generator.py
 ```
 
 The test suite covers: temp 1/6/12-month, permanent, invalid serial, invalid
@@ -106,8 +117,20 @@ separator / non-canonical bits rejected), signature verify, wrong serial,
 modified payload, modified signature, generated code **accepted by the real
 firmware verifier** (device serial `KCG_1234ABCD`), **device binding** (a valid
 signed code for `KCG_00000000` is **rejected** by firmware activation with
-reason `SERIAL_MISMATCH`), and that no private key is tracked or embedded by
-Git.
+reason `SERIAL_MISMATCH`), a **fixed known-answer regression vector** (the
+approved Stage 4 public-only witness: SHA-256, raw r||s, 133-char Base32, and
+both firmware accept + SERIAL_MISMATCH on a different device), and that no
+private key is tracked or embedded by Git.
+
+## Known-answer regression fixture
+
+`tests/test_license_generator.py` carries a fixed, **public-only** witness
+vector (serial `KCG_1234ABCD`, TEMPORARY, `2026-09-15`, months 6). It checks the
+known payload hex, SHA-256 hash, raw 64-byte `r||s` signature, and 133-char
+Base32 code, verifies the signature with the known **public** key, and feeds the
+code through the real firmware decoder / BearSSL verifier / activation path. The
+matching private key is **not** present and is never reconstructed here. The
+random external TEST key remains used only by the generator tests.
 
 ## End-to-end compatibility proof
 

@@ -9,10 +9,12 @@
 # runs license_decode_base32 -> verify_ecdsa_p256_sha256 -> license_attempt_activate.
 #
 # Environment:
-#   BEARSSL_INC   : directory containing bearssl/bearssl.h (repeatable via -I)
-#   BEARSSL_LIB   : path to libbearssl.a
-#   COMPAT_OUT    : output binary (default /tmp/compat/testing_compat)
-#   PYTHON        : python that has `cryptography` (default .venv/bin/python)
+#   BEARSSL_INC    : directory containing bearssl/bearssl.h (repeatable via -I)
+#   BEARSSL_LIB    : path to libbearssl.a
+#   COMPAT_OUT     : output binary (default /tmp/compat/testing_compat)
+#   PYTHON         : python that has `cryptography` (default .venv/bin/python)
+#   PUBKEY_HEADER  : public-key header to compile in (default test_pubkey.h).
+#                    Use known_pubkey.h to build the fixed known-answer harness.
 #
 # Required because Python's `cryptography` and the firmware's BearSSL are
 # different crypto stacks — this proves the generator's output is byte- and
@@ -25,6 +27,7 @@ STAGE="$(cd "$(dirname "$0")/.." && pwd)"
 TESTDIR_STAGE="$(cd "$(dirname "$0")" && pwd)"
 GENDIR="${STAGE}/.test-keys"
 OUT="${COMPAT_OUT:-/tmp/compat/testing_compat}"
+PUBKEY_HEADER="${PUBKEY_HEADER:-test_pubkey.h}"
 
 BEARSSL_INC="${BEARSSL_INC:-}"
 BEARSSL_LIB="${BEARSSL_LIB:-/tmp/bearssl-src/build/libbearssl.a}"
@@ -36,8 +39,10 @@ if [ -z "$BEARSSL_INC" ] || [ ! -f "$BEARSSL_LIB" ]; then
   exit 2
 fi
 
-# Ensure the external TEST key + its public-key header exist (git-ignored).
-if [ ! -f "${GENDIR}/test_pubkey.h" ] || [ ! -f "${GENDIR}/test_key.pem" ]; then
+# For the default random TEST key, ensure the external key + its pubkey header
+# exist (git-ignored). Not needed when building the known-answer variant.
+if [ "$PUBKEY_HEADER" = "test_pubkey.h" ] && \
+   { [ ! -f "${GENDIR}/test_pubkey.h" ] || [ ! -f "${GENDIR}/test_key.pem" ]; }; then
   echo "Generating external TEST key (git-ignored) ..."
   ( cd "$STAGE" && "$PYTHON" tests/make_test_key.py "$GENDIR" )
 fi
@@ -45,13 +50,15 @@ fi
 mkdir -p "$(dirname "$OUT")"
 
 g++ -std=c++17 -O2 -Wall -Wextra -DPUBLIC_KEY_CONFIGURED=1 \
+  -DTEST_PUBKEY_HEADER='"'"$PUBKEY_HEADER"'"' \
   -I "$FIRM" \
   -I "$GENDIR" \
+  -I "$TESTDIR_STAGE" \
   -I /tmp/hostshims \
   -I "$BEARSSL_INC" \
   "$TESTDIR_STAGE/testing_compat.cpp" \
   "$BEARSSL_LIB" \
   -o "$OUT"
 
-echo "Built compat harness -> $OUT"
+echo "Built compat harness -> $OUT  (pubkey header: $PUBKEY_HEADER)"
 echo "Usage: $OUT <BASE32_CODE> [accept|reject[:REASON]]"

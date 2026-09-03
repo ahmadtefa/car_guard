@@ -18,6 +18,7 @@
 #include "license_pubkey.h"
 #include <bearssl/bearssl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <string>
 
@@ -36,18 +37,29 @@ int analogRead(int p) { (void)p; return 0; }
 void configTime(int t, int d, const char* a, const char* b, const char* c) {
   (void)t; (void)d; (void)a; (void)b; (void)c;
 }
-uint32_t ESPClass::getChipId() { return 0x1234ABCDu; }
+uint32_t ESPClass::getChipId() {
+  // Optional device-serial override (e.g. TEST_CHIP_ID=00000000) so the same
+  // binary can test both the matching device and a NON-matching device.
+  const char* s = getenv("TEST_CHIP_ID");
+  if (s != NULL && s[0] != '\0') {
+    return (uint32_t)strtoul(s, NULL, 16);
+  }
+  return 0x1234ABCDu;
+}
 void ESPClass::restart() {}
 EEPROMClass EEPROM;
 ESPClass ESP;
 
-// TEST (non-production) public key — the uncompressed P-256 point 04||X||Y.
-// It is the public half of the EXTERNAL, git-ignored TEST key produced by
-// make_test_key.py (generated into .test-keys/test_pubkey.h, never hardcoded in
-// source). The firmware must be compiled with PUBLIC_KEY_CONFIGURED=1 so it
-// accepts codes signed by that TEST key's private half.
+// Public key for the firmware. The file it comes from is selectable at build
+// time so the same harness can be compiled against either:
+//   - the git-ignored random EXTERNAL TEST key (test_pubkey.h, default), or
+//   - the fixed Stage 4 known-answer PUBLIC key (known_pubkey.h).
+// Neither header ever contains a private key.
 extern const uint8_t LICENSE_PUBKEY[65];
-#include "test_pubkey.h"   // provides the definition of LICENSE_PUBKEY (65 bytes)
+#ifndef TEST_PUBKEY_HEADER
+#define TEST_PUBKEY_HEADER "test_pubkey.h"
+#endif
+#include TEST_PUBKEY_HEADER   // defines LICENSE_PUBKEY (65 bytes)
 
 // Real firmware translation units.
 #include "license.cpp"

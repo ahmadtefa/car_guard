@@ -23,6 +23,7 @@ Covers the required cases:
 
 All use the NON-PRODUCTION TEST key in .test-keys/ (git-ignored).
 """
+import hashlib
 import os
 import re
 import subprocess
@@ -38,7 +39,32 @@ import license_generator as lg
 
 
 # ---------------------------------------------------------------------
-# TEST key (git-ignored). Deterministic from the spec-lock scalar.
+# Stage 4 approved known-answer vector — PUBLIC ONLY (no private key).
+#
+# This is a fixed regression fixture used to VERIFY a known-good license code
+# against the known public key and the real firmware (decoder + BearSSL
+# verifier + activation). The matching private key is intentionally NOT
+# present anywhere; it must never be reconstructed here.
+# ---------------------------------------------------------------------
+KNOWN_PUBKEY = (
+    "04E67B1EC6B06DE9B679935F9D594303333EF313335C4233C78513C15780328CBC"
+    "727C3A9276F531BAC33F06B63DB4C33878015E86A9F4BFF1A2C318D9EEE99266"
+)
+KNOWN_PAYLOAD_HEX = "014B43475F31323334414243440007EA090F06"
+KNOWN_SHA256 = "3C991B78E57F892360656CB77EBFBCA398A83ABF944912F9C66A26EF842F39AC"
+KNOWN_R = "5325458CCF10592ADC37C2FCA15CA42BEAEB5C94F996A1E84A2D0DD6EB1E08BB"
+KNOWN_S = "7E4745906DC89AE6FB056EF47485E66B65AED1E57BB13D88340D0806A8B1E2A2"
+KNOWN_BASE32 = (
+    "AFFUGR27GEZDGNCBIJBUIAAH5IEQ6BSTEVCYZTYQLEVNYN6C7SQVZJBL5LVVZFHZS2Q6QS"
+    "RNBXLOWHQIXN7EORMQNXEJVZX3AVXPI5EF4ZVWLLWR4V53CPMIGQGQQBVIWHRKE"
+)
+KNOWN_SERIAL = "KCG_1234ABCD"
+KNOWN_TYPE = "TEMPORARY"
+KNOWN_DATE = "2026-09-15"
+KNOWN_MONTHS = 6
+
+# ---------------------------------------------------------------------
+# TEST key (git-ignored). Generated externally; never committed.
 # ---------------------------------------------------------------------
 TEST_KEY = ROOT / ".test-keys" / "test_key.pem"
 
@@ -91,19 +117,28 @@ def expect_error(name, fn, needle=None):
     print("  [FAIL] %s did NOT raise GeneratorError" % name)
 
 
-def run_compat(code, mode="accept"):
+def run_compat(code, mode="accept", binpath=None, env=None):
     """Run the code through the REAL firmware compat harness.
 
     `mode` is passed to the harness: "accept" (default), "reject", or a
-    "reject:REASON" string (e.g. "reject:SERIAL_MISMATCH"). Return (rc, out).
+    "reject:REASON" string (e.g. "reject:SERIAL_MISMATCH"). `binpath` overrides
+    the harness binary (default $COMPAT_BIN or /tmp/compat/testing_compat). `env`
+    adds environment (e.g. TEST_CHIP_ID to change the device serial). Return
+    (rc, out); a missing binary returns (127, ...) rather than raising.
     """
-    binpath = os.environ.get("COMPAT_BIN")
+    if binpath is None:
+        binpath = os.environ.get("COMPAT_BIN")
     if not binpath:
         binpath = "/tmp/compat/testing_compat"
+    if not os.path.isfile(binpath):
+        return 127, "compat harness not found: %s" % binpath
     cmd = [binpath, code]
     if mode and mode != "accept":
         cmd.append(mode)
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    run_env = dict(os.environ)
+    if env:
+        run_env.update(env)
+    res = subprocess.run(cmd, capture_output=True, text=True, env=run_env)
     return res.returncode, (res.stdout + res.stderr)
 
 
@@ -188,6 +223,56 @@ def main():
           lg.verify_signature(wrong_data[:19], wrong_data[19:], pub))
     check("wrong serial: payload serial == KCG_00000000",
           lg.parse_payload(wrong_data[:19])["serial"] == wrong_serial)
+
+    print("\n[known-answer] fixed Stage 4 regression vector (public key only)\n")
+    known_payload = bytes.fromhex(KNOWN_PAYLOAD_HEX)
+    known_sig = bytes.fromhex(KNOWN_R + KNOWN_S)
+    known_decoded = known_payload + known_sig
+    check("known-answer: payload is 19 bytes", len(known_payload) == 19)
+    check("known-answer: signature is 64 bytes", len(known_sig) == 64)
+    check("known-answer: decoded is 83 bytes", len(known_decoded) == 83)
+
+    # SHA-256 of the 19-byte payload matches the vector.
+    check("known-answer: SHA-256(payload) matches",
+          hashlib.sha256(known_payload).hexdigest().upper() == KNOWN_SHA256)
+
+    # Public key loads and VERIFIES the signature (Python cryptography).
+    known_pub = lg.load_public_key(KNOWN_PUBKEY)
+    check("known-answer: public key loads as P-256", known_pub.curve.name == "secp256r1")
+    check("known-answer: signature verifies with known public key",
+          lg.verify_signature(known_payload, known_sig, known_pub))
+
+    # Base32 code round-trips to the exact known string.
+    check("known-answer: Base32 decodes to payload||sig",
+          lg.base32_decode(KNOWN_BASE32) == known_decoded)
+    check("known-answer: Base32 encode of payload||sig matches known code",
+          lg.base32_encode(known_decoded) == KNOWN_BASE32)
+    check("known-answer: Base32 is 133 chars and matches",
+          len(KNOWN_BASE32) == 133 and KNOWN_BASE32.isupper() and "=" not in KNOWN_BASE32)
+
+    # Payload metadata parses to the expected values.
+    kmeta = lg.parse_payload(known_payload)
+    check("known-answer: payload serial == %s" % KNOWN_SERIAL, kmeta["serial"] == KNOWN_SERIAL)
+    check("known-answer: payload type == %s" % KNOWN_TYPE, kmeta["type"] == KNOWN_TYPE)
+    check("known-answer: payload date == %s" % KNOWN_DATE,
+          str(kmeta["creation"]) == KNOWN_DATE)
+    check("known-answer: payload months == %d" % KNOWN_MONTHS, kmeta["months"] == KNOWN_MONTHS)
+
+    # Real firmware path (known pubkey binary): must accept on the matched
+    # device and reject (SERIAL_MISMATCH) on a non-matching device.
+    known_bin = os.environ.get("COMPAT_KNOWN_BIN", "/tmp/compat/testing_compat_known")
+    rc, out = run_compat(KNOWN_BASE32, "accept", binpath=known_bin)
+    ok = (rc == 0) and ("COMPAT_OK" in out) and ("serial=%s" % KNOWN_SERIAL in out)
+    check("known-answer: firmware accepts code on device %s" % KNOWN_SERIAL, ok)
+    if not ok:
+        print("      rc=%d out=%s" % (rc, out.strip()))
+
+    rc, out = run_compat(KNOWN_BASE32, "reject:SERIAL_MISMATCH",
+                         binpath=known_bin, env={"TEST_CHIP_ID": "00000000"})
+    ok = (rc == 0) and ("COMPAT_REJECTED" in out) and ("reason=SERIAL_MISMATCH" in out)
+    check("known-answer: firmware rejects code on device KCG_00000000 (SERIAL_MISMATCH)", ok)
+    if not ok:
+        print("      rc=%d out=%s" % (rc, out.strip()))
 
     print("\n[end-to-end] generator -> firmware verifier (real C++ harness)\n")
     for months in (1, 6, 12):
