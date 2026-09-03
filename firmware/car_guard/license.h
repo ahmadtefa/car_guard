@@ -25,10 +25,17 @@ struct LicenseRecord {
   uint32_t checksum;        // simple checksum
 };
 
+// Compile-time sanity checks
+static_assert(sizeof(LicenseRecord) == 52, "Unexpected LicenseRecord size");
+
+#ifdef EEPROM_SIZE
+static_assert(LICENSE_EEPROM_OFFSET + sizeof(LicenseRecord) <= EEPROM_SIZE,
+              "LicenseRecord does not fit in configured EEPROM_SIZE");
+#endif
+
 // Public API
 void license_init();
 void license_load();
-void license_save();
 
 bool license_is_active();
 uint32_t license_get_expiration();
