@@ -22,19 +22,26 @@ abstract class HttpService {
 class HttpServiceImpl implements HttpService {
   HttpServiceImpl({
     http.Client? client,
-  }) : _client = client ?? http.Client();
+    Duration? timeout,
+  })  : _client = client ?? http.Client(),
+        _timeout = timeout ?? const Duration(seconds: 10);
 
   final http.Client _client;
+  final Duration _timeout;
 
   @override
   Future<Map<String, dynamic>> getJson(
     String url, {
     Map<String, String>? headers,
   }) async {
-    final response = await _client.get(
-      Uri.parse(url),
-      headers: headers,
-    );
+    final response = await _client
+        .get(
+          Uri.parse(url),
+          headers: headers,
+        )
+        .timeout(
+          _timeout,
+        );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
@@ -57,14 +64,18 @@ class HttpServiceImpl implements HttpService {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
   }) async {
-    final response = await _client.post(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        ...?headers,
-      },
-      body: jsonEncode(body ?? <String, dynamic>{}),
-    );
+    final response = await _client
+        .post(
+          Uri.parse(url),
+          headers: {
+            'Content-Type': 'application/json',
+            ...?headers,
+          },
+          body: jsonEncode(body ?? <String, dynamic>{}),
+        )
+        .timeout(
+          _timeout,
+        );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
