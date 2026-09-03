@@ -24,6 +24,7 @@
 #include <DallasTemperature.h>
 #include <EEPROM.h>
 #include <WebSocketsServer.h>
+#include "license.h"
 
 // =========================================================
 // PIN DEFINITIONS
@@ -527,6 +528,23 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
     case WStype_DISCONNECTED:
       Serial.printf("🔌 WS CLIENT #%u DISCONNECTED\n", clientId);
       break;
+    case WStype_TEXT: {
+      // [Stage 3.3] License commands ride the existing WebSocket channel.
+      // The payload is not guaranteed NUL-terminated, so copy it into a local
+      // bounded buffer first. Only license commands are answered; any other
+      // text frame is ignored, preserving existing behavior.
+      char buf[256];
+      size_t n = length < sizeof(buf) - 1 ? length : sizeof(buf) - 1;
+      memcpy(buf, payload, n);
+      buf[n] = '\0';
+
+      String devSerial = getChipId();
+      String resp;
+      if (license_handle_ws_command(buf, devSerial.c_str(), resp)) {
+        webSocket.sendTXT(clientId, resp);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -573,6 +591,14 @@ void handleJoinWiFi() {
 void handleData() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+
+  // [Stage 3.3] License enforcement: while the device is LOCKED (fresh unit,
+  // no valid license, or an EXPIRED temporary license), no operating data is
+  // served over /data. When ACTIVE the existing payload/format is unchanged.
+  if (!license_is_active()) {
+    server.send(403, "text/plain", "DEVICE LOCKED");
+    return;
+  }
 
   // [APP SYNC] alarm + muted mirror the buzzer state on the module.
   String json = "{";
@@ -898,6 +924,12 @@ void setup() {
   sensors.setWaitForConversion(false);
 
   loadSettings();
+
+  // [Stage 3.3] License: start from a safe LOCKED state, then restore any
+  // stored license from EEPROM. A fresh device has no valid license record so
+  // it stays LOCKED; an already-activated device keeps its license across reboot.
+  license_init();
+  license_load();
 
   // [STA+mDNS] AP stays always-on; the STA join is attempted in parallel
   // and never blocks boot (the hotspot might legitimately be off).

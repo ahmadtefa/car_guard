@@ -120,6 +120,24 @@ extern char last_activation_reason[64];
 // True when the device has a plausible NTP-synchronized time available.
 bool license_has_ntp_time();
 
+// ---------------------------------------------------------
+// License commands over WebSocket (dependency-free, no socket / no secrets).
+//
+// `json` is the NUL-terminated JSON text received from a client;
+// `deviceSerial` is the device identity string (e.g. getChipId()).
+// Recognized commands:
+//   {"cmd":"DEVICE_SERIAL"}
+//   {"cmd":"LICENSE_STATUS"}
+//   {"cmd":"LICENSE_ACTIVATE","code":"<BASE32>"}
+//
+// On success fills `response` with the reply and returns true. Returns false
+// if the message is NOT a recognized license command (caller should ignore it,
+// preserving any existing WebSocket behavior). `license_attempt_activate()`
+// is the only activation path. Never returns the replay hash, never echoes the
+// raw activation code, and never logs it.
+// ---------------------------------------------------------
+bool license_handle_ws_command(const char* json, const char* deviceSerial, String& response);
+
 // ECDSA P-256 + SHA-256 signature verification over `payload` using the built-in
 // public key. `signature` MUST be the raw r||s value (64 bytes) — no DER / ASN.1.
 bool verify_ecdsa_p256_sha256(const uint8_t* payload, size_t payload_len,

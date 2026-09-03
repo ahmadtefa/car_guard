@@ -375,3 +375,103 @@ bool license_attempt_activate(const String& base32code) {
   strcpy(last_activation_reason, "OK");
   return true;
 }
+
+// =========================================================
+// License commands over WebSocket
+//
+// These helpers are intentionally dependency-free (no JSON library, no
+// socket). They only interpret the small set of license commands and build
+// the reply string. The caller (car_guard.ino onWsEvent) sends the reply.
+// Security: never returns the replay hash, never echoes or logs the raw
+// activation code, and relies on license_attempt_activate() — the only
+// activation path — which itself requires a valid NTP-derived time.
+// =========================================================
+
+// Minimal, dependency-free JSON string-value lookup for `"key":"..."`.
+// Returns true and sets `out` when the key is found with a string value.
+static bool jsonGetString(const char* json, const char* key, String& out) {
+  if (json == NULL || key == NULL) return false;
+
+  char needle[32];
+  size_t kn = strlen(key);
+  if (kn + 3 > sizeof(needle)) return false;
+  needle[0] = '"';
+  memcpy(needle + 1, key, kn);
+  needle[kn + 1] = '"';
+  needle[kn + 2] = '\0';
+
+  const char* p = strstr(json, needle);
+  if (p == NULL) return false;
+  p += strlen(needle);
+
+  while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+  if (*p != ':') return false;
+  p++;
+  while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+  if (*p != '"') return false;
+  p++;
+
+  const char* start = p;
+  while (*p != '\0' && *p != '"') p++;   // license codes are [A-Z2-7], no escapes
+  out = String(start, (unsigned int)(p - start));
+  return true;
+}
+
+bool license_handle_ws_command(const char* json, const char* deviceSerial, String& response) {
+  if (json == NULL) return false;
+
+  String cmd;
+  if (!jsonGetString(json, "cmd", cmd)) return false; // not a recognized command frame
+
+  // 1. DEVICE_SERIAL
+  if (cmd == "DEVICE_SERIAL") {
+    response = "{\"type\":\"DEVICE_SERIAL\",\"serial\":\"";
+    response += deviceSerial;
+    response += "\"}";
+    return true;
+  }
+
+  // 2. LICENSE_STATUS  (no secrets: no replay hash, no serial, no code)
+  if (cmd == "LICENSE_STATUS") {
+    bool active = license_is_active();
+    String licType = "NONE";
+    uint32_t expires = 0;
+    if (active) {
+      licType = (license_get_type() == LICENSE_PERMANENT) ? "PERMANENT" : "TEMPORARY";
+      expires = license_get_expiration();
+    }
+    response = "{\"type\":\"LICENSE_STATUS\",\"status\":\"";
+    response += active ? "ACTIVE" : "LOCKED";
+    response += "\",\"licenseType\":\"";
+    response += licType;
+    response += "\",\"expires\":";
+    response += String((unsigned long)expires);
+    response += "}";
+    return true;
+  }
+
+  // 3. LICENSE_ACTIVATE
+  if (cmd == "LICENSE_ACTIVATE") {
+    String code;
+    if (!jsonGetString(json, "code", code) || code.length() == 0) {
+      response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"ERROR\",\"reason\":\"MISSING_CODE\",\"expires\":0}";
+      return true;
+    }
+    bool ok = license_attempt_activate(code);
+    if (ok) {
+      response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"OK\",\"reason\":\"";
+      response += String(last_activation_reason);
+      response += "\",\"expires\":";
+      response += String((unsigned long)license_get_expiration());
+      response += "}";
+    } else {
+      response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"ERROR\",\"reason\":\"";
+      response += String(last_activation_reason);
+      response += "\",\"expires\":0}";
+    }
+    return true;
+  }
+
+  // Some other command — not ours; let the caller decide.
+  return false;
+}
