@@ -22,6 +22,7 @@ import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
 import '../widgets/compact_status_row.dart';
+import '../widgets/fan_control_card.dart';
 import '../widgets/fullscreen_hud_page.dart';
 import '../widgets/fullscreen_gauges_page.dart';
 import '../widgets/gauge_area.dart';
@@ -397,6 +398,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     const SizedBox(height: AppSpacing.md),
 
+                    // وضع المروحة اليدوي فوق التحكم التلقائي للوحدة، مع
+                    // رسالة تأكيد قبل التشغيل وأخرى قبل الإلغاء.
+                    const FanControlCard(),
+
+                    const SizedBox(height: AppSpacing.md),
+
                     const FanAlternatorRow(),
 
                     const SizedBox(height: AppSpacing.md),
@@ -405,8 +412,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     const SizedBox(height: AppSpacing.md),
 
-                    // GPS speed + trip distance, side by side.
-                    const TripCards(),
+                    // السرعة والمسافة صارا في الشبكة أعلاه؛ هنا يبقى زر
+                    // تصفير العداد وتنبيهات الـ GPS فقط.
+                    const TripCards(includeCards: false),
 
                     const SizedBox(height: AppSpacing.md),
 

@@ -4,52 +4,60 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
+import '../../../core/widgets/adaptive_text.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../providers/trip_provider.dart';
 
-/// Two side-by-side cards fed by the phone GPS: current vehicle speed
-/// (km/h) and the resettable trip distance (km).
+/// Two side-by-side cards fed by the phone GPS: current vehicle speed (km/h)
+/// and the resettable trip distance (km).
+///
+/// [includeCards] is false when speed and distance already live in
+/// [DashboardReadingsGrid]: the odometer reset button and the GPS notices stay
+/// available either way, so hiding the cards never removes a function.
 class TripCards extends ConsumerWidget {
-  const TripCards({super.key});
+  const TripCards({super.key, this.includeCards = true});
+
+  /// Whether to render the two reading cards themselves.
+  final bool includeCards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trip = ref.watch(tripProvider);
     final l = ref.watch(l10nProvider);
 
-    final speedText =
-        trip.hasFix ? trip.speedKmh.toStringAsFixed(0) : '--';
-    final distanceText =
-        trip.hasFix ? trip.distanceKm.toStringAsFixed(2) : '--';
+    final speedText = trip.hasFix ? trip.speedKmh.toStringAsFixed(0) : '--';
+    final distanceText = trip.hasFix ? trip.distanceKm.toStringAsFixed(2) : '--';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _TripCard(
-                title: l.vehicleSpeed,
-                value: speedText,
-                unit: l.kmh,
-                icon: Icons.speed_rounded,
-                color: AppColors.neonCyan,
+        if (includeCards) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _TripCard(
+                  title: l.vehicleSpeed,
+                  value: speedText,
+                  unit: l.kmh,
+                  icon: Icons.speed_rounded,
+                  color: AppColors.neonCyan,
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _TripCard(
-                title: l.tripDistance,
-                value: distanceText,
-                unit: l.km,
-                icon: Icons.route_rounded,
-                color: AppColors.neonGreen,
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _TripCard(
+                  title: l.tripDistance,
+                  value: distanceText,
+                  unit: l.km,
+                  icon: Icons.route_rounded,
+                  color: AppColors.neonGreen,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
 
-        const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
+        ],
 
         SecondaryButton(
           onPressed: trip.distanceKm > 0
@@ -58,8 +66,9 @@ class TripCards extends ConsumerWidget {
           child: Text(l.resetTrip),
         ),
 
-        // Friendly heads-up instead of silently dead cards.
-        if (trip.denied || !trip.available)
+        // Friendly heads-up instead of silently dead cards. Only when the
+        // cards are on: inside the grid the same hint is written in each cell.
+        if (includeCards && (trip.denied || !trip.available))
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Text(
@@ -127,6 +136,7 @@ class _TripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -138,36 +148,48 @@ class _TripCard extends StatelessWidget {
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: Text(
+                  child: AdaptiveText(
                     title,
-                    style: Theme.of(context).textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall ??
+                        const TextStyle(fontSize: 14),
+                    maxLines: 2,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: value,
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: color,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 34,
-                          height: 1.0,
-                        ),
+            // One flexible line: the number keeps priority over its unit, so a
+            // narrow phone shrinks the unit instead of clipping the reading.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: AdaptiveText(
+                    value,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 34,
+                      height: 1.0,
+                    ),
+                    maxLines: 1,
+                    minFontSize: 16,
                   ),
-                  TextSpan(
-                    text: ' $unit',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: color.withValues(alpha: 0.8),
-                          fontWeight: FontWeight.w600,
-                        ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: AdaptiveText(
+                    unit,
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    minFontSize: 9,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),

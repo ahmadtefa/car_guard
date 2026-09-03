@@ -9,9 +9,8 @@ import '../../../core/providers/device_status_provider.dart';
 import '../models/dashboard_state.dart';
 import 'battery_voltage_card.dart';
 import 'dashboard_gauges.dart';
-import 'engine_temperature_card.dart';
 import 'more_gauges.dart';
-import 'voltage_delta_card.dart';
+import 'readings_grid.dart';
 
 /// Builds the live gauge pair for the currently selected dashboard
 /// style. Shared by the dashboard and the fullscreen gauges page.
@@ -22,6 +21,7 @@ Widget buildGaugeArea(
   required DashboardState state,
   required AppL10n l,
   required void Function(String type) onOpenHud,
+  bool fullscreen = false,
 }) {
 
   final device = ref.watch(deviceStatusProvider).value;
@@ -291,14 +291,20 @@ Widget buildGaugeArea(
       );
 
     default:
+      // 'cards': the four headline readings as a 2x2 responsive grid
+      // (temperature + voltage difference on the first row, GPS speed +
+      // distance on the second), with the battery voltage card kept right
+      // below it exactly as before.
+      if (fullscreen) {
+        // Fullscreen mode is exactly the four cards, filling the screen; the
+        // battery card is a dashboard-only extra (its numbers are still one tap
+        // away through the temp/volt HUD).
+        return DashboardReadingsGrid(fullscreen: true, onOpenHud: onOpenHud);
+      }
+
       return Column(
         children: [
-          EngineTemperatureCard(
-            value: state.engineTemperature,
-            temperature: connected ? temperature : null,
-            warnValue: settings.engineTempWarning,
-            criticalValue: settings.engineTempCritical,
-          ),
+          DashboardReadingsGrid(onOpenHud: onOpenHud),
           const SizedBox(height: AppSpacing.md),
           BatteryVoltageCard(
             value: state.batteryVoltage,
@@ -307,8 +313,6 @@ Widget buildGaugeArea(
             lowValue: settings.minBatteryVoltage,
             highValue: settings.maxBatteryVoltage,
           ),
-          const SizedBox(height: AppSpacing.md),
-          const VoltageDeltaCard(),
         ],
       );
   }
