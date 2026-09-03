@@ -21,12 +21,12 @@ struct LicenseRecord {
   char serial[24];          // null terminated
   uint32_t activationEpoch; // seconds since epoch
   uint32_t expirationEpoch; // 0 for permanent
-  uint8_t replayHash[8];    // small fingerprint to avoid replay
+  uint8_t replayHash[32];   // SHA-256 of payload||signature
   uint32_t checksum;        // simple checksum
 };
 
 // Compile-time sanity checks
-static_assert(sizeof(LicenseRecord) == 52, "Unexpected LicenseRecord size");
+static_assert(sizeof(LicenseRecord) == 76, "Unexpected LicenseRecord size");
 
 #ifdef EEPROM_SIZE
 static_assert(LICENSE_EEPROM_OFFSET + sizeof(LicenseRecord) <= EEPROM_SIZE,
