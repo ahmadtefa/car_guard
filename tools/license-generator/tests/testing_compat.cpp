@@ -3,7 +3,17 @@
 // Python generator:
 //   license_decode_base32 -> verify_ecdsa_p256_sha256 -> license_attempt_activate
 //
-// On success prints "COMPAT_OK" and exits 0.
+// Modes (2nd argument, optional):
+//   <none> / accept           Ensure the code is accepted and activated.
+//   reject                   Ensure activation FAILS (any reason).
+//   reject:REASON            Ensure activation FAILS with reason == REASON
+//                            (e.g. reject:SERIAL_MISMATCH).
+//
+// In 'reject' modes the harness still requires decode + signature verification +
+// payload parse to succeed (proving the code is otherwise cryptographically
+// valid) — only the activation step must fail. On failure it prints
+//   COMPAT_REJECTED: reason=<last_activation_reason>
+// and exits 0 only when the expectation matched; otherwise exits 1.
 #include "license.h"
 #include "license_pubkey.h"
 #include <bearssl/bearssl.h>
@@ -31,16 +41,13 @@ void ESPClass::restart() {}
 EEPROMClass EEPROM;
 ESPClass ESP;
 
-// TEST (non-production) public key — derived from the TEST scalar. This is the
-// key the firmware must be compiled with (PUBLIC_KEY_CONFIGURED=1) to accept
-// codes produced by the generator's TEST key.
+// TEST (non-production) public key — the uncompressed P-256 point 04||X||Y.
+// It is the public half of the EXTERNAL, git-ignored TEST key produced by
+// make_test_key.py (generated into .test-keys/test_pubkey.h, never hardcoded in
+// source). The firmware must be compiled with PUBLIC_KEY_CONFIGURED=1 so it
+// accepts codes signed by that TEST key's private half.
 extern const uint8_t LICENSE_PUBKEY[65];
-const uint8_t LICENSE_PUBKEY[65] = {
-  0x04,0xE6,0x7B,0x1E,0xC6,0xB0,0x6D,0xE9,0xB6,0x79,0x93,0x5F,0x9D,0x59,0x43,0x03,
-  0x33,0x3E,0xF3,0x13,0x33,0x5C,0x42,0x33,0xC7,0x85,0x13,0xC1,0x57,0x80,0x32,0x8C,
-  0xBC,0x72,0x7C,0x3A,0x92,0x76,0xF5,0x31,0xBA,0xC3,0x3F,0x06,0xB6,0x3D,0xB4,0xC3,
-  0x38,0x78,0x01,0x5E,0x86,0xA9,0xF4,0xBF,0xF1,0xA2,0xC3,0x18,0xD9,0xEE,0xE9,0x92,0x66
-};
+#include "test_pubkey.h"   // provides the definition of LICENSE_PUBKEY (65 bytes)
 
 // Real firmware translation units.
 #include "license.cpp"
@@ -48,10 +55,17 @@ const uint8_t LICENSE_PUBKEY[65] = {
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: testing_compat <BASE32_CODE>\n");
+    fprintf(stderr, "usage: testing_compat <BASE32_CODE> [accept|reject[:REASON]]\n");
     return 2;
   }
   std::string code = argv[1];
+  std::string mode = (argc >= 3) ? argv[2] : "accept";
+  std::string wantReason;
+  if (mode.rfind("reject:", 0) == 0) {
+    wantReason = mode.substr(7);
+    mode = "reject";
+  }
+  bool expectAccept = (mode == "accept" || mode.empty());
 
   // 1. Decode with the firmware decoder.
   uint8_t decoded[83];
@@ -67,8 +81,9 @@ int main(int argc, char** argv) {
   const uint8_t* payload = decoded;              // 19 bytes
   const uint8_t* sig = decoded + 19;             // 64 bytes raw r||s
 
-  // 2. Verify signature with the firmware verifier.
-  if (!verify_ecdsa_p256_sha256(payload, 19, sig, 64)) {
+  // 2. Verify signature with the firmware verifier (must be cryptographically valid).
+  bool sigOk = verify_ecdsa_p256_sha256(payload, 19, sig, 64);
+  if (!sigOk) {
     fprintf(stderr, "COMPAT_FAIL: verify_ecdsa_p256_sha256 rejected the signature\n");
     return 1;
   }
@@ -78,17 +93,34 @@ int main(int argc, char** argv) {
   license_init();
   license_load();
   bool ok = license_attempt_activate(code.c_str());
-  if (!ok) {
-    fprintf(stderr, "COMPAT_FAIL: license_attempt_activate failed: %s\n", last_activation_reason);
-    return 1;
-  }
-  if (!license_is_active()) {
-    fprintf(stderr, "COMPAT_FAIL: license not active after activation\n");
-    return 1;
+  const char* reason = last_activation_reason;
+
+  if (expectAccept) {
+    if (!ok) {
+      fprintf(stderr, "COMPAT_FAIL: license_attempt_activate failed: %s\n", reason);
+      return 1;
+    }
+    if (!license_is_active()) {
+      fprintf(stderr, "COMPAT_FAIL: license not active after activation\n");
+      return 1;
+    }
+    printf("COMPAT_OK: code accepted end-to-end by firmware\n");
+    printf("  type=%u expiration=%u serial=%s\n",
+           license_get_type(), license_get_expiration(), license_get_serial());
+    return 0;
   }
 
-  printf("COMPAT_OK: code accepted end-to-end by firmware\n");
-  printf("  type=%u expiration=%u serial=%s\n",
-         license_get_type(), license_get_expiration(), license_get_serial());
+  // Reject mode: activation MUST fail, but the code was cryptographically valid.
+  if (ok) {
+    fprintf(stderr, "COMPAT_FAIL: expected activation to fail, but it succeeded\n");
+    return 1;
+  }
+  if (!wantReason.empty() && strcmp(reason, wantReason.c_str()) != 0) {
+    fprintf(stderr, "COMPAT_FAIL: expected reason '%s', got '%s'\n",
+            wantReason.c_str(), reason);
+    return 1;
+  }
+  printf("COMPAT_REJECTED: activation failed end-to-end (signature was valid)\n");
+  printf("  reason=%s\n", reason);
   return 0;
 }

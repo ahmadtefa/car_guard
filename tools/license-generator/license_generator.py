@@ -281,10 +281,6 @@ def load_public_key_bytes(key: EllipticCurvePrivateKey) -> bytes:
     )
 
 
-def private_key_scalar_hex(key: EllipticCurvePrivateKey) -> str:
-    return "%064X" % key.private_numbers().private_value
-
-
 def sign_payload(payload: bytes, key: EllipticCurvePrivateKey) -> bytes:
     if len(payload) != PAYLOAD_LEN:
         raise GeneratorError("Payload must be %d bytes" % PAYLOAD_LEN)
@@ -308,12 +304,53 @@ def verify_signature(payload: bytes, signature: bytes, public_key: EllipticCurve
 
 
 def load_public_key(public_xy_hex: str) -> EllipticCurvePublicKey:
-    xy = bytes.fromhex(public_xy_hex)
+    """Load a public key from the 65-byte uncompressed P-256 point as hex
+    (04 || X(32) || Y(32), i.e. 130 hex chars). Verification only."""
+    s = public_xy_hex.strip()
+    if s.startswith("0x"):
+        s = s[2:]
+    if len(s) != 130:
+        raise GeneratorError("Public key hex must be exactly 65 bytes (04||X||Y, 130 hex chars)")
+    try:
+        xy = bytes.fromhex(s)
+    except ValueError:
+        raise GeneratorError("Public key hex is not valid hexadecimal")
     if len(xy) != 65 or xy[0] != 0x04:
         raise GeneratorError("Public key must be 04||X||Y (65 bytes)")
     x = int.from_bytes(xy[1:33], "big")
     y = int.from_bytes(xy[33:], "big")
     return ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1()).public_key()
+
+
+def load_public_key_from_file(path) -> EllipticCurvePublicKey:
+    """Load a PUBLIC key from a file for verification without needing a private key.
+
+    The file may contain either:
+      * a PEM PUBLIC KEY (SubjectPublicKeyInfo, P-256), or
+      * the uncompressed public point 04||X||Y as hex (130 chars, '0x' optional).
+
+    This is the only key material `verify` requires — it never asks for a
+    private key. The public key is never embedded in source and never changes
+    the firmware's public-key format.
+    """
+    if isinstance(path, str):
+        path = Path(path)
+    if not path.exists():
+        raise GeneratorError("Public key file not found: %s" % path)
+    data = path.read_bytes()
+    text = data.decode("utf-8", "replace").strip()
+    if text.startswith("-----BEGIN"):
+        try:
+            key = serialization.load_pem_public_key(data)
+        except Exception as e:
+            raise GeneratorError("Could not parse public key PEM: %s" % e)
+        if not isinstance(key, EllipticCurvePublicKey):
+            raise GeneratorError("Loaded key is not an EC public key")
+        if key.curve.name != "secp256r1":
+            raise GeneratorError("Public key must be on secp256r1 (P-256), got %s" % key.curve.name)
+        return key
+    # Otherwise treat the file content as the raw uncompressed hex point.
+    return load_public_key(text)
 
 
 # ---------------------------------------------------------------------
@@ -329,15 +366,17 @@ def generate_code(serial, license_type, creation: datetime.date, months, key) ->
     return base32_encode(decoded)
 
 
-def decode_and_verify(code: str, key: EllipticCurvePrivateKey) -> dict:
-    """Decode a code, verify it against the key's public key, and parse metadata."""
+def decode_and_verify(code: str, public_key: EllipticCurvePublicKey) -> dict:
+    """Decode a code, verify it against a PUBLIC key, and parse metadata.
+
+    Verification requires only the public key — never a private key.
+    """
     data = base32_decode(code)
     if len(data) != DECODED_LEN:
         raise GeneratorError("Decoded license is %d bytes, expected %d" % (len(data), DECODED_LEN))
     payload = data[:PAYLOAD_LEN]
     signature = data[PAYLOAD_LEN:]
-    pub = key.public_key()
-    if not verify_signature(payload, signature, pub):
+    if not verify_signature(payload, signature, public_key):
         raise GeneratorError("Signature verification failed")
     meta = parse_payload(payload)
     meta["signature_ok"] = True
@@ -389,16 +428,26 @@ def cmd_generate(args) -> int:
 
 
 def cmd_verify(args) -> int:
+    """Verify a license code using ONLY the public key (never a private key)."""
     try:
         code = args.code
-        key = load_private_key(args.key_file)
-        meta = decode_and_verify(code, key)
+        # Load a PUBLIC key: from the 65-byte hex arg, or from a public-key file.
+        if args.public_key:
+            pub = load_public_key(args.public_key)
+        elif args.public_key_file:
+            pub = load_public_key_from_file(args.public_key_file)
+        else:
+            raise GeneratorError(
+                "verify needs a public key: pass --public-key <hex04||X||Y> or --public-key-file <path>"
+            )
+        meta = decode_and_verify(code, pub)
         print("SIGNATURE: VALID")
         print("Serial:        %s" % meta["serial"])
         print("Type:          %s" % meta["type"])
         print("Creation Date: %04d-%02d-%02d" % (meta["year"], meta["month"], meta["day"]))
         print("Months:        %d" % meta["months"])
         print("Decoded bytes: 83 (payload 19 + signature 64)")
+        print("Verified with: PUBLIC KEY (no private key used)")
         return 0
     except GeneratorError as e:
         print("ERROR: %s" % e, file=sys.stderr)
@@ -427,6 +476,8 @@ def cmd_inspect(args) -> int:
 
 
 def cmd_public_key(args) -> int:
+    """Export ONLY the public key (hex + C array). Never prints/derives the
+    private key scalar or any private key material."""
     try:
         key = load_private_key(args.key_file)
         xy = load_public_key_bytes(key)
@@ -435,9 +486,6 @@ def cmd_public_key(args) -> int:
         print()
         print("C array for license_pubkey.h:")
         print(public_key_c_array(key))
-        print()
-        print("Private key scalar (DO NOT SHARE, for test only):")
-        print(private_key_scalar_hex(key))
         return 0
     except GeneratorError as e:
         print("ERROR: %s" % e, file=sys.stderr)
@@ -460,9 +508,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     g.add_argument("--key-file", required=True, help="Path to the private key PEM")
     g.set_defaults(func=cmd_generate)
 
-    v = sub.add_parser("verify", help="Verify a license code against the private key")
+    v = sub.add_parser("verify", help="Verify a license code using a PUBLIC key (no private key)")
     v.add_argument("--code", required=True, help="The Base32 license code")
-    v.add_argument("--key-file", required=True, help="Private key PEM (public derived)")
+    v.add_argument("--public-key", default=None,
+                   help="Uncompressed public key 04||X||Y as hex (130 chars) — verification only")
+    v.add_argument("--public-key-file", default=None,
+                   help="File containing the public key (PEM public key OR 04||X||Y hex) — verification only")
     v.set_defaults(func=cmd_verify)
 
     i = sub.add_parser("inspect", help="Inspect a code's metadata WITHOUT verifying")

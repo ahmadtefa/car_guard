@@ -10,12 +10,16 @@ Covers the required cases:
   6.  invalid months
   7.  invalid date
   8.  Base32 round-trip
-  9.  signature verify
-  10. wrong serial rejected (verification-level: foreign serial in verify)
-  11. modified payload rejected
-  12. modified signature rejected
-  13. generated code accepted by current firmware verifier (C++ compat)
-  14. test private key is not present in Git-tracked files
+  9.  strict Base32 rejection (lowercase / padding / separator / non-canonical)
+  10. signature verify
+  11. wrong serial: foreign serial produces a cryptographically valid signature
+  12. wrong-device binding: a valid signed code for KCG_00000000 is REJECTED by
+      the real firmware activation with reason SERIAL_MISMATCH
+  13. modified payload rejected
+  14. modified signature rejected
+  15. generated code accepted by current firmware verifier (C++ compat):
+      temp 1/6/12-month + permanent for the device serial KCG_1234ABCD
+  16. test private key is not present in Git-tracked files and stays git-ignored
 
 All use the NON-PRODUCTION TEST key in .test-keys/ (git-ignored).
 """
@@ -87,12 +91,19 @@ def expect_error(name, fn, needle=None):
     print("  [FAIL] %s did NOT raise GeneratorError" % name)
 
 
-def run_compat(code):
-    """Run the code through the REAL firmware compat harness. Return (rc, out)."""
+def run_compat(code, mode="accept"):
+    """Run the code through the REAL firmware compat harness.
+
+    `mode` is passed to the harness: "accept" (default), "reject", or a
+    "reject:REASON" string (e.g. "reject:SERIAL_MISMATCH"). Return (rc, out).
+    """
     binpath = os.environ.get("COMPAT_BIN")
     if not binpath:
         binpath = "/tmp/compat/testing_compat"
-    res = subprocess.run([binpath, code], capture_output=True, text=True)
+    cmd = [binpath, code]
+    if mode and mode != "accept":
+        cmd.append(mode)
+    res = subprocess.run(cmd, capture_output=True, text=True)
     return res.returncode, (res.stdout + res.stderr)
 
 
@@ -190,7 +201,24 @@ def main():
     rc, out = run_compat(pc)
     check("firmware accepts permanent code", (rc == 0) and ("COMPAT_OK" in out))
 
-    print("\n[git safety] test private key not tracked by Git\n")
+    # Device binding: a code for a DIFFERENT serial must be cryptographically
+    # valid but REJECTED by firmware activation because it is not bound to this
+    # device (host device serial = KCG_1234ABCD).
+    foreign = "KCG_00000000"
+    foreign_code = lg.generate_code(foreign, lg.LICENSE_TEMPORARY, creation, 6, key)
+    foreign_data = lg.base32_decode(foreign_code)
+    check("wrong-device code: 133 chars", len(foreign_code) == 133)
+    check("wrong-device code: cryptographically valid (public key verifies)",
+          lg.verify_signature(foreign_data[:19], foreign_data[19:], pub))
+    check("wrong-device code: payload serial == %s" % foreign,
+          lg.parse_payload(foreign_data[:19])["serial"] == foreign)
+    rc, out = run_compat(foreign_code, "reject:SERIAL_MISMATCH")
+    ok = (rc == 0) and ("COMPAT_REJECTED" in out) and ("reason=SERIAL_MISMATCH" in out)
+    check("wrong-device code: firmware rejects activation (SERIAL_MISMATCH)", ok)
+    if not ok:
+        print("      rc=%d out=%s" % (rc, out.strip()))
+
+    print("\n[git safety] no private key tracked or embedded by Git\n")
     repo = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                           capture_output=True, text=True, cwd=str(ROOT))
     top = repo.stdout.strip()
@@ -198,11 +226,38 @@ def main():
         tracked = subprocess.run(["git", "ls-files"],
                                  capture_output=True, text=True, cwd=top)
         tracked_files = tracked.stdout.splitlines()
-        leaked = [f for f in tracked_files if f.endswith(".pem") or ".test-keys/" in f or "test_key" in f]
-        check("no .pem / test key tracked by git", len(leaked) == 0)
+
+        # (a) No private-key files (or .test-keys/ artifacts) are tracked.
+        key_ext = (".pem", ".key", ".der", ".p12", ".pfx", ".crt")
+        leaked = [f for f in tracked_files
+                  if f.lower().endswith(key_ext)
+                  or "/.test-keys/" in f
+                  or f.startswith(".test-keys/")]
+        check("no private key file tracked by git", len(leaked) == 0)
         if leaked:
             print("      leaked: %s" % leaked)
-        # confirm the test key file is git-ignored
+
+        # (b) No tracked source EMBEDS a private key (any PEM private-key block).
+        # Markers are built by concatenation so the scanner itself does not
+        # literally contain the contiguous PEM header/footer text.
+        begin_marker = "-----" + "BEGIN"
+        key_marker = "PRIVATE KEY" + "-----"
+        embedded = []
+        for f in tracked_files:
+            fp = os.path.join(top, f)
+            if os.path.isfile(fp):
+                try:
+                    with open(fp, "r", errors="replace") as fh:
+                        c = fh.read()
+                        if (begin_marker in c) and (key_marker in c):
+                            embedded.append(f)
+                except Exception:
+                    pass
+        check("no private key embedded in tracked source", len(embedded) == 0)
+        if embedded:
+            print("      embedded: %s" % embedded)
+
+        # (c) The external TEST key file is git-ignored and not tracked.
         ignored = subprocess.run(["git", "check-ignore", "-q", str(TEST_KEY)],
                                  capture_output=True, cwd=top)
         check("test key file is git-ignored", ignored.returncode == 0)
