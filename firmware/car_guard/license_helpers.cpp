@@ -164,6 +164,12 @@ bool verify_ecdsa_p256_sha256(const uint8_t* payload, size_t payload_len,
   pk.q = const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(LICENSE_PUBKEY));
   pk.qlen = LICENSE_PUBKEY_LEN;
 
+  // Runtime guard: the public key MUST be the uncompressed P-256 point
+  //   0x04 || X(32) || Y(32)  ->  exactly 65 bytes, first byte 0x04.
+  // (Compile-time length is enforced by the static_assert in license_pubkey.h.)
+  if (pk.qlen != 65) return false;
+  if (pk.q[0] != 0x04) return false; // uncompressed-point marker
+
   // 3. Raw (r||s = 64 bytes) ECDSA verifier — NO DER / ASN.1 path.
   br_ecdsa_vrfy vrfy = br_ecdsa_vrfy_raw_get_default();
   if (vrfy == NULL) return false;

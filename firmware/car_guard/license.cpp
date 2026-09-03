@@ -221,7 +221,23 @@ void license_load() {
 }
 
 bool license_is_active() {
-  return _licenseRecord.status == LICENSE_ACTIVE;
+  // A stored record that is not marked ACTIVE is never treated as active.
+  if (_licenseRecord.status != LICENSE_ACTIVE) return false;
+
+  // A TEMPORARY license is only considered active while it is within its
+  // term. Once its expiration (<= current time) has passed, the device is
+  // treated as LOCKED (even though the stored status byte still reads
+  // ACTIVE). PERMANENT licenses never expire and keep their prior behavior.
+  if (_licenseRecord.type == LICENSE_TEMPORARY) {
+    if (_licenseRecord.expirationEpoch == 0) return false; // no valid term
+    time_t now = time(nullptr);
+    if ((uint64_t)now >= (uint64_t)_licenseRecord.expirationEpoch) {
+      return false; // expired -> LOCKED
+    }
+  }
+
+  // PERMANENT stays active; non-expired TEMPORARY stays active.
+  return true;
 }
 
 uint32_t license_get_expiration() {

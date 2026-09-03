@@ -11,10 +11,12 @@
 // =========================================================
 
 // ---------------------------------------------------------
-// EEPROM size. `car_guard.ino` defines this for the whole sketch,
-// but Arduino compiles each .cpp as its own translation unit, so
-// the sketch macro is NOT visible here. Define a matching default
-// so the license module is self-contained; a build can override it.
+// EEPROM size. `car_guard.ino` defines `EEPROM_SIZE 512` for the
+// whole sketch, but Arduino compiles each .cpp as its own translation
+// unit, so the sketch macro is NOT visible here. Define a matching
+// default (= the value actually used by the firmware) so the license
+// module is self-contained and the fit checks below are meaningful.
+// A build may override it; it must stay consistent with car_guard.ino.
 // ---------------------------------------------------------
 #ifndef EEPROM_SIZE
 #define EEPROM_SIZE 512
@@ -22,6 +24,12 @@
 
 // ---------------------------------------------------------
 // EEPROM layout
+//   * settings (struct Settings, 184 bytes) is stored at offset 0
+//     -> [0, 183].
+//   * the license record lives at the fixed offset below, clear of
+//     the settings region: [256, 256+sizeof(LicenseRecord)-1].
+//   * EEPROM_SIZE 512 leaves room for both without any overlap and
+//     without changing the existing settings layout.
 // ---------------------------------------------------------
 #define LICENSE_EEPROM_OFFSET 256
 #define LICENSE_EEPROM_MAGIC 0x4C494345 // 'LICE'

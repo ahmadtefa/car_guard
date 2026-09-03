@@ -16,12 +16,13 @@
 //
 //    #define PUBLIC_KEY_CONFIGURED 1   (or build with -DPUBLIC_KEY_CONFIGURED=1)
 //
-//  and provide the definitions (already declared below) in one of
-//  the license translation units:
+//  and provide the definition (declared below) in one of the license
+//  translation units:
 //
 //    const uint8_t LICENSE_PUBKEY[65]; // 0x04 || X || Y (P-256, uncompressed)
-//    const size_t  LICENSE_PUBKEY_LEN; // 65
 //
+//  LICENSE_PUBKEY_LEN is a compile-time constant (65) enforced below,
+//  so the provider only has to supply the 65-byte uncompressed point.
 //  Do NOT place a fake / test key here. The system stays locked
 //  until the genuine key is substituted.
 // =========================================================
@@ -32,8 +33,12 @@
 
 #if PUBLIC_KEY_CONFIGURED == 1
 // Provided by the generated public-key translation unit only when
-// PUBLIC_KEY_CONFIGURED == 1. Declared here so verify_ecdsa_p256_sha256
-// can reference them.
+// PUBLIC_KEY_CONFIGURED == 1. It MUST be the uncompressed P-256 point
+//   0x04 || X(32) || Y(32)  -> exactly 65 bytes.
 extern const uint8_t  LICENSE_PUBKEY[65];
-extern const size_t   LICENSE_PUBKEY_LEN;
+
+// Compile-time guarantee that the key is the P-256 uncompressed size.
+static constexpr size_t LICENSE_PUBKEY_LEN = 65;
+static_assert(LICENSE_PUBKEY_LEN == 65,
+              "P-256 uncompressed public key must be exactly 65 bytes");
 #endif
