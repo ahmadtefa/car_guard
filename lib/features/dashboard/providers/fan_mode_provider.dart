@@ -37,7 +37,7 @@ enum FanCommandResult {
 ///
 /// [mode] is never an optimistic local guess: it mirrors what the module
 /// reported in its live stream, which is what keeps the ESP8266 state, the
-/// forced flag and the automatic algorithm from ever disagreeing on screen.
+/// forced flag and the automatic control from ever disagreeing on screen.
 class FanModeState {
   const FanModeState({
     this.mode = FanMode.automatic,
@@ -92,25 +92,54 @@ class FanModeState {
 /// [Esp8266Repository.setFanForced] (or the demo simulator, mirroring
 /// `deviceStatusProvider`'s own source switch), and the resulting mode is read
 /// back from the module stream rather than remembered locally.
+///
+/// Riverpod 3 rebuilds a `Notifier` whenever it is invalidated and forbids using
+/// its `Ref` after it was replaced, so this class only touches `ref` inside
+/// [build] and from synchronous entry points: the confirmation of a command is
+/// awaited on a [Completer] that the stream listener completes, never by
+/// reading providers across an `await`.
 class FanModeNotifier extends Notifier<FanModeState> {
   /// How long to wait for the module to echo the new flag in its stream.
   static const Duration _confirmTimeout = Duration(seconds: 4);
+
+  /// The most recent reading this notifier has seen from the module stream.
+  ///
+  /// Kept here (instead of re-reading the provider) so that a command that
+  /// finishes after the dashboard went away can still be evaluated — and so
+  /// that no `Ref` use is ever needed after an `await`.
+  DeviceStatus? _lastDevice;
+
+  /// Completed by the stream listener on the next module reading, which is how
+  /// a pending command learns that its flag arrived. It is completed with
+  /// `false` when the wait is abandoned (failure, disconnect, disposal).
+  Completer<bool>? _changed;
 
   bool _disposed = false;
 
   @override
   FanModeState build() {
-    ref.onDispose(() => _disposed = true);
+    _disposed = false;
+    _lastDevice = ref.read(deviceStatusProvider).value;
+
+    ref.onDispose(() {
+      _disposed = true;
+      _resolveWaiter(false);
+    });
 
     // The module stream is the single source of truth: every reading refreshes
     // the mode, so a manual change made from the Android Auto screen, another
     // phone, or the module itself is reflected here without extra plumbing.
-    ref.listen<AsyncValue<DeviceStatus>>(
-      deviceStatusProvider,
-      (previous, next) => _syncFromDevice(next.value),
-    );
+    //
+    // `listen` (rather than `watch`) on purpose: the reading arrives about
+    // every second, and the notifier must not be recreated that often — a
+    // command would lose the state of its in-flight confirmation.
+    ref.listen<AsyncValue<DeviceStatus>>(deviceStatusProvider, (_, next) {
+      _lastDevice = next.value;
+      _resolveWaiter();
+      state = _derive(next.value, pending: state.pending);
+    });
 
-    return _derive(ref.read(deviceStatusProvider).value, pending: false);
+    return _derive(_lastDevice, pending: false);
   }
 
   /// Requests forced-ON (`enabled == true`) or hands the fan back to the
@@ -126,6 +155,9 @@ class FanModeNotifier extends Notifier<FanModeState> {
       return FanCommandResult.notConnected;
     }
 
+    final waiter = Completer<bool>();
+    _changed = waiter;
+    _lastDevice = device;
     state = _derive(device, pending: true);
 
     final bool acknowledged;
@@ -135,32 +167,66 @@ class FanModeNotifier extends Notifier<FanModeState> {
     } catch (_) {
       // A transport that throws (socket torn down mid-request) is a failed
       // command, never a success the UI would have to walk back.
+      _resolveWaiter(false);
       _refresh(pending: false);
 
       return FanCommandResult.failed;
     }
 
-    // The module answers as soon as the flag is set; the stream confirms it.
-    final alreadyReported = _matches(
-      ref.read(deviceStatusProvider).value,
-      enabled,
-    );
-
-    _refresh(pending: acknowledged && !alreadyReported);
-
     if (!acknowledged) {
+      // The module did not answer with `OK`: nothing was applied, so the UI is
+      // told it failed and the reported mode stays whatever the stream says.
+      _resolveWaiter(false);
+      _refresh(pending: false);
+
       return FanCommandResult.failed;
     }
 
     // The acknowledgement only proves the HTTP handler answered. The mode
-    // itself is confirmed when the flag shows up in the live stream.
-    final confirmed = await _awaitModuleFlag(enabled);
+    // itself is confirmed when the flag shows up in the live stream, which is
+    // what the UI displays.
+    if (!_matches(_lastDevice, enabled)) {
+      final bool arrived = await waiter.future
+          .timeout(_confirmTimeout, onTimeout: () => false);
 
+      if (!arrived) {
+        _resolveWaiter(false);
+        _refresh(pending: false);
+
+        return FanCommandResult.sentUnconfirmed;
+      }
+    }
+
+    _resolveWaiter();
     _refresh(pending: false);
 
-    return confirmed
+    return _matches(_lastDevice, enabled)
         ? FanCommandResult.confirmed
         : FanCommandResult.sentUnconfirmed;
+  }
+
+  /// Sends the command through the repository layer — the demo simulator when
+  /// demo mode is on, so the demo exercises the exact same "the device reports
+  /// its mode back" path as real hardware.
+  Future<bool> _send(bool enabled) {
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+
+    if (settings.demoModeEnabled) {
+      return ref.read(demoDeviceSimulatorProvider).setFanForced(enabled);
+    }
+
+    return ref.read(esp8266RepositoryProvider).setFanForced(enabled);
+  }
+
+  /// Lets whoever is waiting for a stream update know about it, and always
+  /// clears the field so a later command can not reuse a completed waiter.
+  void _resolveWaiter([bool arrived = true]) {
+    final waiter = _changed;
+    _changed = null;
+
+    if (waiter != null && !waiter.isCompleted) {
+      waiter.complete(arrived);
+    }
   }
 
   /// Re-reads the module state unless this notifier was already disposed (a
@@ -170,46 +236,7 @@ class FanModeNotifier extends Notifier<FanModeState> {
       return;
     }
 
-    state = _derive(ref.read(deviceStatusProvider).value, pending: pending);
-  }
-
-  Future<bool> _send(bool enabled) {
-    final settings = ref.read(settingsProvider).value ?? const AppSettings();
-    final demoEnabled = settings.demoModeEnabled;
-
-    if (demoEnabled) {
-      return ref.read(demoDeviceSimulatorProvider).setFanForced(enabled);
-    }
-
-    return ref.read(esp8266RepositoryProvider).setFanForced(enabled);
-  }
-
-  Future<bool> _awaitModuleFlag(bool enabled) async {
-    if (_matches(ref.read(deviceStatusProvider).value, enabled)) {
-      return true;
-    }
-
-    final completer = Completer<bool>();
-
-    final subscription = ref.listen<AsyncValue<DeviceStatus>>(
-      deviceStatusProvider,
-      (previous, next) {
-        if (_matches(next.value, enabled) && !completer.isCompleted) {
-          completer.complete(true);
-        }
-      },
-    );
-
-    final timer = Timer(_confirmTimeout, () {
-      if (!completer.isCompleted) {
-        completer.complete(false);
-      }
-    });
-
-    return completer.future.whenComplete(() {
-      timer.cancel();
-      subscription.close();
-    });
+    state = _derive(_lastDevice, pending: pending);
   }
 
   static bool _matches(DeviceStatus? device, bool enabled) {
@@ -228,18 +255,6 @@ class FanModeNotifier extends Notifier<FanModeState> {
       pending: pending,
       connected: device?.connected ?? false,
     );
-  }
-
-  void _syncFromDevice(DeviceStatus? device) {
-    if (_disposed) {
-      return;
-    }
-
-    final next = _derive(device, pending: state.pending);
-
-    if (next != state) {
-      state = next;
-    }
   }
 }
 
