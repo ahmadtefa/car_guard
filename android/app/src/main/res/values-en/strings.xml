@@ -16,6 +16,7 @@
     <string name="aa_alternator">Alternator</string>
     <string name="aa_status">Status</string>
     <string name="aa_on">ON</string>
+    <string name="aa_fan_manual">FORCED ON</string>
     <string name="aa_off">OFF</string>
     <string name="aa_charging">Charging</string>
     <string name="aa_not_charging">Not charging</string>

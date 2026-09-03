@@ -16,6 +16,7 @@
     <string name="aa_alternator">الدينامو</string>
     <string name="aa_status">الحالة</string>
     <string name="aa_on">شغالة</string>
+    <string name="aa_fan_manual">شغالة إجباريًا</string>
     <string name="aa_off">متوقفة</string>
     <string name="aa_charging">شاحن</string>
     <string name="aa_not_charging">غير شاحن</string>

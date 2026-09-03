@@ -12,6 +12,7 @@ class DemoDeviceState {
     this.batteryVoltage = 12.8,
     this.coolantAvailable = true,
     this.buzzerActive = false,
+    this.fanForced = false,
     this.tick = 0,
   });
 
@@ -20,6 +21,10 @@ class DemoDeviceState {
   final double batteryVoltage;
   final bool coolantAvailable;
   final bool buzzerActive;
+
+  /// Mirrors the module-side forced fan mode, so the demo exercises exactly the
+  /// same state path as real hardware (the flag travels in [toDeviceStatus]).
+  final bool fanForced;
 
   /// Simulation step counter; used for deterministic pseudo-noise.
   final int tick;
@@ -41,6 +46,7 @@ class DemoDeviceState {
       controlData: DeviceControlData(
         fanRunning: fanRunning,
         buzzerActive: buzzerActive,
+        fanForced: fanForced,
       ),
       // The demo reports fixed module limits (like real firmware) so
       // temperature/voltage alerts and gauge redlines stay explorable.
@@ -69,7 +75,11 @@ abstract final class DemoDeviceEngine {
     final nextTick = state.tick + 1;
 
     var fanRunning = state.fanRunning;
-    if (state.engineTemperature >= _fanOnTemperature) {
+    if (state.fanForced) {
+      // Same rule as the firmware: forced mode outranks the thermostat, and
+      // releasing it hands the decision back without forcing the fan off.
+      fanRunning = true;
+    } else if (state.engineTemperature >= _fanOnTemperature) {
       fanRunning = true;
     } else if (state.engineTemperature <= _fanOffTemperature) {
       fanRunning = false;
@@ -98,6 +108,7 @@ abstract final class DemoDeviceEngine {
       batteryVoltage: voltage,
       coolantAvailable: coolantAvailable,
       buzzerActive: temperature >= 108,
+      fanForced: state.fanForced,
       tick: nextTick,
     );
   }
@@ -125,6 +136,29 @@ class DemoDeviceSimulator {
       _state = DemoDeviceEngine.tick(_state);
       _controller.add(_state.toDeviceStatus());
     });
+  }
+
+
+  /// Demo counterpart of the module's `/fanforce` + `/fanrelease`: the flag is
+  /// stored in the simulated device state and pushed back through the stream,
+  /// so the UI is driven by the "device" in demo mode exactly like it is with
+  /// hardware — never by an optimistic local guess.
+  Future<bool> setFanForced(bool enabled) async {
+    _state = DemoDeviceState(
+      engineTemperature: _state.engineTemperature,
+      batteryVoltage: _state.batteryVoltage,
+      coolantAvailable: _state.coolantAvailable,
+      buzzerActive: _state.buzzerActive,
+      fanForced: enabled,
+      fanRunning: enabled ? true : _state.fanRunning,
+      tick: _state.tick,
+    );
+
+    if (_controller.hasListener) {
+      _controller.add(_state.toDeviceStatus());
+    }
+
+    return true;
   }
 
   /// Stops emitting but keeps the stream open for a later [start].

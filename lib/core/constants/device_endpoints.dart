@@ -11,5 +11,11 @@ class DeviceEndpoints {
   static const restart = '/restart';
   static const mute = '/mute';
   static const testFan = '/testfan';
+
+  /// Keeps the radiator fan running regardless of the automatic algorithm.
+  static const fanForce = '/fanforce';
+
+  /// Hands the fan back to the automatic temperature algorithm.
+  static const fanRelease = '/fanrelease';
   static const otaUpdate = '/update';
 }

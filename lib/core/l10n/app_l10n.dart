@@ -122,6 +122,66 @@ class AppL10n {
       isAr ? 'حالة مروحة التبريد' : 'Cooling system fan status';
   String fanOnAt(String temp) =>
       isAr ? 'تشغيل عند > $temp°م' : 'ON at > $temp°C';
+
+  // ---------- Fan: manual (forced ON) control ----------
+  String get fanControl => isAr ? 'التحكم في المروحة' : 'Fan control';
+  String get fanModeAuto => isAr ? 'تلقائي' : 'Automatic';
+  String get fanModeForced => isAr ? 'تشغيل إجباري' : 'Forced ON';
+  String get fanRunningAuto => isAr
+      ? 'المروحة تعمل تلقائيًا'
+      : 'Fan running automatically';
+  String get fanStoppedAuto => isAr ? 'المروحة لا تعمل' : 'Fan is off';
+  String get fanRunningForced => isAr
+      ? 'المروحة تعمل إجباريًا (يدويًا)'
+      : 'Fan is forced ON (manual)';
+  String get fanForceButton => isAr
+      ? 'تشغيل المروحة باستمرار'
+      : 'Run fan continuously';
+  String get fanReleaseButton => isAr
+      ? 'إلغاء تشغيل المروحة المستمر'
+      : 'Stop continuous fan';
+  String get fanForceConfirmTitle => isAr
+      ? 'تشغيل المروحة باستمرار'
+      : 'Run the fan continuously?';
+  String get fanForceConfirmBody => isAr
+      ? 'هل أنت متأكد من تشغيل المروحة باستمرار؟ ستظل المروحة تعمل حتى تقوم بإلغاء هذا الوضع.'
+      : 'Are you sure you want the fan to run continuously? The fan will stay on until you cancel this mode.';
+  String get fanForceConfirmAction => isAr
+      ? 'تأكيد التشغيل'
+      : 'Confirm ON';
+  String get fanReleaseConfirmTitle => isAr
+      ? 'إلغاء التشغيل المستمر'
+      : 'Cancel continuous fan';
+  String get fanReleaseConfirmBody => isAr
+      ? 'هل تريد إلغاء التشغيل المستمر للمروحة والعودة للتحكم التلقائي؟'
+      : 'Cancel the continuous fan and go back to automatic control?';
+  String get fanReleaseConfirmAction => isAr ? 'تأكيد' : 'Confirm';
+  String get fanForcedOnMsg => isAr
+      ? 'المروحة الآن تعمل باستمرار'
+      : 'The fan is now held on continuously';
+  String get fanReleasedMsg => isAr
+      ? 'المروحة رجعت للتحكم التلقائي'
+      : 'The fan is back under automatic control';
+  String get fanUnconfirmedMsg => isAr
+      ? 'أُرسل الأمر، لكن الجهاز لم يرجّع الوضع بعد'
+      : 'Command sent, but the module has not reported the new mode yet';
+  String get fanCommandFailedMsg => isAr
+      ? 'تعذر إرسال الأمر إلى الجهاز.'
+      : 'Could not send the command to the device.';
+  String get fanNotConnectedMsg => isAr
+      ? 'الجهاز غير متصل الآن — وصّل الوحدة أولًا.'
+      : 'The module is not connected — connect it first.';
+  String get fanForceUnsupportedMsg => isAr
+      ? 'فيرموير الجهاز لا يدعم التشغيل الإجباري'
+      : 'This module firmware does not report a fan mode (too old)';
+  String get fanControlInfo => isAr
+      ? 'التحكم التلقائي يفضل شغالًا في الخلفية: الوضع اليدوي يمنع إيقاف المروحة فقط، ولا يغيّر خوارزمية الحرارة.'
+      : 'Automatic control keeps running underneath: the manual mode only stops the fan from switching off, it does not change the temperature algorithm.';
+  String get sendingCommand => isAr ? 'جارٍ الإرسال…' : 'Sending…';
+  String get fullscreenReadings => isAr
+      ? 'القراءات ملء الشاشة'
+      : 'Fullscreen readings';
+  String get exitFullscreen => isAr ? 'خروج' : 'Exit';
   String get alternator => isAr ? 'الدينامو' : 'Alternator';
   String get charging => isAr ? 'يشحن' : 'Charging';
   String get notCharging => isAr ? 'لا يشحن' : 'Not charging';

@@ -91,6 +91,8 @@ data class CarReading(
     val temp: Double,
     val volt: Double,
     val fanOn: Boolean,
+    /** True when the module is holding the fan on because the user asked it to. */
+    val fanForced: Boolean = false,
     val alarm: Boolean,
     val muted: Boolean,
     val maxTemp: Double,
@@ -235,6 +237,7 @@ private object CarReadings {
                 temp = 0.0,
                 volt = 0.0,
                 fanOn = false,
+                fanForced = false,
                 alarm = false,
                 muted = false,
                 maxTemp = 97.0,
@@ -260,6 +263,8 @@ private object CarReadings {
                 temp = json.optDouble("temp", 0.0),
                 volt = json.optDouble("volt", 0.0),
                 fanOn = json.optInt("fanState", 0) == 1,
+                // Absent on firmware without manual fan control -> false.
+                fanForced = json.optInt("fanForced", 0) == 1,
                 alarm = json.optInt("alarm", 0) == 1,
                 muted = json.optInt("muted", 0) == 1,
                 maxTemp = json.optDouble("maxTemp", 97.0),
@@ -495,17 +500,25 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             ),
         )
 
-        // — المروحة —
-        val fanColor = if (connected && current!!.fanOn) NEON_GREEN else NEON_AMBER
+        // — المروحة — (تلقائي / شغالة / إجباري — نفس تلات حالات في التطبيق)
+        val fanOn = connected && current!!.fanOn
+        val fanForced = connected && current!!.fanForced
+        val fanColor = when {
+            fanForced -> NEON_RED
+            fanOn -> NEON_GREEN
+            else -> NEON_AMBER
+        }
+        val fanText = when {
+            !connected -> carContext.getString(R.string.aa_no_data)
+            fanForced -> carContext.getString(R.string.aa_fan_manual)
+            fanOn -> carContext.getString(R.string.aa_on)
+            else -> carContext.getString(R.string.aa_off)
+        }
         list.addItem(
             gridItem(
                 R.drawable.ic_car_fan,
                 carContext.getString(R.string.aa_fan),
-                if (connected && current!!.fanOn) {
-                    carContext.getString(R.string.aa_on)
-                } else {
-                    carContext.getString(R.string.aa_off)
-                },
+                fanText,
                 fanColor,
             ),
         )

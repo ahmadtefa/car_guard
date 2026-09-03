@@ -218,6 +218,7 @@ class DeviceControlData {
     this.fanRunning = false,
     this.buzzerActive = false,
     this.muted = false,
+    this.fanForced,
   });
 
   final bool fanRunning;
@@ -228,6 +229,17 @@ class DeviceControlData {
   /// Whether the module buzzer is muted from the app or the module side.
   final bool muted;
 
+  /// Whether the module is holding the fan on because the user asked it to
+  /// (`forced on`), instead of because its own temperature algorithm did.
+  ///
+  /// Nullable on purpose: firmware that predates the feature never reports
+  /// it, and "unknown" must not be displayed as "automatic" — the UI hides the
+  /// mode chip instead of claiming something the module never said.
+  final bool? fanForced;
+
+  /// True when the module runs the fan by itself (no forced request).
+  bool get fanForcedKnown => fanForced != null;
+
   factory DeviceControlData.fromJson(Map<String, dynamic> json) {
     return DeviceControlData(
       fanRunning: json['fanRunning'] as bool? ?? false,
@@ -236,6 +248,7 @@ class DeviceControlData {
           json['alarm'] == 1 ||
           json['alarm'] == true,
       muted: json['muted'] == 1 || json['muted'] == true,
+      fanForced: readNullableFlag(json['fanForced'] ?? json['fanForce']),
     );
   }
 
@@ -244,8 +257,23 @@ class DeviceControlData {
       'fanRunning': fanRunning,
       'buzzerActive': buzzerActive,
       'muted': muted,
+      'fanForced': fanForced,
     };
   }
+}
+
+/// Reads a `1`/`0`/`true`/`false` flag that the module may simply omit,
+/// keeping "absent" distinct from "off".
+bool? readNullableFlag(Object? value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final text = value.trim().toLowerCase();
+    if (text == '1' || text == 'true' || text == 'on') return true;
+    if (text == '0' || text == 'false' || text == 'off') return false;
+  }
+  return null;
 }
 
 

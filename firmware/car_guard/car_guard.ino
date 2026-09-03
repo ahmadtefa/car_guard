@@ -168,6 +168,17 @@ bool  fanState      = false;
 bool  fanTestActive = false;
 unsigned long fanTestStopAt = 0;
 
+// Forced (manual) fan mode requested from the app. The flag lives HERE, in the
+// module, so the app is only a remote: the automatic algorithm is what gets
+// overridden, which is the only way the fan cannot be switched back off by the
+// next temperature reading. RAM-only on purpose — a reboot returns the fan to
+// automatic control instead of leaving it running on a parked car.
+bool fanForced = false;
+unsigned long fanForcedSince = 0;
+// Optional safety valve: 0 keeps the fan on until the user cancels (the app's
+// behaviour), any other value releases forced mode after that many ms.
+const unsigned long FAN_FORCE_TIMEOUT_MS = 0;
+
 // =========================================================
 // STATES
 // =========================================================
@@ -188,6 +199,7 @@ bool alarmActive   = false;
 // WEBSOCKET BROADCAST OPTIMIZATION
 // =========================================================
 float lastBroadcastTemp = -999;
+bool  lastBroadcastFanForced = false;
 float lastBroadcastVolt = -999;
 
 // =========================================================
@@ -352,6 +364,19 @@ void fanOff() {
 }
 
 void updateFanControl() {
+  // Manual/forced mode sits ON TOP of the automatic algorithm: while it is
+  // active the thresholds below are never consulted, so nothing can turn the
+  // fan off except the user (or the optional timeout).
+  if (fanForced) {
+    if (FAN_FORCE_TIMEOUT_MS > 0 && millis() - fanForcedSince >= FAN_FORCE_TIMEOUT_MS) {
+      fanForced = false;
+      Serial.println("⏱️ FAN FORCE TIMEOUT — back to automatic");
+    } else {
+      if (!fanState) fanOn();
+      return;
+    }
+  }
+
   if (fanTestActive) {
     if (millis() >= fanTestStopAt) {
       fanTestActive = false;
@@ -491,19 +516,26 @@ void updateLedStatus() {
 void broadcastWsData() {
   if (webSocket.connectedClients() == 0) return;
 
-  if (abs(filteredTemp - lastBroadcastTemp) < 0.5 &&
+  // A fan-mode change must reach the app even when temp/volt are flat, else
+  // the dashboard would keep showing the previous mode for minutes.
+  const bool fanBroadcastNeeded = fanForced != lastBroadcastFanForced;
+
+  if (!fanBroadcastNeeded &&
+      abs(filteredTemp - lastBroadcastTemp) < 0.5 &&
       abs(filteredVolt - lastBroadcastVolt) < 0.1) {
     return;
   }
 
   lastBroadcastTemp = filteredTemp;
   lastBroadcastVolt = filteredVolt;
+  lastBroadcastFanForced = fanForced;
 
   // [APP SYNC] CSV protocol (11 fields):
-  // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset,alarm,muted
+  // temp,volt,fanState,fanForced,maxTemp,fanOnTemp,minVolt,maxVolt,offset,alarm,muted
   String payload = String(filteredTemp, 1) + "," +
                    String(filteredVolt, 2) + "," +
-                   String((fanState || fanTestActive) ? 1 : 0) + ",0," +
+                   String((fanState || fanTestActive) ? 1 : 0) + "," +
+                   String(fanForced ? 1 : 0) + "," +
                    String(MAX_TEMP, 1) + "," +
                    String(FAN_ON_TEMP, 1) + "," +
                    String(MIN_VOLT, 1) + "," +
@@ -584,6 +616,7 @@ void handleData() {
   json += "\"maxVolt\":"  + String(MAX_VOLT)         + ",";
   json += "\"offset\":"   + String(tempOffset, 2)   + ",";
   json += "\"fanState\":" + String((fanState || fanTestActive) ? 1 : 0) + ",";
+  json += "\"fanForced\":" + String(fanForced ? 1 : 0) + ",";
   json += "\"alarm\":"    + String(alarmActive ? 1 : 0) + ",";
   json += "\"muted\":"    + String(buzzMuted ? 1 : 0) + ",";
   // [STA+mDNS] let the app show/route around the joined-network state.
@@ -772,6 +805,38 @@ void handleTestFan() {
   server.send(200, "text/plain", "OK");
 }
 
+// ---------------------------------------------------------
+// Forced fan mode (app button "تشغيل المروحة باستمرار").
+// /fanforce  -> module keeps the fan on, automatic control suspended
+// /fanrelease -> module hands the fan back to the temperature algorithm
+// Both answer the plain "OK" the app expects as an acknowledgement.
+// ---------------------------------------------------------
+void handleFanForce() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+
+  fanForced     = true;
+  fanForcedSince = millis();
+  // A running test window would otherwise switch the fan OFF in the middle of
+  // forced mode, so the test is cancelled instead.
+  fanTestActive = false;
+  fanOn();
+  playConfirmSound();
+  Serial.println("🌀 FAN FORCED ON (manual)");
+  server.send(200, "text/plain", "OK");
+}
+
+void handleFanRelease() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+
+  fanForced = false;
+  Serial.println("🌀 FAN FORCE OFF (back to automatic)");
+  // Do not switch the fan off here: let the automatic algorithm decide on the
+  // next reading, so releasing a manual mode can never cool the engine down.
+  server.send(200, "text/plain", "OK");
+}
+
 void handleMute() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
@@ -843,7 +908,7 @@ void handleRoot() {
   html += "<h1>🚗 CarGuard System</h1>";
   html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
   html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
-  html += "<div class='data'>🌀 Fan: <span>"  + String(fanState ? "ON" : "OFF") + "</span></div>";
+  html += "<div class='data'>🌀 Fan: <span>"  + String(fanState ? (fanForced ? "ON (manual)" : "ON (auto)") : "OFF") + "</span></div>";
   html += "<div class='data'>📱 Clients: <span>" + String(WiFi.softAPgetStationNum()) + "</span></div>";
   html += "<div style='margin:15px 0;'>";
   html += "<span class='status " + String(WiFi.softAPgetStationNum() > 0 ? "online" : "offline") + "'>";
@@ -920,6 +985,8 @@ void setup() {
   server.on("/data",                handleData);
   server.on("/mute",                handleMute);
   server.on("/testfan",             handleTestFan);
+  server.on("/fanforce",            handleFanForce);
+  server.on("/fanrelease",          handleFanRelease);
   server.on("/restart",             handleRestart);
   server.on("/savewifi",            handleSaveWiFiSettings);
   server.on("/joinwifi",            handleJoinWiFi);

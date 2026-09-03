@@ -789,6 +789,23 @@ class Esp8266Repository implements DeviceRepository {
   /// Reboots the module (`/restart`).
   Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
 
+  /// Asks the module to hold the radiator fan on (`/fanforce`) or to hand it
+  /// back to its own temperature algorithm (`/fanrelease`).
+  ///
+  /// The state lives on the module, not in the app: the flag comes back in the
+  /// live stream (`fanForced`), so a restart of the app, a second phone, or
+  /// the Android Auto screen all see the same mode — and the automatic
+  /// controller on the module is the thing that gets overridden, which is the
+  /// only way the fan can not be switched back off by the next temperature
+  /// reading.
+  ///
+  /// Returns true only when the module answered `OK`: a captive portal or any
+  /// other service answering on the port would answer 200 with HTML, so the
+  /// strict body check is what keeps the UI from reporting a phantom success.
+  Future<bool> setFanForced(bool enabled) => _getExpectsOk(
+    enabled ? DeviceEndpoints.fanForce : DeviceEndpoints.fanRelease,
+  );
+
 
   /// Fetches the settings stored on the module (`/getallsettings`).
   ///
@@ -1193,6 +1210,13 @@ class Esp8266Repository implements DeviceRepository {
                 json["muted"] == 1 ||
                 json["muted"] == true,
 
+            // Older builds do not send this key at all -> null ("unknown"),
+            // never a silent "automatic".
+            fanForced:
+                readNullableFlag(
+                  json["fanForced"] ?? json["fanforced"] ?? json["fanForce"],
+                ),
+
           ),
 
 
@@ -1278,6 +1302,14 @@ class Esp8266Repository implements DeviceRepository {
                 parts.length > 9 ? parts[9].trim() == "1" : false,
 
             muted: parts.length > 10 ? parts[10].trim() == "1" : false,
+
+            // Field 3 is the reserved slot of the reference CSV protocol; the
+            // firmware uses it for the forced-fan flag. A module that still
+            // sends the literal placeholder "0" is reported as "not forced",
+            // and a shorter payload as "unknown".
+            fanForced: parts.length > 3
+                ? readNullableFlag(parts[3].trim())
+                : null,
 
           ),
 
