@@ -72,7 +72,10 @@ void license_load() {
   }
 }
 
-void license_save() {
+// Internal: persist the in-memory license record to EEPROM.
+// Not exported via header; only callable from inside this compilation unit
+// (e.g. after a successful activation flow).
+static void license_save_internal() {
   // prepare record
   LicenseRecord rec = _licenseRecord;
   rec.magic = LICENSE_EEPROM_MAGIC;
