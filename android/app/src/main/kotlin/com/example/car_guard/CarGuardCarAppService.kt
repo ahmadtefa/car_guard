@@ -10,7 +10,6 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
@@ -32,6 +31,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.ThreadFactory
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -50,19 +52,11 @@ class CarGuardCarAppService : CarAppService() {
     override fun createHostValidator(): HostValidator =
         HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
 
-    /**
-     * The car host binds this service *inside the app process*, so anything
-     * thrown while a session is created takes the whole app down with the
-     * "Car Guard keeps stopping" dialog — on the head unit only, because a
-     * phone never binds a car session. Handing back a session is therefore
-     * wrapped: a failure here degrades to "no car screen", never to a crash.
-     */
-    override fun onBind(intent: Intent?): IBinder? = try {
-        super.onBind(intent)
-    } catch (t: Throwable) {
-        BootDiagnostics.warn(this, "carAppService.onBind", t)
-        null
-    }
+    // NOTE: CarAppService.onBind() is final in the Car App library, so the
+    // bind itself can not be wrapped here — the guards live one level down, in
+    // Session.onCreateScreen() and Screen.onGetTemplate(), which is where the
+    // app-side code that can actually throw (templates, bitmaps, the poller)
+    // runs on the head unit.
 }
 
 class CarGuardSession : Session() {
@@ -172,12 +166,11 @@ private object CarReadings {
      * app dying at startup. One reused worker keeps the same polling rhythm
      * without the thread churn.
      */
-    private val worker: java.util.concurrent.ExecutorService =
-        java.util.concurrent.Executors.newSingleThreadExecutor(
-            java.util.concurrent.ThreadFactory { runnable ->
+    private val worker: ExecutorService =
+        Executors.newSingleThreadExecutor(object : ThreadFactory {
+            override fun newThread(runnable: Runnable): Thread =
                 Thread(runnable, "CarGuardCarPoller").apply { isDaemon = true }
-            },
-        )
+        })
 
     // آخر قراءة اتبعتت للمضيف — عشان مترفعش تحديث إلا لما
     // القيم تتغير فعلًا (المضيف بيتعامل مع كل refresh كخطوة جديدة).

@@ -62,7 +62,6 @@ object BootDiagnostics {
      * Installs the crash recorder and starts a new trace. Called from
      * `MainActivity.onCreate()` — i.e. as early as an app process can be.
      */
-    @JvmStatic
     fun install(context: Context) {
         // The handler outlives the activity, so only the application context
         // may be captured here — an Activity reference would leak it.
@@ -92,7 +91,6 @@ object BootDiagnostics {
      * Appends a stage marker. The last marker written before a hard process
      * death names the step that killed the app.
      */
-    @JvmStatic
     fun stage(context: Context?, name: String) {
         if (context == null) {
             Log.i(TAG, "stage=$name")
@@ -102,7 +100,6 @@ object BootDiagnostics {
     }
 
     /** Low grade marker for non-fatal but suspicious failures. */
-    @JvmStatic
     fun warn(context: Context?, name: String, detail: Any? = null) {
         val text = if (detail == null) name else "$name :: $detail"
         Log.w(TAG, text)
@@ -114,7 +111,6 @@ object BootDiagnostics {
      * exception of the *previous* run, cleared on read so it is reported once),
      * for the Dart side to surface on the car screen.
      */
-    @JvmStatic
     fun drain(context: Context?): Map<String, Any?> {
         val prefs = prefs(context) ?: return emptyMap()
 
@@ -134,7 +130,6 @@ object BootDiagnostics {
     }
 
     /** Frees the recorded crash when the user dismissed the report. */
-    @JvmStatic
     fun clearCrash(context: Context?) {
         prefs(context)?.let { p ->
             runCatching { p.edit().remove(KEY_CRASH).commit() }
