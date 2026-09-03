@@ -52,11 +52,12 @@ instrumentation يحدد بالضبط أي مرحلة تموت على جهازك
 | `android/app/src/main/AndroidManifest.xml` | (1) `io.flutter.embedding.android.EnableImpeller = false` للرجوع إلى Skia على GPU شاشات السيارات. (2) `android:configChanges` أُضيف إليها `colorMode\|navigation\|touchscreen` حتى لا يُعاد إنشاء الـ Activity (recreate) عند تغيّر هذه الإعدادات على شاشة السيارة أثناء الإقلاع. |
 | `.../CarGuardForegroundService.kt` | `onStartCommand` داخل `try/catch (Throwable)` كامل. سُلّم `startForeground`: `CONNECTED_DEVICE\|LOCATION` ثم `CONNECTED_DEVICE` ثم بدون نوع، وعند الرفض الكامل `stopSelf()` بأمان بدل موت التطبيق. أيقونة الإشعار أصبحت `R.drawable.ic_launcher_foreground` (bitmap عادي) بدل `applicationInfo.icon` (adaptive icon → `RemoteServiceException: Bad notification for startForeground` على بعض builds السيارات). إعادة إنشاء قناة الإشعار فقط عند غيابها، ورفض القناة لا يُسقط التطبيق. `wakeLock`/`wifiLock` اختيارية تمامًا مع اختيار `WIFI_MODE_FULL_HIGH_PERF` لمن هو أقل من API 29 (الثابت القديم جديد على هذه الأجهزة). `WifiManager`/`ConnectivityManager`/`PowerManager` تُقرأ بشكل nullable. `stop()` صارت `stopService()` بدل `startService(action)` التي كانت ترمي `IllegalStateException` عندما يكون التطبيق في الخلفية. |
 | `.../MainActivity.kt` | كل MethodChannels تمر عبر `reply(...)`: أي استثناء يرجع كـ `PlatformException` لـ Dart بدل ما يقتل الـ process. تحويلات `as ConnectivityManager` / `as WifiManager` العنيفة → `connectivityManager()` / `wifiManager()` nullable. `acquireMulticastLock` يلتقط `Throwable` (وليس `Exception`). `onCreate` يسجّل المراحل (انظر بند 4) ويلتقط أي فشل في `super.onCreate`. تنظيف: أُزيل `catch` مكرر غير مُدرَك في `removeModuleWifiSuggestion`. |
-| `.../CarGuardCarAppService.kt` | `onGetTemplate()` كلها داخل `try/catch (Throwable)` مع تدرّج: عدادات مصوّرة → قائمة نصوص → شاشة فارغة. رسم العدادات يعتمد `allocateGauge()` الذي يصغّر الحجم تلقائيًا عند `OutOfMemoryError`، وحجم الصورة صار محدودًا بـ 360px بدل `256dp × density` حتى 720px (يقلل الذاكرة لكل تحديث ~4×). إذا فشل إنشاء الصورة يتم عرض الأيقونة المتجهية بدلًا منها — القراءة النصية تبقى ظاهرة دائمًا. `Thread{}` لكل poll → خيط عمل واحد معاد استخدامه. `onBind` و`onCreateScreen` و`onStart/onStop` محميّة. |
+| `.../CarGuardCarAppService.kt` | `onGetTemplate()` كلها داخل `try/catch (Throwable)` مع تدرّج: عدادات مصوّرة → قائمة نصوص → شاشة فارغة. رسم العدادات يعتمد `allocateGauge()` الذي يصغّر الحجم تلقائيًا عند `OutOfMemoryError`، وحجم الصورة صار محدودًا بـ 360px بدل `256dp × density` حتى 720px (يقلل الذاكرة لكل تحديث ~4×). إذا فشل إنشاء الصورة يتم عرض الأيقونة المتجهية بدلًا منها — القراءة النصية تبقى ظاهرة دائمًا. `Thread{}` لكل poll → خيط عمل واحد معاد استخدامه (`ExecutorService` + `ThreadFactory` صريح). `Session.onCreateScreen` و`Screen.onGetTemplate` و`onStart`/`onStop` للخيط محميّة. ملاحظة: `CarAppService.onBind()` تصرّحه المكتبة `final` فلا يمكن لفّه — الحماية موضوعة في الطبقة التي يرمي منها كود التطبيق فعلًا. |
 | `.../CarGuardWidgetProvider.kt` | `onUpdate`/`onReceive` داخل `try/catch`، و`PendingIntent` يُنشأ فقط عند وجود launch intent صحيح (لم يعد null يسبب NPE). الويدجت يستمر في عرض القراءات بدون ضغطة في هذه الحالة. |
 | `.../BootDiagnostics.kt` (جديد — مؤقت) | تسجيل مراحل الإقلاع + حفظ آخر انهيار Java في `SharedPreferences` الخاصة بالتطبيق. |
 | `lib/core/services/boot_diagnostics.dart` (جديد — مؤقت) | جسر Dart لقراءة آخر انهيار وعرضه في Dialog على شاشة الـ Dashboard، وتمرير أخطاء Dart غير الملتقطة لنفس السجل. |
 | `lib/main.dart` | استدعاء `BootDiagnostics.installErrorCapture()` + مرحلة `dart.main` (بدون أي تغيير في تسلسل التشغيل). |
+| `lib/features/dashboard/services/gps_trip_filter.dart` | سطر واحد، غير متعلق بانهيار السيارة: سرعة المستشعر صفر موثوقة (`>= 0`) و`-1` هي غير الموثوقة. أصلح اختبارين كانا يفشلان على `device-integration` وأصبح بناء الـ APK في CI ممكنًا. يمكن أرجاع هذا السطر مستقلًا عن بقية الإصلاح. |
 | `lib/features/dashboard/pages/dashboard_page.dart` | بعد أول إطار: تسجيل مرحلة `dashboard.first-frame` وعرض تقرير آخر انهيار إن وُجد. |
 
 لا شيء تم حذفه: لم تُزل شاشة Android Auto ولا الويدجت ولا خدمة الخلفية ولا أي
@@ -87,13 +88,17 @@ instrumentation يحدد بالضبط أي مرحلة تموت على جهازك
 
 ## 4) كيف تختبر على شاشة السيارة (مهم)
 
-1. ثبّت APK هذه الفرع (release موقّع بمفتاح debug لتجربة sideload):
+1. ثبّت APK هذا الفرع. لا توجد أداة Flutter/Java في بيئة التطوير هذه، فالبناء
+   يحدث على CI فقط و**الـ APK هو artifact من GitHub Actions** (وليس
+   `build/app/outputs/...` المحلي):
 
    ```bash
-   adb install -r build/app/outputs/flutter-apk/app-release.apk
+   gh run download <run-id> -R ahmadtefa/car_guard -n car-guard-apk -D /tmp/apk
+   adb install -r /tmp/apk/app-release.apk
    ```
 
-   أو نزّل الـ artifact من تبويب Actions لهذا الـ run/branch.
+   (البناء release موقّع بمفتاح debug حسب `key.properties` في CI — لتجربة
+   sideload فقط.)
 2. افتح التطبيق. **إذا انهار**، افتحه مرة ثانية: سيظهر Dialog
    «تشخيص بدء التشغيل / startup diagnostics» يعرض:
    * سطر الجهاز: إصدار Android، الشركة/الموديل، الـ ABIs؛
@@ -122,7 +127,53 @@ instrumentation يحدد بالضبط أي مرحلة تموت على جهازك
    فليثبتوا APK المطابق لمعمارية الشاشة (`adb shell getprop
    ro.product.cpu.abilist`).
 
-## 5) تنظيف مطلوب بعد تأكيد زوال المشكلة
+## 5) التحقق على CI — ما ثبت فعلاً وما لم يثبت
+
+لا توجد أداة Flutter ولا JDK في بيئة التطوير، لذا كل تحقق تم عبر workflow
+`CI` (`.github/workflows/ci.yml`) على الـ run الأخير لهذا الفرع:
+
+| الخطوة | النتيجة |
+| --- | --- |
+| `flutter analyze` | نجاح |
+| `flutter test` | نجاح — 75/75 |
+| `flutter build apk --release` | **نجاح** — أي أن كل تعديل Kotlin/Manifest يُترجم ويُربط فعليًا |
+| artifact | `car-guard-apk` (~27.8 MB، فيه `app-release.apk`) |
+
+ملاحظات مهمة على هذا الجدول:
+
+* `flutter test` كان يفشل قبل هذه التغييرات (73 نجاح / 2 فشل) بسبب اختبارات
+  `GpsTripFilter` الموجودة أصلًا على `device-integration`. بما أن الـ workflow
+  يجعل بناء الـ APK مشروطًا بنجاح الاختبارات، أُصلح سطر واحد في
+  `lib/features/dashboard/services/gps_trip_filter.dart` (السرعة صفر من
+  المستشعر موثوقة؛ `-1` هي غير الموثوقة). هذا السطر **لا علاقة له بانهيار
+  شاشة السيارة** ويمكن أرجاعه إن شئت — لكن بدونه لن يبني CI APK أصلًا.
+* CI هو الذي كشف خطأين في الترجمة لم يكن ممكنًا كشفهما محليًا:
+  `override fun onBind` في `CarAppService` (المكتبة تصرّحه `final`)، و
+  `@JvmStatic` مع قيمة افتراضية في `BootDiagnostics`، و SAM constructor
+  مؤهّل بالكامل (`java.util.concurrent.ThreadFactory { ... }`). كلها مصلّحة.
+* **ما لم يُثبت بعد:** أن الانهيار زال. هذا لا يُعرف إلا بتجربة على الشاشة
+  نفسها (القسم 4).
+
+## 6) حقائق تحققت من مصادر المكتبات (لا من التخمين)
+
+* `CarAppService.onBind()` معرّف `final` في `androidx.car.app` — لذلك لا يمكن
+  لفّ عملية الربط نفسها؛ الحماية موضوعة في `Session.onCreateScreen()` و
+  `Screen.onGetTemplate()`، وهما المكانان الوحيدان اللذان فيهما كود التطبيق
+  القابل للرمي على شاشة السيارة.
+* `androidx.car.app.minCarApiLevel = 1` **سليم ولا يسبب الانهيار**:
+  `AppInfo.create()` يرمي فقط إذا كانت القيمة خارج
+  `CarAppApiLevels.getOldest()..getLatest()`، و`getOldest() == 1`.
+  (نظرية مطروحة ثم مرفوضة — مذكّرة هنا حتى لا يعيد أحد طرحها.)
+* `GridTemplate` وأحجام العناصر تتطلبان مستوى API أعلى للمضيف؛ الكود يسأل
+  `carAppApiLevel >= 8` قبل `setItemSize`، والآن أي رفض من المضيف يسقط إلى
+  `ListTemplate` ثم إلى شاشة فارغة بدل ما يقتل العملية.
+* مفتاح إيقاف Impeller الصحيح هو
+  `io.flutter.embedding.android.EnableImpeller` بقيمة `"false"`:
+  `FlutterLoader` يقرأه كـ `Flag("--enable-impeller=", "EnableImpeller")`
+  ويمرر `--enable-impeller=false` للمحرك. المفتاح `DisableImpeller` **لا
+  يعمل** (flutter/flutter#160595).
+
+## 7) تنظيف مطلوب بعد تأكيد زوال المشكلة
 
 Instrumentation مؤقت ومكتوب عليه `TEMP(car-crash)`. عند التأكيد:
 
