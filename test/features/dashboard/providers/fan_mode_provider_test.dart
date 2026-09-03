@@ -65,7 +65,7 @@ void main() {
     repository = _FakeRepository();
 
     container = ProviderContainer(
-      overrides: <Override>[
+      overrides: [
         esp8266RepositoryProvider.overrideWithValue(repository),
         deviceStatusProvider.overrideWith((ref) => deviceStream.stream),
       ],

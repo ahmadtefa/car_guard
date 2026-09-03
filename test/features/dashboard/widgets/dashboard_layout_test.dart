@@ -34,32 +34,34 @@ void main() {
 
   const AppL10n l = AppL10n('ar');
 
-  List<Override> overrides({List<Override> extra = const []}) {
-    return <Override>[
-      deviceStatusProvider.overrideWith(
-        (ref) => Stream<DeviceStatus>.value(device),
-      ),
-      tripProvider.overrideWith(() => _FakeTripNotifier()),
-      voltageDeltaProvider.overrideWithValue(0.42),
-      effectiveSettingsProvider.overrideWithValue(AppSettings()),
-      l10nProvider.overrideWithValue(l),
-      ...extra,
-    ];
-  }
-
   /// Pumps [child] at an exact logical size, RTL (the app's primary language).
+  ///
+  /// [fan] swaps in a fake fan notifier for the tests that drive forced
+  /// mode. Riverpod 3.x keeps the `Override` type off its public API, so the
+  /// override list is built here and let inference name the element type.
   Future<void> pumpAt(
     WidgetTester tester,
     Size size, {
     required Widget child,
-    List<Override> extra = const [],
+    _FakeFanNotifier? fan,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
+    final _FakeFanNotifier? fakeFan = fan;
+
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overrides(extra: extra),
+        overrides: [
+          deviceStatusProvider.overrideWith(
+            (ref) => Stream<DeviceStatus>.value(device),
+          ),
+          tripProvider.overrideWith(() => _FakeTripNotifier()),
+          voltageDeltaProvider.overrideWithValue(0.42),
+          effectiveSettingsProvider.overrideWithValue(AppSettings()),
+          l10nProvider.overrideWithValue(l),
+          if (fakeFan != null) fanModeProvider.overrideWith(() => fakeFan),
+        ],
         child: MaterialApp(
           home: Directionality(
             textDirection: TextDirection.rtl,
@@ -196,17 +198,13 @@ void main() {
         tester,
         const Size(320, 568),
         child: const FanControlCard(),
-        extra: [
-          fanModeProvider.overrideWith(
-            () => _FakeFanNotifier(
-              const FanModeState(
-                mode: FanMode.forcedOn,
-                modeReported: true,
-                connected: true,
-              ),
-            ),
+        fan: _FakeFanNotifier(
+          const FanModeState(
+            mode: FanMode.forcedOn,
+            modeReported: true,
+            connected: true,
           ),
-        ],
+        ),
       );
 
       expect(find.text(l.fanRunningForced), findsOneWidget);
@@ -222,17 +220,13 @@ void main() {
         tester,
         const Size(320, 568),
         child: const FanControlCard(),
-        extra: [
-          fanModeProvider.overrideWith(
-            () => _FakeFanNotifier(
-              const FanModeState(
-                mode: FanMode.automatic,
-                modeReported: true,
-                connected: true,
-              ),
-            ),
+        fan: _FakeFanNotifier(
+          const FanModeState(
+            mode: FanMode.automatic,
+            modeReported: true,
+            connected: true,
           ),
-        ],
+        ),
       );
 
       expect(find.text(l.fanModeAuto), findsOneWidget);
@@ -251,7 +245,7 @@ void main() {
         tester,
         const Size(320, 568),
         child: const FanControlCard(),
-        extra: [fanModeProvider.overrideWith(() => notifier)],
+        fan: notifier,
       );
 
       expect(find.text(l.fanForceButton), findsOneWidget);
@@ -297,7 +291,7 @@ void main() {
         tester,
         const Size(320, 568),
         child: const FanControlCard(),
-        extra: [fanModeProvider.overrideWith(() => notifier)],
+        fan: notifier,
       );
 
       await tester.tap(find.text(l.fanForceButton));
@@ -328,7 +322,7 @@ void main() {
         tester,
         const Size(320, 568),
         child: const FanControlCard(),
-        extra: [fanModeProvider.overrideWith(() => notifier)],
+        fan: notifier,
       );
 
       await tester.tap(find.text(l.fanReleaseButton));
