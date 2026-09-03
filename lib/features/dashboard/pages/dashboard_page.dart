@@ -9,12 +9,14 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 
+import '../../../core/services/boot_diagnostics.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
+
 import '../../analysis/widgets/analysis_entry_card.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
@@ -54,6 +56,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   void initState() {
     super.initState();
     _scheduleHide();
+
+    // TEMP(car-crash): the first frame is the line between "the renderer died"
+    // and "something in Dart died" on the head unit — mark it, then surface the
+    // previous crash (if any) so it can be read without adb.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reportBootDiagnostics());
+  }
+
+  Future<void> _reportBootDiagnostics() async {
+    BootDiagnostics.stage('dashboard.first-frame');
+
+    if (!mounted) {
+      return;
+    }
+
+    await BootDiagnostics.showLastCrash(context);
   }
 
   @override

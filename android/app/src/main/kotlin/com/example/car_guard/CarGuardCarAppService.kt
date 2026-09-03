@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
@@ -48,10 +49,47 @@ class CarGuardCarAppService : CarAppService() {
 
     override fun createHostValidator(): HostValidator =
         HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+
+    /**
+     * The car host binds this service *inside the app process*, so anything
+     * thrown while a session is created takes the whole app down with the
+     * "Car Guard keeps stopping" dialog — on the head unit only, because a
+     * phone never binds a car session. Handing back a session is therefore
+     * wrapped: a failure here degrades to "no car screen", never to a crash.
+     */
+    override fun onBind(intent: Intent?): IBinder? = try {
+        super.onBind(intent)
+    } catch (t: Throwable) {
+        BootDiagnostics.warn(this, "carAppService.onBind", t)
+        null
+    }
 }
 
 class CarGuardSession : Session() {
-    override fun onCreateScreen(intent: Intent): Screen = CarGuardScreen(carContext)
+    override fun onCreateScreen(intent: Intent): Screen = try {
+        CarGuardScreen(carContext)
+    } catch (t: Throwable) {
+        // Never let the head unit kill the process: fall back to the plain
+        // Flutter activity screen list instead of an uncaught exception.
+        BootDiagnostics.warn(carContext, "session.onCreateScreen", t)
+        BlankCarScreen(carContext)
+    }
+}
+
+/** Minimal template screen used when building the real one is not possible. */
+private class BlankCarScreen(carContext: CarContext) : Screen(carContext) {
+    override fun onGetTemplate(): Template = ListTemplate.Builder()
+        .setTitle(carContext.getString(R.string.aa_title_offline))
+        .setSingleList(
+            ItemList.Builder()
+                .addItem(
+                    Row.Builder()
+                        .setTitle(carContext.getString(R.string.aa_no_data))
+                        .build(),
+                )
+                .build(),
+        )
+        .build()
 }
 
 data class CarReading(
@@ -72,6 +110,28 @@ data class CarReading(
 
 private const val DEFAULT_HOST = "192.168.4.1"
 private const val POLL_INTERVAL_MS = 2000L
+
+/// Hard ceiling for a gauge bitmap's side in px — see gaugeSizeDp().
+private const val MAX_GAUGE_PX = 360
+
+/**
+ * Bitmap allocation for the car gauges, with a graceful shrink when the head
+ * unit cannot afford the requested size. Throwing an OutOfMemoryError out of
+ * `onGetTemplate()` is what turns "the car screen is tight on memory" into
+ * "Car Guard keeps stopping", so the fallback is a smaller canvas.
+ */
+private fun allocateGauge(size: Int): Bitmap {
+    var side = size.coerceAtLeast(64)
+
+    while (true) {
+        try {
+            return Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        } catch (t: OutOfMemoryError) {
+            if (side <= 128) throw t
+            side /= 2
+        }
+    }
+}
 
 // نفس باليتة النيون اللي في شاشة الموبايل (AppColors).
 private const val NEON_GREEN = 0x00FF88.toInt()
@@ -101,6 +161,20 @@ private object CarReadings {
 
     private val handler = Handler(Looper.getMainLooper())
     private val listeners = mutableListOf<() -> Unit>()
+
+    /**
+     * Single worker for the polls.
+     *
+     * This used to be `Thread { fetch() }.start()` on every tick: with a 4 s
+     * connect timeout and a 2 s tick, unreachable modules stack threads, and on
+     * the 1 GB head units in these cars that ends in
+     * `OutOfMemoryError: pthread_create` — a native abort that shows up as the
+     * app dying at startup. One reused worker keeps the same polling rhythm
+     * without the thread churn.
+     */
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "CarGuardCarPoller").apply { isDaemon = true }
+    }
 
     // آخر قراءة اتبعتت للمضيف — عشان مترفعش تحديث إلا لما
     // القيم تتغير فعلًا (المضيف بيتعامل مع كل refresh كخطوة جديدة).
@@ -133,7 +207,12 @@ private object CarReadings {
 
     private val poller = object : Runnable {
         override fun run() {
-            Thread { fetch() }.start()
+            try {
+                worker.execute { fetch() }
+            } catch (t: Throwable) {
+                // A rejected task (executor shut down) must not kill the host.
+                BootDiagnostics.warn(null, "carApp.poller", t)
+            }
             handler.postDelayed(this, POLL_INTERVAL_MS)
         }
     }
@@ -278,11 +357,21 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         CarReadings.addListener(onReading)
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                CarReadings.acquire(loadHost(carContext))
+                // Network/SharedPreferences work — a throw from a stripped
+                // automotive framework here would kill the app, not the poller.
+                try {
+                    CarReadings.acquire(loadHost(carContext))
+                } catch (t: Throwable) {
+                    BootDiagnostics.warn(carContext, "carApp.acquire", t)
+                }
             }
 
             override fun onStop(owner: LifecycleOwner) {
-                CarReadings.release()
+                try {
+                    CarReadings.release()
+                } catch (t: Throwable) {
+                    BootDiagnostics.warn(carContext, "carApp.release", t)
+                }
             }
 
             override fun onDestroy(owner: LifecycleOwner) {
@@ -291,15 +380,51 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         })
     }
 
+    /**
+     * The car host pulls the template on the app's main thread and keeps no
+     * error boundary: every exception thrown from here — a large Bitmap, an
+     * unsupported GridTemplate on an old host API level, an OEM framework
+     * method that simply is not there — arrives in the app process as an
+     * uncaught exception and the head unit shows the crash dialog while the
+     * phone (which never binds this service) stays healthy.
+     *
+     * So the whole build is guarded and degrades in two steps: the picture
+     * gauges first, then a text-only list, then a bare screen.
+     */
+    override fun onGetTemplate(): Template = try {
+        gaugeTemplate()
+    } catch (t: Throwable) {
+        BootDiagnostics.warn(carContext, "carApp.onGetTemplate", t)
+        try {
+            fallbackTemplate()
+        } catch (fallback: Throwable) {
+            BootDiagnostics.warn(carContext, "carApp.fallbackTemplate", fallback)
+            BlankCarScreen(carContext).onGetTemplate()
+        }
+    }
+
     private fun gaugeGridItem(
-        bitmap: Bitmap,
+        bitmap: Bitmap?,
+        fallbackIconRes: Int,
         title: CharSequence,
         text: CharSequence,
-    ): GridItem = GridItem.Builder()
-        .setImage(gaugeIcon(bitmap), GridItem.IMAGE_TYPE_LARGE)
-        .setTitle(title)
-        .setText(text)
-        .build()
+    ): GridItem {
+        // The picture is a bonus, never a requirement: on a low-memory head
+        // unit a bitmap can fail to allocate or to be wrapped as an icon, and
+        // losing the gauge *picture* is infinitely better than losing the app.
+        val image = if (bitmap != null) {
+            runCatching { gaugeIcon(bitmap) }.getOrNull()
+                ?: runCatching { carIcon(carContext, fallbackIconRes, MUTED_GRAY) }.getOrNull()
+        } else {
+            runCatching { carIcon(carContext, fallbackIconRes, MUTED_GRAY) }.getOrNull()
+        }
+
+        return GridItem.Builder()
+            .apply { image?.let { setImage(it, GridItem.IMAGE_TYPE_LARGE) } }
+            .setTitle(title)
+            .setText(text)
+            .build()
+    }
 
     private fun gridItem(
         iconRes: Int,
@@ -312,7 +437,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         .setText(text)
         .build()
 
-    override fun onGetTemplate(): Template {
+    private fun gaugeTemplate(): Template {
         val current = CarReadings.reading
         val connected = current?.connected == true
 
@@ -321,11 +446,14 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         // — حرارة المحرك: العداد (القراءة تحت العداد) —
         list.addItem(
             gaugeGridItem(
-                tempGauge(
-                    current?.temp ?: 0.0,
-                    current?.maxTemp ?: 97.0,
-                    active = connected,
-                ),
+                runCatching {
+                    tempGauge(
+                        current?.temp ?: 0.0,
+                        current?.maxTemp ?: 97.0,
+                        active = connected,
+                    )
+                }.getOrNull(),
+                R.drawable.ic_car_temp,
                 carContext.getString(R.string.aa_temp),
                 if (connected) {
                     String.format(Locale.US, "%.1f °C", current!!.temp)
@@ -338,12 +466,15 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         // — فولت البطارية: العداد (القراءة تحت العداد) —
         list.addItem(
             gaugeGridItem(
-                voltGauge(
-                    current?.volt ?: 0.0,
-                    current?.minVolt ?: 12.0,
-                    current?.maxVolt ?: 14.8,
-                    active = connected,
-                ),
+                runCatching {
+                    voltGauge(
+                        current?.volt ?: 0.0,
+                        current?.minVolt ?: 12.0,
+                        current?.maxVolt ?: 14.8,
+                        active = connected,
+                    )
+                }.getOrNull(),
+                R.drawable.ic_car_battery,
                 carContext.getString(R.string.aa_voltage),
                 if (connected) {
                     String.format(Locale.US, "%.2f V", current!!.volt)
@@ -437,11 +568,7 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             builder.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
         }
 
-        return try {
-            builder.build()
-        } catch (t: Throwable) {
-            fallbackTemplate()
-        }
+        return builder.build()
     }
 
     private fun fallbackTemplate(): Template {
@@ -501,9 +628,26 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
             .build()
     }
 
-    private fun gaugeSizeDp(dp: Int): Int =
-        (dp * carContext.resources.displayMetrics.density).toInt()
-            .coerceIn(dp, 720)
+    /**
+     * Side length of a gauge bitmap in pixels.
+     *
+     * The car host downscales grid images to its own cell size, so a bitmap
+     * bigger than ~360 px buys nothing on the head unit — while it costs
+     * 2 MB+ per refresh on the small dalvik heaps these units ship with
+     * (a 720 px ARGB_8888 bitmap is 2 MB, and two are built per refresh).
+     * That is the classic `OutOfMemoryError` on a car screen at the exact
+     * moment the host asks for a template. The head unit is asked for a
+     * density-derived size but capped hard, and the caller turns a failed
+     * allocation into "no picture" instead of a dead app.
+     */
+    private fun gaugeSizeDp(dp: Int): Int {
+        val rawDensity = carContext.resources.displayMetrics.density
+        val density = if (rawDensity > 0f) rawDensity else 1f
+
+        return (dp * density).toInt()
+            .coerceAtLeast(dp)
+            .coerceAtMost(MAX_GAUGE_PX)
+    }
 
     // عداد الحرارة — الرسم زي ما هو (بدون قراءة جوه؛ القراءة تحت العداد).
     private fun tempGauge(
@@ -511,8 +655,8 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         maxTemp: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(256)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bmp = allocateGauge(gaugeSizeDp(256))
+        val size = bmp.width
         val canvas = Canvas(bmp)
 
         val cx = size / 2f
@@ -591,8 +735,8 @@ class CarGuardScreen(carContext: CarContext) : Screen(carContext) {
         maxVolt: Double,
         active: Boolean = true,
     ): Bitmap {
-        val size = gaugeSizeDp(256)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bmp = allocateGauge(gaugeSizeDp(256))
+        val size = bmp.width
         val canvas = Canvas(bmp)
 
         // وجه مستدير شفاف — من غير مربع.

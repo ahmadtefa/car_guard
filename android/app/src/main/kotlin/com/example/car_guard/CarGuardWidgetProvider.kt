@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.util.Log
 import android.widget.RemoteViews
 import org.json.JSONObject
 
@@ -17,6 +18,8 @@ import org.json.JSONObject
 class CarGuardWidgetProvider : AppWidgetProvider() {
 
     companion object {
+        private const val TAG = "CarGuardWidget"
+
         const val PREF_NAME = "HomeWidgetPreferences"
         // Keys يكتبها Flutter عبر home_widget
         const val KEY_TEMP = "widget_temp"
@@ -44,7 +47,27 @@ class CarGuardWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
-            updateWidget(context, appWidgetManager, appWidgetId)
+            // A widget is drawn by the *launcher* process but rendered inside
+            // this app's process, so a throw here ("Car Guard keeps stopping")
+            // happened even without opening the app. On head-unit launchers,
+            // which re-add/re-layout widgets aggressively, that means a crash
+            // loop right after installation. One bad widget must never take the
+            // app down: log, skip, keep going.
+            try {
+                updateWidget(context, appWidgetManager, appWidgetId)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Widget update failed: $t")
+                BootDiagnostics.warn(context, "widget.onUpdate", t)
+            }
+        }
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        try {
+            super.onReceive(context, intent)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Widget broadcast failed: $t")
+            BootDiagnostics.warn(context, "widget.onReceive", t)
         }
     }
 
@@ -107,14 +130,27 @@ class CarGuardWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.widget_volt_delta, if (connected) "OK" else "--")
 
         // ضغطة تفتح التطبيق
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val pending = PendingIntent.getActivity(
-            context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_temp_value, pending)
-        views.setOnClickPendingIntent(R.id.widget_volt_value, pending)
-        views.setOnClickPendingIntent(R.id.widget_fan_value, pending)
+        // getLaunchIntentForPackage() legitimately returns null when no
+        // launcher entry resolves for the package (car launchers, work
+        // profiles, direct-boot), and PendingIntent.getActivity(...) then
+        // throws NullPointerException("intent must not be null") inside the
+        // app process. A widget without a tap action still shows readings.
+        val intent = try {
+            context.packageManager.getLaunchIntentForPackage(context.packageName)
+        } catch (t: Throwable) {
+            null
+        }
+        val pending = intent?.let {
+            PendingIntent.getActivity(
+                context, 0, it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+        if (pending != null) {
+            views.setOnClickPendingIntent(R.id.widget_temp_value, pending)
+            views.setOnClickPendingIntent(R.id.widget_volt_value, pending)
+            views.setOnClickPendingIntent(R.id.widget_fan_value, pending)
+        }
 
         manager.updateAppWidget(appWidgetId, views)
     }

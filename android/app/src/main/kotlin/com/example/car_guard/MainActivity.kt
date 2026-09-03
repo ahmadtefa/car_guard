@@ -21,6 +21,24 @@ class MainActivity : FlutterActivity() {
     private var moduleWifiPairing: ConnectivityManager.NetworkCallback? = null
 
     /**
+     * TEMP(car-crash): earliest possible hook — installs the stage log and the
+     * uncaught-exception recorder before the Flutter engine, the plugins and the
+     * foreground service exist. Remove together with BootDiagnostics.
+     */
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        BootDiagnostics.install(this)
+        BootDiagnostics.stage(this, "activity.onCreate")
+        try {
+            super.onCreate(savedInstanceState)
+        } catch (t: Throwable) {
+            // A crash here (engine/GPU/ABI related) is exactly what the head
+            // unit hits; record the stage + trace, then rethrow unchanged.
+            BootDiagnostics.warn(this, "activity.onCreate failed", t)
+            throw t
+        }
+    }
+
+    /**
      * mDNS multicast lock. Several Android vendors silently drop multicast
      * traffic until an app holds it — without this, car_guard.local lookups
      * hang and fail. Held for the process lifetime (foreground app); the
@@ -31,34 +49,46 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        BootDiagnostics.stage(this, "engine.configured")
+
         acquireMulticastLock()
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             NETWORK_CHANNEL,
         ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "bindToWifi" -> result.success(bindProcessToWifi())
-                "bindToDefault" -> result.success(unbindProcess())
-                "androidSdkInt" -> result.success(Build.VERSION.SDK_INT)
-                "pairModuleWifi" -> {
-                    val ssid = call.argument<String>("ssid").orEmpty()
-                    val password = call.argument<String>("password").orEmpty()
-                    result.success(pairModuleWifi(ssid, password))
+            // Every handler body runs on the Android main thread: an exception
+            // escaping from here is NOT delivered to Dart, it kills the whole
+            // process (the "Car Guard keeps stopping" dialog). Dispatch through
+            // reply() so any failure comes back as a Dart PlatformException
+            // instead — the Dart side already handles those.
+            reply(result) {
+                when (call.method) {
+                    "bindToWifi" -> bindProcessToWifi()
+                    "bindToDefault" -> unbindProcess()
+                    "androidSdkInt" -> Build.VERSION.SDK_INT
+                    "pairModuleWifi" -> {
+                        val ssid = call.argument<String>("ssid").orEmpty()
+                        val password = call.argument<String>("password").orEmpty()
+                        pairModuleWifi(ssid, password)
+                    }
+                    "unpairModuleWifi" -> unpairModuleWifi()
+                    "suggestModuleWifi" -> {
+                        val ssid = call.argument<String>("ssid").orEmpty()
+                        val password = call.argument<String>("password").orEmpty()
+                        suggestModuleWifi(ssid, password)
+                    }
+                    "removeModuleWifiSuggestion" -> {
+                        val ssid = call.argument<String>("ssid").orEmpty()
+                        val password = call.argument<String>("password").orEmpty()
+                        removeModuleWifiSuggestion(ssid, password)
+                    }
+                    "openInternetSettings" -> openInternetSettings()
+                    else -> {
+                        result.notImplemented()
+                        null
+                    }
                 }
-                "unpairModuleWifi" -> result.success(unpairModuleWifi())
-                "suggestModuleWifi" -> {
-                    val ssid = call.argument<String>("ssid").orEmpty()
-                    val password = call.argument<String>("password").orEmpty()
-                    result.success(suggestModuleWifi(ssid, password))
-                }
-                "removeModuleWifiSuggestion" -> {
-                    val ssid = call.argument<String>("ssid").orEmpty()
-                    val password = call.argument<String>("password").orEmpty()
-                    result.success(removeModuleWifiSuggestion(ssid, password))
-                }
-                "openInternetSettings" -> result.success(openInternetSettings())
-                else -> result.notImplemented()
             }
         }
 
@@ -69,16 +99,66 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             BACKGROUND_CHANNEL,
         ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "start" -> {
-                    CarGuardForegroundService.start(this)
-                    result.success(null)
+            reply(result) {
+                when (call.method) {
+                    "start" -> CarGuardForegroundService.start(this)
+                    "stop" -> CarGuardForegroundService.stop(this)
+                    else -> {
+                        result.notImplemented()
+                        null
+                    }
                 }
-                "stop" -> {
-                    CarGuardForegroundService.stop(this)
-                    result.success(null)
+            }
+        }
+
+        // TEMP(car-crash): startup stage trace + last crash, read by the Dart
+        // side so the failing step is visible on the head unit itself.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BOOT_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            reply(result) {
+                when (call.method) {
+                    "stage" -> {
+                        BootDiagnostics.stage(
+                            this,
+                            call.argument<String>("name").orEmpty(),
+                        )
+                        null
+                    }
+                    "drain" -> BootDiagnostics.drain(this)
+                    "clearCrash" -> {
+                        BootDiagnostics.clearCrash(this)
+                        null
+                    }
+                    else -> {
+                        result.notImplemented()
+                        null
+                    }
                 }
-                else -> result.notImplemented()
+            }
+        }
+
+        BootDiagnostics.stage(this, "channels.ready")
+    }
+
+    /** Runs [block] and replies on [result]; never lets a throw reach the UI thread. */
+    private inline fun reply(result: MethodChannel.Result, block: () -> Any?) {
+        try {
+            val value = block()
+            // Unit is not encodable by the standard message codec, and Dart
+            // handlers expect `null` for "no value".
+            result.success(if (value is Unit) null else value)
+        } catch (t: Throwable) {
+            BootDiagnostics.warn(this, "channel call failed", t)
+            try {
+                result.error(
+                    "car_guard_native_error",
+                    "${t.javaClass.simpleName}: ${t.message}",
+                    null,
+                )
+            } catch (ignored: Throwable) {
+                // The reply was already submitted — nothing left to report.
             }
         }
     }
@@ -92,8 +172,7 @@ class MainActivity : FlutterActivity() {
      * Returns true when a Wi-Fi network was found and bound.
      */
     private fun bindProcessToWifi(): Boolean {
-        val manager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val manager = connectivityManager() ?: return false
 
         for (network in manager.allNetworks) {
             val capabilities = manager.getNetworkCapabilities(network) ?: continue
@@ -108,9 +187,31 @@ class MainActivity : FlutterActivity() {
 
     /** Releases the Wi-Fi binding; the app follows the system network again. */
     private fun unbindProcess(): Boolean {
-        val manager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val manager = connectivityManager() ?: return false
         return manager.bindProcessToNetwork(null)
+    }
+
+    /**
+     * `getSystemService` answers null on builds where the service is not
+     * published, and a bare `as ConnectivityManager` cast on null throws a
+     * NullPointerException on the main thread — fatal for the whole process
+     * when it happens inside a platform-channel handler. Every access here goes
+     * through this nullable helper instead.
+     */
+    private fun connectivityManager(): ConnectivityManager? = try {
+        getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+    } catch (t: Throwable) {
+        BootDiagnostics.warn(this, "ConnectivityManager unavailable", t)
+        null
+    }
+
+    /** Nullable Wi-Fi manager: many automotive/Wi-Fi-less head units have no
+     *  Wi-Fi service at all, and the previous hard cast crashed on them. */
+    private fun wifiManager(): WifiManager? = try {
+        applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    } catch (t: Throwable) {
+        BootDiagnostics.warn(this, "WifiManager unavailable", t)
+        null
     }
 
     /**
@@ -128,8 +229,7 @@ class MainActivity : FlutterActivity() {
             return false
         }
 
-        val manager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val manager = connectivityManager() ?: return false
 
         val specifier = WifiNetworkSpecifier.Builder().apply {
             setSsid(ssid)
@@ -211,8 +311,9 @@ class MainActivity : FlutterActivity() {
     private fun suggestModuleWifi(ssid: String, password: String): Boolean {
         val suggestion = buildWifiSuggestion(ssid, password) ?: return false
 
-        val wifiManager =
-            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        // A head unit without Wi-Fi simply has no WifiManager — report
+        // "not applied" instead of crashing (see wifiManager()).
+        val wifiManager = wifiManager() ?: return false
 
         return try {
             wifiManager.addNetworkSuggestions(listOf(suggestion)) ==
@@ -228,8 +329,7 @@ class MainActivity : FlutterActivity() {
     private fun removeModuleWifiSuggestion(ssid: String, password: String): Boolean {
         val suggestion = buildWifiSuggestion(ssid, password) ?: return false
 
-        val wifiManager =
-            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val wifiManager = wifiManager() ?: return false
 
         return try {
             wifiManager.removeNetworkSuggestions(listOf(suggestion)) ==
@@ -241,15 +341,14 @@ class MainActivity : FlutterActivity() {
 
     /** Drops the app-scoped pairing and releases the binding. */
     private fun unpairModuleWifi(): Boolean {
-        val manager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val manager = connectivityManager()
 
         moduleWifiPairing?.let {
-            runCatching { manager.unregisterNetworkCallback(it) }
+            runCatching { manager?.unregisterNetworkCallback(it) }
         }
         moduleWifiPairing = null
 
-        return manager.bindProcessToNetwork(null)
+        return manager?.bindProcessToNetwork(null) ?: true
     }
 
     /**
@@ -275,15 +374,18 @@ class MainActivity : FlutterActivity() {
         if (multicastLock != null) return
 
         try {
-            val wifiManager =
-                applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wifiManager = wifiManager() ?: return
 
             multicastLock = wifiManager.createMulticastLock("car_guard_mdns").apply {
                 setReferenceCounted(false)
                 acquire()
             }
-        } catch (e: Exception) {
+            BootDiagnostics.stage(this, "multicastLock.acquired")
+        } catch (t: Throwable) {
             // Multicast lookup will still work OEM-dependently; never crash.
+            // Throwable, not Exception: stripped OEM frameworks have been known
+            // to answer with NoSuchMethodError on this very call.
+            BootDiagnostics.warn(this, "multicastLock failed", t)
         }
     }
 
@@ -298,12 +400,14 @@ class MainActivity : FlutterActivity() {
             }
         }
         multicastLock = null
+        BootDiagnostics.stage(this, "activity.onDestroy")
         super.onDestroy()
     }
 
     private companion object {
         const val NETWORK_CHANNEL = "com.kayan.carguard/network"
         const val BACKGROUND_CHANNEL = "car_guard/background"
+        const val BOOT_CHANNEL = "car_guard/boot"
         const val PAIRING_TIMEOUT_MS = 30_000
     }
 }

@@ -39,6 +39,22 @@
              it speaks plain HTTP on the car's Wi-Fi network, and Android 9+
              blocks cleartext traffic for the native stack by default. -->
 
+        <!-- Startup renderer choice (car-screen crash hunt).
+             Impeller is Flutter's default Android backend and it expects a
+             reasonably modern GLES3.1/Vulkan GPU. The GPUs in automotive
+             head units (Vivante, Mali-400/450, PowerVR Series5/6, Adreno 5xx
+             on older automotive SoCs) are the exact class of hardware where
+             Flutter apps die inside libflutter.so before the first frame —
+             which is precisely "crashes on the car screen, fine on the phone"
+             with no Java stack trace at all. Skia is still the safe path for
+             that hardware, and this costs nothing on phones. (A Flutter SDK
+             that has dropped Skia entirely just ignores the flag.)
+             Set the value back to "true" once the head unit is confirmed to
+             render correctly with Impeller. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
+
         <!-- Declares that this app provides an Android Auto experience. Without
              this meta-data (and the referenced XML) the Android Auto host never
              binds to CarGuardCarAppService and the app does not show up on the
@@ -51,13 +67,20 @@
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
 
+        <!-- android:configChanges below is the stock Flutter list plus the three
+             flags cars actually move at runtime: colorMode (HDR / night display
+             on head units), navigation and touchscreen (a steering-wheel D-pad
+             or an added input device re-configures them). Every configuration
+             change that is NOT listed here destroys and recreates the Activity,
+             and a recreation landing while the engine is still booting reads to
+             the user as an instant crash. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode|colorMode|navigation|touchscreen"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             <!-- Specifies an Android theme to apply to this Activity as soon as
