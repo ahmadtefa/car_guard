@@ -172,9 +172,12 @@ private object CarReadings {
      * app dying at startup. One reused worker keeps the same polling rhythm
      * without the thread churn.
      */
-    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "CarGuardCarPoller").apply { isDaemon = true }
-    }
+    private val worker: java.util.concurrent.ExecutorService =
+        java.util.concurrent.Executors.newSingleThreadExecutor(
+            java.util.concurrent.ThreadFactory { runnable ->
+                Thread(runnable, "CarGuardCarPoller").apply { isDaemon = true }
+            },
+        )
 
     // آخر قراءة اتبعتت للمضيف — عشان مترفعش تحديث إلا لما
     // القيم تتغير فعلًا (المضيف بيتعامل مع كل refresh كخطوة جديدة).
