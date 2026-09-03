@@ -490,6 +490,11 @@ void updateLedStatus() {
 // WEBSOCKET BROADCAST
 // =========================================================
 void broadcastWsData() {
+  // [Stage 3.3 hardening] A LOCKED device must not expose any operating /
+  // sensor data to clients, so the CSV sensor broadcast is suppressed while
+  // LOCKED. When ACTIVE the exact existing payload/format/timing is used.
+  if (!license_is_active()) return;
+
   if (webSocket.connectedClients() == 0) return;
 
   if (abs(filteredTemp - lastBroadcastTemp) < 0.5 &&
@@ -553,6 +558,17 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
 // =========================================================
 // API HANDLERS
 // =========================================================
+// [Stage 3.3 hardening] Gate for vehicle/user-control and operational-settings
+// endpoints. Returns true (allow) when the device is ACTIVE. When LOCKED it
+// replies 403 "DEVICE LOCKED" and returns false. Provisioning / network-setup
+// endpoints that are required for Wi-Fi/NTP activation are NOT routed through
+// this gate (they stay available so a LOCKED unit can still be activated).
+bool licenseControlAllowed() {
+  if (license_is_active()) return true;
+  server.send(403, "text/plain", "DEVICE LOCKED");
+  return false;
+}
+
 // [STA+mDNS] /joinwifi?ssid=..&pass=.. — learn the hotspot/home network.
 // Saved to EEPROM; the module keeps its AP alive while trying to join.
 void handleJoinWiFi() {
@@ -624,6 +640,7 @@ void handleData() {
 void handleSaveAllSettings() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   if (server.hasArg("maxTemp")   && server.hasArg("fanOnTemp") &&
       server.hasArg("minVolt")   && server.hasArg("maxVolt")   &&
@@ -715,6 +732,7 @@ void handleGetWiFiSettings() {
 void handleFactoryReset() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   settings.signature   = 0x00000000;          // invalidate -> defaults on boot
   settings.staSSID[0]  = 0;
@@ -752,6 +770,7 @@ void handleGetAllSettings() {
 void handleSaveAdvancedSettings() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   if (server.hasArg("r1")) {
     float val = server.arg("r1").toFloat();
@@ -790,6 +809,7 @@ void handleSaveAdvancedSettings() {
 void handleTestFan() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   fanTestActive = true;
   fanTestStopAt = millis() + 5000;
@@ -801,6 +821,7 @@ void handleTestFan() {
 void handleMute() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   buzzMuted = true;
   stopAlarmSound();
@@ -811,6 +832,7 @@ void handleMute() {
 void handleRestart() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   server.send(200, "text/plain", "RESTARTING");
   delay(500);
@@ -820,6 +842,7 @@ void handleRestart() {
 void handleCalibrateVoltage() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!licenseControlAllowed()) return;
 
   if (!server.hasArg("realVolt")) {
     server.send(400, "text/plain", "Missing realVolt");
