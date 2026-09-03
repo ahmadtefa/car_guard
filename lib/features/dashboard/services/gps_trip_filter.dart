@@ -198,9 +198,12 @@ class GpsTripFilter {
     final sensorMs = _sensorSpeedMs(position);
     final double metersPerSecond;
 
-    // Trust any non-trivial Doppler speed. Previously 0.5 m/s (~1.8 km/h)
-    // clipped the first moments of motion; lowered so ~1 km/h registers.
-    if (sensorMs >= 0.25) {
+    // A trusted sensor is authoritative — including a trusted 0 while parked.
+    // Never override a trusted reading with track-derived motion, or parked
+    // GPS jitter accumulates phantom distance. The track-derived fallback
+    // below applies only to an *untrusted* (dead/absent) sensor, which
+    // _sensorSpeedMs reports as -1.
+    if (sensorMs >= 0) {
       metersPerSecond = sensorMs;
       _derivedMotionStreak = 0;
     } else {
