@@ -48,6 +48,9 @@ class DashboardReadingsGrid extends ConsumerWidget {
 
   static const double _gap = AppSpacing.md;
 
+  /// Narrowest width at which a second column is still honest about its text.
+  static const double _twoColumnMinWidth = 300;
+
   /// Below this cell width the mini gauges are dropped: a 118 dp arc squeezed
   /// into a ~140 dp card reads worse than no arc at all, and the number — the
   /// thing that matters while driving — gets the room instead.
@@ -69,9 +72,15 @@ class DashboardReadingsGrid extends ConsumerWidget {
             : size.width;
         final landscape = fullscreen && size.height < size.width;
 
+        // The dashboard is always two cards side by side (temperature above
+        // speed, voltage difference above distance) — on a phone and on a head
+        // unit alike; only the *fullscreen* view spreads the four readings
+        // across a landscape screen, because there the height is the scarce
+        // resource. Below 300 dp a second column would squeeze the values out
+        // of the card, so it degrades to one per row.
         final int columns = fullscreen
             ? (landscape ? 4 : 2)
-            : (width >= 620 ? 4 : (width >= 300 ? 2 : 1));
+            : (width >= _twoColumnMinWidth ? 2 : 1);
 
         final cellWidth = (width - _gap * (columns - 1)) / columns;
         final showGauge = cellWidth >= _gaugeMinCellWidth;
