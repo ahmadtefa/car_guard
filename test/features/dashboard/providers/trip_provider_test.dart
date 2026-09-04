@@ -1,3 +1,4 @@
+import 'package:car_guard/core/models/app_settings.dart';
 import 'package:car_guard/features/dashboard/providers/trip_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,12 @@ void main() {
   /// async restore + location probing (which throws in tests and is
   /// swallowed) to settle.
   Future<ProviderContainer> boot(Map<String, Object> initialPrefs) async {
-    SharedPreferences.setMockInitialValues(initialPrefs);
+    final prefs = <String, Object>{...initialPrefs};
+    // Trip persistence tests run in the allowed Demo path; production still
+    // denies the source until Demo is explicitly enabled or the ESP is ACTIVE.
+    const demoSettings = AppSettings(demoModeEnabled: true);
+    prefs[AppSettings.storageKey] = demoSettings.encode();
+    SharedPreferences.setMockInitialValues(prefs);
 
     final container = ProviderContainer();
     addTearDown(container.dispose);

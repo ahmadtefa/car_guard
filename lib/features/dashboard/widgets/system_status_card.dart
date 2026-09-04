@@ -6,6 +6,8 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/device_alert.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/alerts_provider.dart';
 
 /// Compact system status card — the twin of the fan/alternator row:
@@ -19,7 +21,18 @@ class SystemStatusCard extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
 
     final alerts = ref.watch(alertsProvider).active;
-    final device = ref.watch(deviceStatusProvider).value;
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
+    final dataAccessAllowed =
+        settingsReady && (demoEnabled || licenseAuthorized);
+    final device = dataAccessAllowed
+        ? ref.watch(deviceStatusProvider).value
+        : null;
 
     final connected = device?.connected ?? false;
     final temperature = device?.temperatureData.engineTemperature;

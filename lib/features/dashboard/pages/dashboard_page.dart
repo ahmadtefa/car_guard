@@ -16,6 +16,7 @@ import '../../../core/providers/device_provider.dart';
 import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../analysis/widgets/analysis_entry_card.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
@@ -86,6 +87,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Future<void> _toggleAlarmSound() async {
     final local = ref.read(settingsProvider).value ?? const AppSettings();
+    if (!local.demoModeEnabled &&
+        !ref.read(licenseAuthorizationProvider)) {
+      return;
+    }
 
     final next = !local.alarmSoundEnabled;
 
@@ -191,7 +196,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     required String tooltip,
     required IconData icon,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Tooltip(
       message: tooltip,
@@ -337,7 +342,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final l = ref.watch(l10nProvider);
 
-    final local = ref.watch(settingsProvider).value ?? const AppSettings();
+    final settingsState = ref.watch(settingsProvider);
+    final local = settingsState.value ?? const AppSettings();
+    final moduleLicensed =
+        settingsState.value != null &&
+        !local.demoModeEnabled &&
+        ref.watch(licenseAuthorizationProvider);
     final settings = ref.watch(effectiveSettingsProvider);
 
     final connected = state.connectionStatus == 'Connected';
@@ -416,7 +426,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               color: local.alarmSoundEnabled
                                   ? AppColors.neonAmber
                                   : AppColors.textSecondary,
-                              onTap: _toggleAlarmSound,
+                              onTap: local.demoModeEnabled || moduleLicensed
+                                  ? _toggleAlarmSound
+                                  : null,
                             ),
                             const SizedBox(width: AppSpacing.lg),
                             _roundIconButton(

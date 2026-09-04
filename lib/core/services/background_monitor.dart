@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_l10n.dart';
 import '../models/app_settings.dart';
 import '../models/device_alert.dart';
+import '../models/license_models.dart';
 import 'alert_evaluator.dart';
 import 'device_models.dart';
 import 'notification_service.dart';
@@ -56,7 +57,11 @@ class BackgroundMonitorHandler extends TaskHandler {
       prefs.getString(AppSettings.storageKey),
     );
 
-    if (!settings.alertsEnabled || !settings.backgroundMonitoringEnabled) {
+    if (!settings.alertsEnabled ||
+        !settings.backgroundMonitoringEnabled ||
+        settings.demoModeEnabled) {
+      // Demo mode must stay on the built-in simulator; never poll a real
+      // module from the background service in that mode.
       return;
     }
 
@@ -116,14 +121,21 @@ class BackgroundMonitorHandler extends TaskHandler {
           .get(Uri.parse('http://$host/data'))
           .timeout(const Duration(seconds: 4));
 
+      // The ESP8266 remains the authority for the background isolate too:
+      // locked/expired modules must reject /data (for example with 403). Do
+      // not use a cached Flutter license flag here.
       if (response.statusCode != 200) return null;
 
       final body = response.body.trim();
 
       if (body.startsWith('{')) {
-        return _statusFromJson(
-          Map<String, dynamic>.from(jsonDecode(body) as Map),
-        );
+        // A license reply is not telemetry. Never reinterpret a protocol
+        // status/result object as a zero-filled sensor reading.
+        if (parseLicenseMessage(body) != null) return null;
+
+        final decoded = jsonDecode(body);
+        if (decoded is! Map) return null;
+        return _statusFromJson(Map<String, dynamic>.from(decoded));
       }
 
       return _statusFromCsv(body);
@@ -132,18 +144,24 @@ class BackgroundMonitorHandler extends TaskHandler {
     }
   }
 
-  DeviceStatus _statusFromJson(Map<String, dynamic> json) {
+  DeviceStatus? _statusFromJson(Map<String, dynamic> json) {
+    // Do not turn a generic JSON error/license object into zero-valued
+    // telemetry. A real JSON reading must carry the two primary sensors.
+    final rawTemperature = json['temp'];
+    final rawVoltage = json['volt'];
+    if (rawTemperature is! num || rawVoltage is! num) return null;
+
     final rawCoolant = json['coolant'] ?? json['coolantAvailable'];
 
     return DeviceStatus(
       connected: true,
       deviceId: 'Car Guard',
       batteryData: BatteryData(
-        voltage: (json['volt'] as num?)?.toDouble() ?? 0,
+        voltage: rawVoltage.toDouble(),
         voltageDifference: (json['voltDiff'] as num?)?.toDouble() ?? 0,
       ),
       temperatureData: TemperatureData(
-        engineTemperature: (json['temp'] as num?)?.toDouble() ?? 0,
+        engineTemperature: rawTemperature.toDouble(),
       ),
       coolantLevelData: CoolantLevelData(
         coolantAvailable: rawCoolant == null || rawCoolant == 1 || rawCoolant == true,
@@ -165,14 +183,18 @@ class BackgroundMonitorHandler extends TaskHandler {
 
     if (parts.length < 3) return null;
 
+    final temperature = double.tryParse(parts[0].trim());
+    final voltage = double.tryParse(parts[1].trim());
+    if (temperature == null || voltage == null) return null;
+
     return DeviceStatus(
       connected: true,
       deviceId: 'Car Guard',
       batteryData: BatteryData(
-        voltage: double.tryParse(parts[1].trim()) ?? 0,
+        voltage: voltage,
       ),
       temperatureData: TemperatureData(
-        engineTemperature: double.tryParse(parts[0].trim()) ?? 0,
+        engineTemperature: temperature,
       ),
       coolantLevelData: const CoolantLevelData(coolantAvailable: true),
       controlData: DeviceControlData(
@@ -371,7 +393,12 @@ abstract final class BackgroundMonitor {
     }
   }
 
-  /// Called on app boot: restarts the service when the user enabled it.
+  /// Called by legacy entry points on app boot.
+  ///
+  /// Persisted settings alone are not an authorization proof, so this method
+  /// may stop an explicitly disabled/demo service but must not start a service.
+  /// [CarGuardApp] starts it only after the foreground license provider has
+  /// received a fresh ACTIVE response from the ESP8266.
   static Future<void> ensureFromStorage() async {
     if (!_supported) return;
 
@@ -382,9 +409,9 @@ abstract final class BackgroundMonitor {
         prefs.getString(AppSettings.storageKey),
       );
 
-      if (!settings.backgroundMonitoringEnabled) return;
-
-      await start();
+      if (!settings.backgroundMonitoringEnabled || settings.demoModeEnabled) {
+        await stop();
+      }
     } catch (_) {
       // Never block app startup on the background service.
     }
