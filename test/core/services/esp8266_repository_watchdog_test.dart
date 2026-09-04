@@ -20,7 +20,6 @@ class _ModuleServer {
     this.licenseType = 'NONE',
     this.sendInitialTelemetry = false,
     this.sendPeriodicTelemetry = false,
-    this.closeAfterInitialTelemetry = false,
     this.httpDataStatus = 403,
     this.httpDataBody = 'DEVICE LOCKED',
   });
@@ -33,7 +32,6 @@ class _ModuleServer {
   final int licenseExpires = 0;
   final bool sendInitialTelemetry;
   final bool sendPeriodicTelemetry;
-  final bool closeAfterInitialTelemetry;
   final int httpDataStatus;
   final String httpDataBody;
 
@@ -92,13 +90,6 @@ class _ModuleServer {
 
     if (sendInitialTelemetry) {
       socket.add(_activeTelemetry);
-      if (closeAfterInitialTelemetry) {
-        unawaited(Future<void>.delayed(const Duration(milliseconds: 20), () async {
-          if (_sockets.contains(socket)) {
-            await socket.close();
-          }
-        }));
-      }
     }
 
     if (sendPeriodicTelemetry) {
