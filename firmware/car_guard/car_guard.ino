@@ -24,7 +24,6 @@
 #include <DallasTemperature.h>
 #include <EEPROM.h>
 #include <WebSocketsServer.h>
-#include "license.h"
 
 // =========================================================
 // PIN DEFINITIONS
@@ -92,6 +91,8 @@ float tempOffset = 0.0;
 // EEPROM
 // =========================================================
 #define EEPROM_SIZE      512
+#include "license.h"
+
 // [STA+mDNS] bumped: the Settings struct now ends with the optional
 // station (hotspot) credentials; old stores reset once to defaults.
 #define EEPROM_SIGNATURE 0xBEAF0008
