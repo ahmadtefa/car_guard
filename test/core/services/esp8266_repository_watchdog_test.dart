@@ -18,7 +18,6 @@ class _ModuleServer {
     this.replyToActivation = false,
     this.licenseStatus = 'LOCKED',
     this.licenseType = 'NONE',
-    this.licenseExpires = 0,
     this.sendInitialTelemetry = false,
     this.sendPeriodicTelemetry = false,
     this.closeAfterInitialTelemetry = false,
@@ -31,7 +30,7 @@ class _ModuleServer {
   final bool replyToActivation;
   final String licenseStatus;
   final String licenseType;
-  final int licenseExpires;
+  final int licenseExpires = 0;
   final bool sendInitialTelemetry;
   final bool sendPeriodicTelemetry;
   final bool closeAfterInitialTelemetry;

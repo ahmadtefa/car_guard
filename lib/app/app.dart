@@ -48,10 +48,12 @@ class CarGuardApp extends ConsumerWidget {
       }
     }
 
-    ref.listen(licenseAuthorizationProvider, (_, _) => syncBackgroundMonitor(),
-        fireImmediately: true);
-    ref.listen(settingsProvider, (_, _) => syncBackgroundMonitor(),
-        fireImmediately: true);
+    ref.listen(licenseAuthorizationProvider, (_, _) => syncBackgroundMonitor());
+    ref.listen(settingsProvider, (_, _) => syncBackgroundMonitor());
+    // `ref.listen` starts on the next provider change in Riverpod 3. Run the
+    // initial synchronization explicitly so a previously loaded setting or
+    // license proof is handled on the first build as well.
+    syncBackgroundMonitor();
 
     final router = ref.watch(appRouterProvider);
 

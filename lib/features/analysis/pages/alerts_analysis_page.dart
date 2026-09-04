@@ -10,7 +10,7 @@ import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/section_title.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
-import '../../license/pages/license_page.dart';
+import '../../license/pages/license_page.dart' as license_page;
 import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
@@ -265,7 +265,7 @@ class _LicenseAnalysisNotice extends ConsumerWidget {
                           : () {
                               Navigator.of(context).push(
                                 MaterialPageRoute<void>(
-                                  builder: (_) => const LicensePage(),
+                                  builder: (_) => const license_page.LicensePage(),
                                 ),
                               );
                             },
