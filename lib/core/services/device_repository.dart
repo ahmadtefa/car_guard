@@ -1,3 +1,4 @@
+import '../models/license_models.dart';
 import 'device_models.dart';
 
 /// Abstract contract for the device communication repository.
@@ -23,6 +24,23 @@ abstract class DeviceRepository {
 
   /// Streams live updates emitted by the device.
   Stream<DeviceStatus> get liveUpdates;
+
+  /// Streams the raw connection state (true = transport usable / module alive).
+  Stream<bool> get connectionStream;
+
+  /// Streams license-protocol messages answered by the module over the same
+  /// transport as [liveUpdates] (no second connection is opened).
+  Stream<LicenseMessage> get licenseStream;
+
+  /// Asks the module for its serial (`{"cmd":"DEVICE_SERIAL"}`).
+  /// Returns null when no answer/timeout.
+  Future<DeviceSerialMessage?> getDeviceSerial();
+
+  /// Asks the module for its current license status. Returns null on timeout.
+  Future<LicenseStatusMessage?> getLicenseStatus();
+
+  /// Sends an activation code to the module and awaits the result.
+  Future<LicenseResultMessage?> activateLicense(String code);
 
   /// Attempts to reconnect after a connection failure.
   Future<void> reconnect();

@@ -620,6 +620,49 @@ class AppL10n {
       ? 'الجهاز هيعيد التشغيل والاتصال هيقطع لثواني.'
       : 'The module will reboot and the connection will drop for a few seconds.';
   String get restart => isAr ? 'إعادة تشغيل' : 'Restart';
+
+  // ---------- License ----------
+  String get licenseTitle => isAr ? 'الترخيص' : 'License';
+  String get licenseChecking => isAr ? 'جاري فحص الترخيص...' : 'Checking license…';
+  String get licenseLocked => isAr ? 'الجهاز مقفل' : 'Device locked';
+  String get licenseLockedInfo => isAr
+      ? 'هذا الجهاز غير مفتوح مؤخراً. أدخل كود الترخيص لتفعيله وعرض قراءات العربية.'
+      : 'This device is locked. Enter a license code to activate it and view vehicle readings.';
+  String get activationCodeLabel => isAr ? 'كود التفعيل' : 'Activation code';
+  String get activationCodeHint => isAr
+      ? 'أدخل كود الترخيص (Base32)'
+      : 'Enter the license code (Base32)';
+  String get activateButton => isAr ? 'تفعيل' : 'Activate';
+  String get activationSuccess => isAr ? 'تم تفعيل الترخيص!' : 'License activated!';
+
+  // User-facing failure messages (mapped from the firmware reason). The raw
+  // firmware reason is never shown verbatim for cryptographic failures.
+  String get failureInvalidCode =>
+      isAr ? 'كود الترخيص غير صالح — تأكد من كتابته كاملاً.' : 'The license code is invalid — check it was entered in full.';
+  String get failureInvalidSignature =>
+      isAr ? 'توقيع الترخيص غير صالح.' : 'Invalid license signature.';
+  String get failureSerialMismatch =>
+      isAr ? 'هذا الترخيص خاص بجهاز آخر.' : 'This license belongs to a different device.';
+  String get failureInvalidDate =>
+      isAr ? 'تاريخ الترخيص غير صالح.' : 'Invalid license date.';
+  String get failureInvalidMonths =>
+      isAr ? 'مدة الترخيص غير صالحة.' : 'Invalid license duration.';
+  String get failureNtpUnavailable =>
+      isAr ? 'تعذر الحصول على وقت موثوق — تأكد من اتصال الجهاز بالإنترنت.' : 'Could not get a trusted time — make sure the device is online.';
+  String get failureAlreadyUsed =>
+      isAr ? 'كود الترخيص مستخدم مسبقاً.' : 'This license code was already used.';
+  String get failurePermanentAlreadyActive =>
+      isAr ? 'يوجد ترخيص دائم مفعل على هذا الجهاز.' : 'A permanent license is already active on this device.';
+  String get failureTemporaryAlreadyActive =>
+      isAr ? 'يوجد ترخيص مؤقت مفعل على هذا الجهاز.' : 'A temporary license is already active on this device.';
+  String get failureCodeEmpty =>
+      isAr ? 'أدخل كود التفعيل أولاً.' : 'Enter the activation code first.';
+  String get failurePublicKeyNotConfigured =>
+      isAr ? 'الجهاز غير مهيأ للترخيص بعد.' : 'The device is not yet configured for licensing.';
+  String get failureEepromCommitFailed =>
+      isAr ? 'تعذر حفظ الترخيص على الجهاز — حاول مجدداً.' : 'Could not save the license on the device — try again.';
+  String get failureUnknown =>
+      isAr ? 'فشل التفعيل — جرّب كوداً آخر أو تواصل مع الدعم.' : 'Activation failed — try another code or contact support.';
 }
 
 /// Exposes the current translations, rebuilt whenever the language changes.

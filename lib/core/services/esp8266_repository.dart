@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../constants/device_endpoints.dart';
+import '../models/license_models.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
 import 'mdns_discovery_service.dart';
@@ -55,6 +56,17 @@ class Esp8266Repository implements DeviceRepository {
   final StreamController<bool> _connectionController =
       StreamController<bool>.broadcast();
 
+  /// License-protocol replies (DEVICE_SERIAL / LICENSE_STATUS / LICENSE_RESULT)
+  /// answered by the module over the SAME WebSocket as telemetry — no second
+  /// connection is ever opened.
+  final StreamController<LicenseMessage> _licenseController =
+      StreamController<LicenseMessage>.broadcast();
+
+  /// Completes when the WebSocket channel has been created, so a license query
+  /// can wait for the transport before sending (a LOCKED module broadcasts no
+  /// telemetry, so `_connected` may not yet be true at that point).
+  Completer<void>? _transportReady;
+
   bool _connected = false;
   bool _usingHttpFallback = false;
 
@@ -95,8 +107,13 @@ class Esp8266Repository implements DeviceRepository {
   /// after [disconnect] already cancelled every timer.
   bool _stopped = true;
 
+  @override
   Stream<bool> get connectionStream =>
       _connectionController.stream;
+
+  @override
+  Stream<LicenseMessage> get licenseStream =>
+      _licenseController.stream;
 
 
   @override
@@ -114,6 +131,11 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+
+    // Mark the moment the transport will be available for the license queries
+    // (a LOCKED module broadcasts no telemetry, so we cannot rely on the first
+    // reading to know the socket is ready to send commands).
+    _transportReady = Completer<void>();
 
     // Optional direct, app-scoped pairing (paired from Settings -> Device
     // connection): keeps the module reachable while 4G stays the phone's
@@ -171,6 +193,12 @@ class Esp8266Repository implements DeviceRepository {
         ),
       );
 
+      // From here on the socket can carry text frames, so a license command
+      // may be sent even before any telemetry arrives.
+      final ready = _transportReady;
+      if (ready != null && !ready.isCompleted) {
+        ready.complete();
+      }
 
       _channelSubscription = _channel!.stream.listen(
 
@@ -598,6 +626,12 @@ class Esp8266Repository implements DeviceRepository {
 
     _connected = false;
 
+    // Release any license query waiting for the transport to come up.
+    final ready = _transportReady;
+    if (ready != null && !ready.isCompleted) {
+      ready.complete();
+    }
+    _transportReady = null;
 
     final channel = _channel;
     _channel = null;
@@ -1339,9 +1373,26 @@ class Esp8266Repository implements DeviceRepository {
   /// Handles an incoming payload from any transport: emits valid telemetry
   /// and reports whether parsing succeeded. Invalid data never counts as
   /// proof that the module is alive.
+  ///
+  /// License-protocol replies ride the same channel and are routed to
+  /// [licenseStream] instead of telemetry. A valid license reply is also proof
+  /// of life: a LOCKED module broadcasts no telemetry, so only its license
+  /// answers can show the link is genuinely up.
   bool _handleData(
     String data,
   ) {
+
+    final license = parseLicenseMessage(data);
+
+    if (license != null) {
+
+      if (!_licenseController.isClosed) {
+        _licenseController.add(license);
+      }
+
+      return true;
+
+    }
 
     final status = _parseStatus(data);
 
@@ -1405,6 +1456,13 @@ class Esp8266Repository implements DeviceRepository {
 
 
     _channel = null;
+
+    // Release any license query waiting for the transport to come up.
+    final ready = _transportReady;
+    if (ready != null && !ready.isCompleted) {
+      ready.complete();
+    }
+    _transportReady = null;
 
 
     _connected = false;
@@ -1515,6 +1573,88 @@ class Esp8266Repository implements DeviceRepository {
     );
 
   }
+
+  // ------------------------------------------------------------------
+  // License protocol (same WebSocket as telemetry — no second connection).
+  // ------------------------------------------------------------------
+
+  /// Waits (up to [timeout]) until the WebSocket channel exists so the license
+  /// command can be sent over the socket rather than the HTTP fallback (the
+  /// module only answers license commands on the WebSocket).
+  Future<void> _waitForTransport({
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    final ready = _transportReady;
+    if (ready == null) return;
+
+    // If the channel already exists the completer is (or will be) completed.
+    await ready.future.timeout(timeout, onTimeout: () {});
+  }
+
+  /// Sends a license command and resolves the first matching reply of type
+  /// [T], or null on timeout / transport failure.
+  Future<T?> _requestLicense<T extends LicenseMessage>(
+    Map<String, dynamic> payload,
+    bool Function(T) matcher, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    await _waitForTransport();
+    if (_channel == null) {
+      debugPrint("LICENSE REQUEST SKIPPED — no WebSocket transport");
+      return null;
+    }
+
+    final completer = Completer<T?>();
+    late final StreamSubscription<LicenseMessage> sub;
+
+    sub = _licenseController.stream.listen((message) {
+      if (message is T && matcher(message)) {
+        if (!completer.isCompleted) completer.complete(message);
+      }
+    });
+
+    try {
+      await sendJson(payload);
+    } catch (_) {
+      // Socket already gone — treat as no answer rather than surfacing a
+      // transport exception to the license UI.
+      await sub.cancel();
+      return null;
+    }
+
+    try {
+      return await completer.future.timeout(
+        timeout,
+        onTimeout: () => null,
+      );
+    } finally {
+      await sub.cancel();
+    }
+  }
+
+  /// { "cmd":"DEVICE_SERIAL" } -> { "type":"DEVICE_SERIAL", ... }.
+  @override
+  Future<DeviceSerialMessage?> getDeviceSerial() =>
+      _requestLicense<DeviceSerialMessage>(
+        {'cmd': 'DEVICE_SERIAL'},
+        (_) => true,
+      );
+
+  /// { "cmd":"LICENSE_STATUS" } -> { "type":"LICENSE_STATUS", ... }.
+  @override
+  Future<LicenseStatusMessage?> getLicenseStatus() =>
+      _requestLicense<LicenseStatusMessage>(
+        {'cmd': 'LICENSE_STATUS'},
+        (_) => true,
+      );
+
+  /// { "cmd":"LICENSE_ACTIVATE","code":... } -> { "type":"LICENSE_RESULT", ... }.
+  @override
+  Future<LicenseResultMessage?> activateLicense(String code) =>
+      _requestLicense<LicenseResultMessage>(
+        {'cmd': 'LICENSE_ACTIVATE', 'code': code},
+        (_) => true,
+      );
 
 
   /// If the user enabled direct pairing in Settings, asks Android for an
