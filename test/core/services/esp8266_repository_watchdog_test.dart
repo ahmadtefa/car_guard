@@ -178,6 +178,7 @@ Esp8266Repository _repositoryFor(_ModuleServer server) {
   return Esp8266Repository(
     host: server.host,
     port: server.port,
+    httpPort: server.port,
     enableMdnsDiscovery: false,
     // Short timings keep these transport tests focused and fast. Production
     // defaults remain six seconds / three seconds / 1.5 seconds.

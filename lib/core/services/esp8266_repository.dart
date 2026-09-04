@@ -23,6 +23,7 @@ class Esp8266Repository implements DeviceRepository {
   Esp8266Repository({
     required this.host,
     this.port = 81,
+    this.httpPort = 80,
     this.enableMdnsDiscovery = true,
     this.watchdogTimeout = const Duration(seconds: 6),
     this.httpTimeout = const Duration(seconds: 3),
@@ -35,6 +36,11 @@ class Esp8266Repository implements DeviceRepository {
 
   final String host;
   final int port;
+
+  /// HTTP is normally served on port 80 while the telemetry WebSocket uses
+  /// port 81. Tests and alternate module builds may expose both transports on
+  /// another port without changing the production defaults.
+  final int httpPort;
 
   /// mDNS remains enabled by default; tests can turn discovery off so they
   /// exercise only the WebSocket/watchdog behavior.
@@ -52,6 +58,11 @@ class Esp8266Repository implements DeviceRepository {
 
   String _activeHost;
   int _activePort;
+
+  String _httpUrl(String targetHost, String pathAndQuery) {
+    final portSuffix = httpPort == 80 ? '' : ':$httpPort';
+    return 'http://$targetHost$portSuffix$pathAndQuery';
+  }
 
   WebSocketChannel? _channel;
   Timer? _httpTimer;
@@ -421,7 +432,7 @@ class Esp8266Repository implements DeviceRepository {
       try {
         final response = await http
             .get(
-              Uri.parse("http://$host/data"),
+              Uri.parse(_httpUrl(host, '/data')),
             )
             .timeout(httpTimeout);
 
@@ -772,9 +783,7 @@ class Esp8266Repository implements DeviceRepository {
 
       final response = await http
           .get(
-            Uri.parse(
-              "http://$_activeHost/data",
-            ),
+            Uri.parse(_httpUrl(_activeHost, '/data')),
           )
           .timeout(httpTimeout);
 
