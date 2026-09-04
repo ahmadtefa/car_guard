@@ -24,6 +24,7 @@
 #include <DallasTemperature.h>
 #include <EEPROM.h>
 #include <WebSocketsServer.h>
+#include "license.h"
 
 // =========================================================
 // PIN DEFINITIONS
@@ -114,6 +115,10 @@ struct Settings {
   char     staSSID[32];
   char     staPASS[32];
 };
+
+// Keep the established EEPROM partition: settings at 0, license at 256.
+static_assert(sizeof(Settings) <= LICENSE_EEPROM_OFFSET,
+              "Settings overlap the reserved license EEPROM area");
 
 Settings settings;
 
@@ -228,6 +233,10 @@ void ledBlink(int times, int delayTime) {
 
 // نغمة بدء التشغيل — 3 نبضات صاعدة
 void playStartupSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   for (int i = 0; i < 3; i++) {
     digitalWrite(BUZZER, HIGH);
     delay(100 + i * 60);   // 100 / 160 / 220 ms
@@ -238,6 +247,10 @@ void playStartupSound() {
 
 // نغمة حفظ الإعدادات — نبضتان سريعتان
 void playSaveSuccessSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(100);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(200);
@@ -246,6 +259,10 @@ void playSaveSuccessSound() {
 
 // نغمة اتصال عميل — نبضتان ثم واحدة طويلة
 void playConnectSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(100);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(100);
@@ -256,6 +273,10 @@ void playConnectSound() {
 
 // نغمة قطع الاتصال — طويلة ثم قصيرة
 void playDisconnectSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(320);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(100);
@@ -264,6 +285,10 @@ void playDisconnectSound() {
 
 // نغمة تأكيد (mute / test fan)
 void playConfirmSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(80);
   digitalWrite(BUZZER, LOW);  delay(60);
   digitalWrite(BUZZER, HIGH); delay(80);
@@ -340,6 +365,14 @@ void loadSettings() {
 // FAN
 // =========================================================
 void fanOn() {
+  // Defense in depth: every path to the relay is safe even if a new caller
+  // forgets to apply the endpoint-level license check.
+  if (!license_is_active()) {
+    digitalWrite(RELAY_PIN, LOW);
+    fanState = false;
+    fanTestActive = false;
+    return;
+  }
   digitalWrite(RELAY_PIN, HIGH);
   fanState = true;
   Serial.println("🌀 FAN ON");
@@ -352,6 +385,11 @@ void fanOff() {
 }
 
 void updateFanControl() {
+  if (!license_is_active()) {
+    fanTestActive = false;
+    fanOff();
+    return;
+  }
   if (fanTestActive) {
     if (millis() >= fanTestStopAt) {
       fanTestActive = false;
@@ -413,6 +451,15 @@ void updateSensors() {
 // ALARM  ——  نغمة واحدة عالية متقطعة بشكل واضح
 // =========================================================
 void handleAlarm() {
+  // LOCKED is deliberately silent: licensing is not a vehicle alarm.
+  if (!license_is_active()) {
+    alarmActive = false;
+    buzzState = false;
+    buzzMuted = false;
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
+
   bool tempDanger  = filteredTemp >= MAX_TEMP;
   bool voltOutRange = (filteredVolt < MIN_VOLT || filteredVolt > MAX_VOLT);
   bool voltAlarmActive = false;
@@ -503,14 +550,15 @@ void broadcastWsData() {
   // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset,alarm,muted
   String payload = String(filteredTemp, 1) + "," +
                    String(filteredVolt, 2) + "," +
-                   String((fanState || fanTestActive) ? 1 : 0) + ",0," +
+                   String((license_is_active() &&
+                           (fanState || fanTestActive)) ? 1 : 0) + ",0," +
                    String(MAX_TEMP, 1) + "," +
                    String(FAN_ON_TEMP, 1) + "," +
                    String(MIN_VOLT, 1) + "," +
                    String(MAX_VOLT, 1) + "," +
                    String(tempOffset, 2) + "," +
-                   String(alarmActive ? 1 : 0) + "," +
-                   String(buzzMuted ? 1 : 0);
+                   String((license_is_active() && alarmActive) ? 1 : 0) + "," +
+                   String((license_is_active() && buzzMuted) ? 1 : 0);
 
   webSocket.broadcastTXT(payload);
 }
@@ -518,12 +566,32 @@ void broadcastWsData() {
 // =========================================================
 // WEBSOCKET EVENTS
 // =========================================================
+void sendLicenseWsReply(uint8_t clientId, const char* json) {
+  String response;
+  String serial = getChipId();
+  if (license_handle_ws_command(json, serial.c_str(), response)) {
+    webSocket.sendTXT(clientId, response);
+  }
+}
+
 void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED:
       Serial.printf("🔌 WS CLIENT #%u CONNECTED\n", clientId);
+      sendLicenseWsReply(clientId, "{\"cmd\":\"DEVICE_SERIAL\"}");
+      sendLicenseWsReply(clientId, "{\"cmd\":\"LICENSE_STATUS\"}");
       broadcastWsData();
       break;
+    case WStype_TEXT: {
+      // The license code is at most 133 characters; reject oversized frames
+      // before copying so an arbitrary WebSocket client cannot exhaust RAM.
+      char message[256];
+      if (payload == NULL || length == 0 || length >= sizeof(message)) return;
+      memcpy(message, payload, length);
+      message[length] = '\0';
+      sendLicenseWsReply(clientId, message);
+      break;
+    }
     case WStype_DISCONNECTED:
       Serial.printf("🔌 WS CLIENT #%u DISCONNECTED\n", clientId);
       break;
@@ -583,9 +651,16 @@ void handleData() {
   json += "\"minVolt\":"  + String(MIN_VOLT)         + ",";
   json += "\"maxVolt\":"  + String(MAX_VOLT)         + ",";
   json += "\"offset\":"   + String(tempOffset, 2)   + ",";
-  json += "\"fanState\":" + String((fanState || fanTestActive) ? 1 : 0) + ",";
-  json += "\"alarm\":"    + String(alarmActive ? 1 : 0) + ",";
-  json += "\"muted\":"    + String(buzzMuted ? 1 : 0) + ",";
+  json += "\"fanState\":" + String((license_is_active() &&
+                                      (fanState || fanTestActive)) ? 1 : 0) + ",";
+  json += "\"alarm\":"    + String((license_is_active() && alarmActive) ? 1 : 0) + ",";
+  json += "\"muted\":"    + String((license_is_active() && buzzMuted) ? 1 : 0) + ",";
+  json += "\"licenseStatus\":\"" + String(license_is_active() ? "ACTIVE" : "LOCKED") + "\",";
+  json += "\"licenseType\":\"" +
+          String(license_has_record()
+                     ? (license_get_type() == LICENSE_PERMANENT ? "PERMANENT" : "TEMPORARY")
+                     : "NONE") + "\",";
+  json += "\"licenseMessage\":\"" + String(license_get_status_message()) + "\",";
   // [STA+mDNS] let the app show/route around the joined-network state.
   json += "\"staUp\":"    + String((WiFi.status() == WL_CONNECTED) ? 1 : 0) + ",";
   json += "\"staIp\":\""  + String(WiFi.localIP().toString()) + "\",";
@@ -764,6 +839,12 @@ void handleSaveAdvancedSettings() {
 void handleTestFan() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    fanTestActive = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
   fanTestActive = true;
   fanTestStopAt = millis() + 5000;
@@ -775,6 +856,12 @@ void handleTestFan() {
 void handleMute() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    buzzMuted = false;
+    stopAlarmSound();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
   buzzMuted = true;
   stopAlarmSound();
@@ -836,14 +923,24 @@ void handleRoot() {
   html += ".status{display:inline-block;padding:4px 12px;border-radius:15px;font-size:12px;margin-top:5px;}";
   html += ".online{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid #00ff88;}";
   html += ".offline{background:rgba(255,34,68,0.15);color:#ff2244;border:1px solid #ff2244;}";
+  html += ".license-banner{margin:12px 0;padding:10px;border-radius:10px;background:rgba(255,184,0,0.12);color:#ffcc33;border:1px solid #ffcc33;font-size:13px;}";
   html += ".btn{display:inline-block;margin:5px;padding:8px 20px;background:rgba(0,212,255,0.1);border:1px solid #00d4ff;border-radius:10px;color:#00d4ff;text-decoration:none;font-size:12px;}";
   html += ".footer{font-size:10px;color:#4a6070;margin-top:20px;}";
   html += "</style></head><body>";
+  const bool licenseActive = license_is_active();
   html += "<div class='card'>";
   html += "<h1>🚗 CarGuard System</h1>";
+  if (licenseActive) {
+    html += "<div class='data'>🔐 License: <span>ACTIVE</span></div>";
+  } else {
+    html += "<div class='license-banner'>🔒 LICENSE REQUIRED<br/><small>";
+    html += license_get_status_message();
+    html += "</small></div>";
+  }
   html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
   html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
-  html += "<div class='data'>🌀 Fan: <span>"  + String(fanState ? "ON" : "OFF") + "</span></div>";
+  html += "<div class='data'>🌀 Fan: <span>"  +
+          String((licenseActive && fanState) ? "ON" : "OFF") + "</span></div>";
   html += "<div class='data'>📱 Clients: <span>" + String(WiFi.softAPgetStationNum()) + "</span></div>";
   html += "<div style='margin:15px 0;'>";
   html += "<span class='status " + String(WiFi.softAPgetStationNum() > 0 ? "online" : "offline") + "'>";
@@ -886,13 +983,22 @@ void setup() {
   pinMode(BUZZER,    OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
 
+  // Load the license before any startup/connection sound. The license area
+  // is independent from Settings and is never cleared during boot.
+  license_init();
+  license_load();
+
   digitalWrite(BUZZER, LOW);   // تأكد الـ buzzer مطفي في البداية
   fanOff();
   ledOn();
   delay(500);
   ledOff();
 
-  playStartupSound();
+  if (license_is_active()) {
+    playStartupSound();
+  } else {
+    digitalWrite(BUZZER, LOW);
+  }
 
   sensors.begin();
   sensors.setWaitForConversion(false);
@@ -911,6 +1017,8 @@ void setup() {
   // link: discovery works identically in both topologies.
   advertiseMdns();
 
+  // OTA does not erase EEPROM and therefore preserves the license record at
+  // LICENSE_EEPROM_OFFSET across firmware updates.
   httpUpdater.setup(&server, "/update");
 
   webSocket.begin();
