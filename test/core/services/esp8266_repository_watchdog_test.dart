@@ -431,7 +431,7 @@ void main() {
         // path may use HTTP as the transport without bypassing the license
         // boundary.
         await _waitUntil(
-          () => server.httpDataRequestCount > 0,
+          () => server.httpDataRequestCount > 0 && readings.isNotEmpty,
           timeout: const Duration(seconds: 2),
         );
 
