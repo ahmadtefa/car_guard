@@ -473,7 +473,8 @@ static bool jsonGetString(const char* json, const char* key, String& out) {
 
   const char* start = p;
   while (*p != '\0' && *p != '"') p++;   // license codes are [A-Z2-7], no escapes
-  out = String(start, (unsigned int)(p - start));
+  out = "";
+  for (const char* q = start; q < p; ++q) out += *q;
   return true;
 }
 
