@@ -6,6 +6,8 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import 'battery_voltage_card.dart';
 import 'dashboard_gauges.dart';
@@ -24,7 +26,18 @@ Widget buildGaugeArea(
   required void Function(String type) onOpenHud,
 }) {
 
-  final device = ref.watch(deviceStatusProvider).value;
+  final settingsReady = ref.watch(
+    settingsProvider.select((value) => value.value != null),
+  );
+  final demoEnabled = ref.watch(
+    settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+  );
+  final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
+  final dataAccessAllowed =
+      settingsReady && (demoEnabled || licenseAuthorized);
+  final device = dataAccessAllowed
+      ? ref.watch(deviceStatusProvider).value
+      : null;
 
   final connected = device?.connected ?? false;
   final temperature = device?.temperatureData.engineTemperature ?? 0;
@@ -38,6 +51,13 @@ Widget buildGaugeArea(
       connected &&
       (voltage <= settings.minBatteryVoltage ||
           voltage > settings.maxBatteryVoltage);
+
+  // Every non-card gauge renders a numeric double. Do not feed it a synthetic
+  // zero while the source is disconnected or license-gated; render explicit
+  // placeholders instead so a real value can never look like a current zero.
+  if (!connected) {
+    return _UnavailableGaugeArea(l: l);
+  }
 
   switch (settings.dashboardStyleName) {
     case 'racing':
@@ -311,5 +331,75 @@ Widget buildGaugeArea(
           const VoltageDeltaCard(),
         ],
       );
+  }
+}
+
+class _UnavailableGaugeArea extends StatelessWidget {
+  const _UnavailableGaugeArea({required this.l});
+
+  final AppL10n l;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _UnavailableGaugeCard(label: l.engineTempLabel, unit: '°C'),
+        const SizedBox(height: AppSpacing.md),
+        _UnavailableGaugeCard(label: l.batteryVoltLabel, unit: 'V'),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          l.realReadingsUnavailable,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UnavailableGaugeCard extends StatelessWidget {
+  const _UnavailableGaugeCard({required this.label, required this.unit});
+
+  final String label;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: AppColors.textSecondary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Padding(
+        padding: AppSpacing.padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              '-- $unit',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

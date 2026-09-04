@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
+import '../../../core/models/license_models.dart';
 import '../../../core/models/reading_sample.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/section_title.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
+import '../../license/pages/license_page.dart' as license_page;
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
 import '../providers/analysis_provider.dart';
 import '../services/analysis_engine.dart';
@@ -26,8 +30,17 @@ class AlertsAnalysisPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     final analysis = ref.watch(analysisProvider);
-    final status = ref.watch(deviceStatusProvider).value;
+    final rawStatus = ref.watch(deviceStatusProvider).value;
     final history = ref.watch(readingsHistoryProvider);
+    final settings = ref.watch(settingsProvider).value;
+    final license = ref.watch(licenseProvider);
+    final dataAccessAllowed =
+        settings != null &&
+        (settings.demoModeEnabled || license.canUseRealData);
+    final status = dataAccessAllowed ? rawStatus : null;
+    final noticeStatus = settings == null && license.canUseRealData
+        ? LicenseCheckStatus.checking
+        : license.checkStatus;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,6 +49,10 @@ class AlertsAnalysisPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
+          if (!dataAccessAllowed)
+            _LicenseAnalysisNotice(status: noticeStatus, l: l),
+          if (!dataAccessAllowed) const SizedBox(height: AppSpacing.md),
+
           // 1) Overall condition banner.
           _ConditionBanner(condition: analysis.condition, l: l),
           const SizedBox(height: AppSpacing.md),
@@ -166,6 +183,109 @@ class _ClearHistoryButton extends StatelessWidget {
 // =====================================================================
 // Condition banner
 // =====================================================================
+
+class _LicenseAnalysisNotice extends ConsumerWidget {
+  const _LicenseAnalysisNotice({required this.status, required this.l});
+
+  final LicenseCheckStatus status;
+  final AppL10n l;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (title, body, icon, color) = switch (status) {
+      LicenseCheckStatus.checking => (
+          l.licenseChecking,
+          l.licenseCheckingInfo,
+          Icons.sync_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.expired => (
+          l.licenseExpired,
+          l.licenseExpiredInfo,
+          Icons.event_busy_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.invalid => (
+          l.licenseInvalid,
+          l.licenseInvalidInfo,
+          Icons.gpp_bad_outlined,
+          AppColors.danger,
+        ),
+      LicenseCheckStatus.noLicense => (
+          l.licenseNoLicense,
+          l.licenseNoLicenseInfo,
+          Icons.lock_outline_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.error => (
+          l.licenseNetworkUnavailable,
+          l.licenseNetworkUnavailableInfo,
+          Icons.cloud_off_rounded,
+          AppColors.danger,
+        ),
+      LicenseCheckStatus.licensed => (
+          l.licenseTitle,
+          l.licenseTitle,
+          Icons.verified_outlined,
+          AppColors.neonGreen,
+        ),
+    };
+
+    final retryable =
+        status == LicenseCheckStatus.checking ||
+        status == LicenseCheckStatus.error;
+
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: AppSpacing.padding,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(body),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      onPressed: retryable
+                          ? () => ref
+                              .read(licenseProvider.notifier)
+                              .retryCheck()
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const license_page.LicensePage(),
+                                ),
+                              );
+                            },
+                      icon: Icon(
+                        retryable
+                            ? Icons.refresh_rounded
+                            : Icons.vpn_key_outlined,
+                      ),
+                      label: Text(retryable ? l.retry : l.openLicense),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ConditionBanner extends StatelessWidget {
   const _ConditionBanner({required this.condition, required this.l});

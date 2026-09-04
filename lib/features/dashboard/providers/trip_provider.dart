@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/background_service.dart';
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../services/gps_trip_filter.dart';
 
 /// Live trip data collected from the phone GPS.
@@ -75,10 +77,15 @@ class TripNotifier extends Notifier<TripState> {
 
   bool _backgroundServiceStarted = false;
 
-  /// The saved odometer is loaded only once per session — later [start]
-  /// calls (permission re-grant, manual restart) must not rewind the live
-  /// counter to whatever happens to be on disk.
+  /// The saved odometer is loaded only once per authorized session — later
+  /// [start] calls (permission re-grant, manual restart) must not rewind the
+  /// live counter to whatever happens to be on disk.
   bool _restored = false;
+
+  /// Real GPS/trip data is also treated as protected app data. Demo mode is
+  /// allowed to use the existing phone-side trip feature; a normal device
+  /// needs a fresh ACTIVE report from the ESP8266.
+  bool _dataAccessAllowed = false;
 
   /// Last time the values were written to SharedPreferences — the disk is
   /// not hit more than once every two seconds for unchanged distances.
@@ -86,19 +93,59 @@ class TripNotifier extends Notifier<TripState> {
 
   @override
   TripState build() {
-    _watchLocationService();
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
+    final allowed = settingsReady && (demoEnabled || licenseAuthorized);
+    final wasAllowed = _dataAccessAllowed;
+    _dataAccessAllowed = allowed;
+
+    if (!allowed && wasAllowed) {
+      _disableTracking();
+    } else if (allowed && !wasAllowed) {
+      _watchLocationService();
+    }
+
     ref.onDispose(() {
       _sub?.cancel();
       _gpsWatchdog?.cancel();
       _serviceStatusSub?.cancel();
     });
-    // Fire and forget: restore the saved odometer first, then the GPS
-    // stream populates the state asynchronously.
+
+    // Fire and forget: restore the saved odometer only after access is
+    // allowed, then let the GPS stream populate the state asynchronously.
     Future<void>.microtask(() async {
+      if (!_dataAccessAllowed) return;
       await _restoreDistance();
-      await start();
+      if (_dataAccessAllowed) await start();
     });
-    return const TripState();
+
+    return allowed ? const TripState() : _neutralState;
+  }
+
+  static const TripState _neutralState = TripState(
+    available: false,
+    hasFix: false,
+  );
+
+  /// Stops the phone-side feed and removes its last values whenever the
+  /// license/settings gate closes. This prevents analysis and alerts from
+  /// retaining a previously authorized GPS reading.
+  void _disableTracking() {
+    _sub?.cancel();
+    _sub = null;
+    _gpsWatchdog?.cancel();
+    _gpsWatchdog = null;
+    _serviceStatusSub?.cancel();
+    _serviceStatusSub = null;
+    _filter.reset();
+    _restored = false;
+    _backgroundServiceStarted = false;
+    unawaited(ref.read(backgroundConnectionServiceProvider).stop());
   }
 
   /// Subscribes once to location-service toggles, so enabling GPS after
@@ -122,6 +169,8 @@ class TripNotifier extends Notifier<TripState> {
   }
 
   void _onServiceStatus(ServiceStatus status) {
+    if (!_dataAccessAllowed) return;
+
     if (status == ServiceStatus.enabled) {
       // Safe to call repeatedly: the old stream is replaced.
       unawaited(start());
@@ -134,13 +183,14 @@ class TripNotifier extends Notifier<TripState> {
   /// Brings back the distance saved by [_persist], so closing and reopening
   /// the app never wipes the odometer — only [resetTrip] zeroes it.
   Future<void> _restoreDistance() async {
-    if (_restored) {
+    if (!_dataAccessAllowed || _restored) {
       return;
     }
     _restored = true;
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!_dataAccessAllowed) return;
       final saved = prefs.getDouble('trip_distance_km');
 
       if (saved != null && saved > 0 && state.distanceKm == 0) {
@@ -155,6 +205,8 @@ class TripNotifier extends Notifier<TripState> {
   /// platforms without a location plugin (tests, desktop) simply report
   /// the tracker as unavailable.
   Future<void> start() async {
+    if (!_dataAccessAllowed) return;
+
     _sub?.cancel();
     _sub = null;
     _gpsWatchdog?.cancel();
@@ -166,9 +218,13 @@ class TripNotifier extends Notifier<TripState> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        state = state.copyWith(available: false, hasFix: false);
+        if (_dataAccessAllowed) {
+          state = state.copyWith(available: false, hasFix: false);
+        }
         return;
       }
+
+      if (!_dataAccessAllowed) return;
 
       var permission = await Geolocator.checkPermission();
 
@@ -178,9 +234,13 @@ class TripNotifier extends Notifier<TripState> {
 
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        state = state.copyWith(denied: true, hasFix: false);
+        if (_dataAccessAllowed) {
+          state = state.copyWith(denied: true, hasFix: false);
+        }
         return;
       }
+
+      if (!_dataAccessAllowed) return;
 
       settings = const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
@@ -188,9 +248,13 @@ class TripNotifier extends Notifier<TripState> {
       );
     } catch (error) {
       debugPrint('TRIP TRACKER UNAVAILABLE: $error');
-      state = state.copyWith(available: false, hasFix: false);
+      if (_dataAccessAllowed) {
+        state = state.copyWith(available: false, hasFix: false);
+      }
       return;
     }
+
+    if (!_dataAccessAllowed) return;
 
     state = state.copyWith(available: true, denied: false);
 
@@ -203,7 +267,9 @@ class TripNotifier extends Notifier<TripState> {
       _onFix,
       onError: (_) {
         _gpsWatchdog?.cancel();
-        state = state.copyWith(hasFix: false);
+        if (_dataAccessAllowed) {
+          state = state.copyWith(hasFix: false);
+        }
       },
     );
 
@@ -211,6 +277,8 @@ class TripNotifier extends Notifier<TripState> {
   }
 
   void _onFix(Position position) {
+    if (!_dataAccessAllowed) return;
+
     final reading = _filter.addFix(position);
 
     if (reading == null) {
@@ -238,12 +306,16 @@ class TripNotifier extends Notifier<TripState> {
   void _armGpsWatchdog() {
     _gpsWatchdog?.cancel();
     _gpsWatchdog = Timer(_gpsSilenceTimeout, () {
-      state = state.copyWith(hasFix: false);
+      if (_dataAccessAllowed) {
+        state = state.copyWith(hasFix: false);
+      }
     });
   }
 
   /// Zeroes the trip distance; speed keeps streaming.
   void resetTrip() {
+    if (!_dataAccessAllowed) return;
+
     _filter.reset();
     state = state.copyWith(distanceKm: 0);
     unawaited(_persist(distanceChanged: true));
@@ -263,6 +335,8 @@ class TripNotifier extends Notifier<TripState> {
   /// back after the app is closed and reopened. Writes are throttled
   /// unless the distance moved.
   Future<void> _persist({bool distanceChanged = false}) async {
+    if (!_dataAccessAllowed) return;
+
     final now = DateTime.now();
     final due = distanceChanged ||
         now.difference(_lastPersist) >= const Duration(seconds: 2);
@@ -274,6 +348,7 @@ class TripNotifier extends Notifier<TripState> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!_dataAccessAllowed) return;
       await prefs.setDouble('speed_kmh', state.speedKmh);
       await prefs.setDouble('trip_distance_km', state.distanceKm);
     } catch (_) {

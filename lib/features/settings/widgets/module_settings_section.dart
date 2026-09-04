@@ -14,6 +14,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
+import '../../license/providers/license_provider.dart';
 import '../providers/settings_provider.dart';
 
 /// Settings that live on the Car Guard module itself: the alarm limits
@@ -324,6 +325,12 @@ class _ModuleSettingsSectionState
   @override
   Widget build(BuildContext context) {
     final l = ref.watch(l10nProvider);
+    final settingsState = ref.watch(settingsProvider);
+    final demoEnabled = settingsState.value?.demoModeEnabled ?? false;
+    final moduleLicensed =
+        settingsState.value != null &&
+        !demoEnabled &&
+        ref.watch(licenseAuthorizationProvider);
 
     // Prefill the app-side speed limit once settings are loaded.
     if (!_speedInitialized) {
@@ -431,7 +438,7 @@ class _ModuleSettingsSectionState
                     ),
                   ),
                   PrimaryButton(
-                    onPressed: _saving ? null : _saveLimits,
+                    onPressed: !_saving && moduleLicensed ? _saveLimits : null,
                     child: Text(l.saveToModule),
                   ),
 
@@ -475,7 +482,7 @@ class _ModuleSettingsSectionState
             obscureText: true,
           ),
           PrimaryButton(
-            onPressed: _saving ? null : _saveWifi,
+            onPressed: !_saving && moduleLicensed ? _saveWifi : null,
             child: Text(l.saveWifi),
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -485,7 +492,7 @@ class _ModuleSettingsSectionState
             subtitle: l.factoryResetInfo,
           ),
           SecondaryButton(
-            onPressed: _saving ? null : _factoryReset,
+            onPressed: !_saving && moduleLicensed ? _factoryReset : null,
             child: Text(l.factoryResetModule),
           ),
         ],

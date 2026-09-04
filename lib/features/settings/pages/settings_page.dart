@@ -11,6 +11,7 @@ import '../../../core/services/background_monitor.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
+import '../../license/providers/license_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/device_pairing_section.dart';
 import '../widgets/module_settings_section.dart';
@@ -54,6 +55,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _toggleBackground(bool value) async {
     final l = ref.read(l10nProvider);
+
+    if (value && !ref.read(licenseAuthorizationProvider)) {
+      _showError(l.licenseControlsUnavailable);
+      return;
+    }
 
     if (value) {
       debugPrint('BG TOGGLE: initializing notifications…');
@@ -170,6 +176,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (!mounted) return;
 
     if (granted) {
+      await BackgroundMonitor.stop();
       await _save(_current.copyWith(demoModeEnabled: true));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -251,8 +258,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final settings =
-        ref.watch(settingsProvider).value ?? const AppSettings();
+    final settingsState = ref.watch(settingsProvider);
+    final settings = settingsState.value ?? const AppSettings();
+    final moduleLicensed =
+        settingsState.value != null &&
+        !settings.demoModeEnabled &&
+        ref.watch(licenseAuthorizationProvider);
 
     final l = ref.watch(l10nProvider);
 
@@ -295,23 +306,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               title: l.advancedSection,
               subtitle: l.advancedSectionInfo,
             ),
+            if (!moduleLicensed)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                child: Text(
+                  l.licenseControlsUnavailable,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             SecondaryButton(
-              onPressed: () => context.push('/advanced-settings'),
+              onPressed: moduleLicensed
+                  ? () => context.push('/advanced-settings')
+                  : null,
               child: Text(l.advancedModuleSettings),
             ),
             const SizedBox(height: AppSpacing.md),
             SecondaryButton(
-              onPressed: settings.demoModeEnabled ? null : _testFan,
+              onPressed:
+                  !settings.demoModeEnabled && moduleLicensed ? _testFan : null,
               child: Text(l.testFan),
             ),
             const SizedBox(height: AppSpacing.md),
             SecondaryButton(
-              onPressed: () => context.push('/ota-update'),
+              onPressed: moduleLicensed
+                  ? () => context.push('/ota-update')
+                  : null,
               child: Text(l.otaUpdate),
             ),
             const SizedBox(height: AppSpacing.md),
             SecondaryButton(
-              onPressed: settings.demoModeEnabled ? null : _restartDevice,
+              onPressed:
+                  !settings.demoModeEnabled && moduleLicensed ? _restartDevice : null,
               child: Text(l.restartDevice),
             ),
             const SizedBox(height: AppSpacing.xl),
@@ -333,7 +361,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               title: Text(l.backgroundToggle),
               subtitle: Text(l.backgroundToggleInfo),
               value: settings.backgroundMonitoringEnabled,
-              onChanged: _toggleBackground,
+              onChanged: settings.demoModeEnabled ? null : _toggleBackground,
             ),
             const SizedBox(height: AppSpacing.xl),
 

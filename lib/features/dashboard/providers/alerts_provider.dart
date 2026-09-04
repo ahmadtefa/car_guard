@@ -9,6 +9,7 @@ import '../../../core/services/alarm_service.dart';
 import '../../../core/services/alert_evaluator.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/services/notification_service.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import 'trip_provider.dart';
 
@@ -45,20 +46,44 @@ class AlertsNotifier extends Notifier<AlertsState> {
   final Set<String> _activeAlertIds = {};
 
   bool _everConnected = false;
+  bool _dataAccessAllowed = false;
+  int _accessGeneration = 0;
 
   @override
   AlertsState build() {
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
+    final generation = ++_accessGeneration;
+    _dataAccessAllowed =
+        settingsReady && (demoEnabled || licenseAuthorized);
+
     _activeAlertIds.clear();
     _everConnected = false;
 
+    if (!_dataAccessAllowed) {
+      // Keep the route/shell available, but do not expose or retain live
+      // alerts while the ESP8266 has not authorized data. Also stop any local
+      // alarm left over from the previous authorized session.
+      unawaited(ref.read(alarmServiceProvider).stop());
+      return const AlertsState();
+    }
+
     ref.listen(deviceStatusProvider, (previous, next) {
-      next.whenData((status) => _handleStatus(status));
+      if (generation != _accessGeneration) return;
+      next.whenData((status) => _handleStatus(status, generation: generation));
     });
 
     // GPS speed ticks come on their own stream — re-evaluate immediately on
     // every fix against the latest module status so speeding never waits
     // for (or depends on) module traffic.
     ref.listen(tripProvider, (previous, next) {
+      if (generation != _accessGeneration || !_dataAccessAllowed) return;
+
       if (previous?.hasFix == next.hasFix &&
           previous?.speedKmh == next.speedKmh) {
         return;
@@ -66,14 +91,19 @@ class AlertsNotifier extends Notifier<AlertsState> {
 
       final status = ref.read(deviceStatusProvider).value;
       if (status != null) {
-        unawaited(_handleStatus(status));
+        unawaited(_handleStatus(status, generation: generation));
       }
     });
 
     return const AlertsState();
   }
 
-  Future<void> _handleStatus(DeviceStatus status) async {
+  Future<void> _handleStatus(
+    DeviceStatus status, {
+    required int generation,
+  }) async {
+    if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
     if (status.connected) {
       _everConnected = true;
     }
@@ -83,7 +113,11 @@ class AlertsNotifier extends Notifier<AlertsState> {
 
     if (!local.alertsEnabled) {
       state = AlertsState(active: const [], history: state.history);
-      await _updateSiren(const [], local);
+      await _updateSiren(
+        const [],
+        local,
+        generation: generation,
+      );
       return;
     }
 
@@ -116,8 +150,19 @@ class AlertsNotifier extends Notifier<AlertsState> {
       ..clear()
       ..addAll(currentIds);
 
-    await _notifyNewAlerts(entered, local);
-    await _updateSiren(alerts, local);
+    await _notifyNewAlerts(
+      entered,
+      local,
+      generation: generation,
+    );
+    if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
+    await _updateSiren(
+      alerts,
+      local,
+      generation: generation,
+    );
+    if (!_dataAccessAllowed || generation != _accessGeneration) return;
 
     // Prepend alerts to the history while avoiding flooding it with the same
     // alert repeating on every reading (the device streams ~1 value/second).
@@ -140,8 +185,11 @@ class AlertsNotifier extends Notifier<AlertsState> {
   /// temperature alerts use their dedicated urgent sound.
   Future<void> _updateSiren(
     List<DeviceAlert> alerts,
-    AppSettings local,
-  ) async {
+    AppSettings local, {
+    required int generation,
+  }) async {
+    if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
     final alarm = ref.read(alarmServiceProvider);
 
     final audible =
@@ -162,17 +210,25 @@ class AlertsNotifier extends Notifier<AlertsState> {
     } else if (alarm.isPlaying) {
       await alarm.stop();
     }
+
+    if (!_dataAccessAllowed || generation != _accessGeneration) {
+      if (alarm.isPlaying) await alarm.stop();
+      return;
+    }
   }
 
   Future<void> _notifyNewAlerts(
     List<DeviceAlert> alerts,
-    AppSettings settings,
-  ) async {
+    AppSettings settings, {
+    required int generation,
+  }) async {
     if (alerts.isEmpty) return;
 
     final notifications = ref.read(notificationServiceProvider);
 
     for (final alert in alerts) {
+      if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
       try {
         await notifications.show(title: alert.title, body: alert.message);
       } catch (_) {

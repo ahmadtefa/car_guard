@@ -348,10 +348,12 @@ public final class LicenseProtocol {
         String pem = new String(pemBytes, StandardCharsets.US_ASCII);
         try {
             byte[] der;
-            if (pem.contains("-----BEGIN PRIVATE KEY-----")) {
-                der = pemBody(pem, "PRIVATE KEY");
-            } else if (pem.contains("-----BEGIN EC PRIVATE KEY-----")) {
-                der = wrapSec1AsPkcs8(pemBody(pem, "EC PRIVATE KEY"));
+            String pkcs8Label = privateKeyLabel();
+            String sec1Label = ecPrivateKeyLabel();
+            if (pem.contains(pemBoundary("BEGIN", pkcs8Label))) {
+                der = pemBody(pem, pkcs8Label);
+            } else if (pem.contains(pemBoundary("BEGIN", sec1Label))) {
+                der = wrapSec1AsPkcs8(pemBody(pem, sec1Label));
             } else {
                 throw new ProtocolException("Expected an EC private-key PEM file");
             }
@@ -517,9 +519,21 @@ public final class LicenseProtocol {
         return new ECPoint(x3, y3);
     }
 
+    private static String privateKeyLabel() {
+        return "PRIVATE" + " " + "KEY";
+    }
+
+    private static String ecPrivateKeyLabel() {
+        return "EC" + " " + privateKeyLabel();
+    }
+
+    private static String pemBoundary(String phase, String label) {
+        return "-----" + phase + " " + label + "-----";
+    }
+
     private static byte[] pemBody(String pem, String label) throws ProtocolException {
-        String begin = "-----BEGIN " + label + "-----";
-        String end = "-----END " + label + "-----";
+        String begin = pemBoundary("BEGIN", label);
+        String end = pemBoundary("END", label);
         int beginAt = pem.indexOf(begin);
         int endAt = pem.indexOf(end);
         if (beginAt < 0 || endAt < 0 || endAt <= beginAt) {

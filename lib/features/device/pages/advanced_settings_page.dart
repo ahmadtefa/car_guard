@@ -9,6 +9,8 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Password-protected calibration screen — the Flutter twin of the
 /// "Advanced Settings" modal in the original Kayan dashboard.
@@ -322,6 +324,12 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l = ref.watch(l10nProvider);
+    final settingsState = ref.watch(settingsProvider);
+    final demoEnabled = settingsState.value?.demoModeEnabled ?? false;
+    final moduleLicensed =
+        settingsState.value != null &&
+        !demoEnabled &&
+        ref.watch(licenseAuthorizationProvider);
 
     if (!_unlocked) {
       return Scaffold(
@@ -336,6 +344,14 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
         child: ListView(
           padding: AppSpacing.padding,
           children: [
+            if (!moduleLicensed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Text(
+                  l.licenseControlsUnavailable,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(AppSpacing.xl),
@@ -391,7 +407,8 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       SecondaryButton(
-                        onPressed: _busy ? null : _calibrateVoltage,
+                        onPressed:
+                            !_busy && moduleLicensed ? _calibrateVoltage : null,
                         child: Text(l.calibrateNow),
                       ),
                     ],
@@ -435,12 +452,12 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
 
               const SizedBox(height: AppSpacing.md),
               PrimaryButton(
-                onPressed: _busy ? null : _save,
+                onPressed: !_busy && moduleLicensed ? _save : null,
                 child: Text(l.saveCalibration),
               ),
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(
-                onPressed: _busy ? null : _restartDevice,
+                onPressed: !_busy && moduleLicensed ? _restartDevice : null,
                 child: Text(l.restartModule),
               ),
               const SizedBox(height: AppSpacing.md),

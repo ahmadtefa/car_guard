@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/license/providers/license_provider.dart';
 import '../../features/settings/providers/settings_provider.dart';
 import '../models/app_settings.dart';
 import '../services/device_models.dart';
@@ -15,9 +16,16 @@ import 'device_status_provider.dart';
 /// module reports. Actual alerting evaluates the module limits directly —
 /// see [AlertEvaluator].
 final effectiveSettingsProvider = Provider<AppSettings>((ref) {
-  final local = ref.watch(settingsProvider).value ?? const AppSettings();
+  final settings = ref.watch(settingsProvider).value;
+  final local = settings ?? const AppSettings();
+  final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
+  final dataAccessAllowed =
+      settings != null &&
+      (settings.demoModeEnabled || licenseAuthorized);
 
-  final limits = ref.watch(deviceStatusProvider).value?.moduleLimits;
+  final limits = dataAccessAllowed
+      ? ref.watch(deviceStatusProvider).value?.moduleLimits
+      : null;
 
   return mergeModuleLimits(local, limits);
 });
