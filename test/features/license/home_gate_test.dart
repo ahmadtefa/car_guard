@@ -7,7 +7,7 @@ import 'package:car_guard/core/services/device_models.dart';
 import 'package:car_guard/core/services/device_repository.dart';
 import 'package:car_guard/core/widgets/loading_view.dart';
 import 'package:car_guard/features/dashboard/pages/dashboard_page.dart';
-import 'package:car_guard/features/license/pages/license_page.dart';
+import 'package:car_guard/features/license/pages/license_page.dart' as license_page;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,7 +99,7 @@ void main() {
       (tester) async {
     await pumpGate(tester, locked, settle: true);
 
-    expect(find.byType(LicensePage), findsOneWidget);
+    expect(find.byType(license_page.LicensePage), findsOneWidget);
     expect(find.byType(DashboardPage), findsNothing);
     expect(find.text('KCG_1234ABCD'), findsOneWidget);
   });
@@ -111,7 +111,7 @@ void main() {
     await pumpGate(tester, null);
 
     expect(find.byType(LoadingView), findsOneWidget);
-    expect(find.byType(LicensePage), findsNothing);
+    expect(find.byType(license_page.LicensePage), findsNothing);
     expect(find.byType(DashboardPage), findsNothing);
   });
 }

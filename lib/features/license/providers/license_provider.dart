@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/license_models.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
+import '../../../core/services/device_repository.dart';
 import '../models/license_state.dart';
 
 /// License state provider.

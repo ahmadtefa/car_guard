@@ -1,3 +1,5 @@
+library;
+
 import 'dart:convert';
 
 /// License protocol models + strict, non-throwing parser for the Car Guard
@@ -11,16 +13,15 @@ import 'dart:convert';
 ///
 ///   App -> ESP:      {"cmd":"LICENSE_STATUS"}
 ///   ESP -> App:      {"type":"LICENSE_STATUS","status":"LOCKED","licenseType":"NONE","expires":0}
-///                  | {"type":"LICENSE_STATUS","status":"ACTIVE","licenseType":"TEMPORARY","expires":<epoch>}
+///                  | {"type":"LICENSE_STATUS","status":"ACTIVE","licenseType":"TEMPORARY","expires":epoch}
 ///                  | {"type":"LICENSE_STATUS","status":"ACTIVE","licenseType":"PERMANENT","expires":0}
 ///
-///   App -> ESP:      {"cmd":"LICENSE_ACTIVATE","code":"<Base32>"}
-///   ESP -> App:      {"type":"LICENSE_RESULT","status":"OK","reason":"...","expires":<epoch>}
+///   App -> ESP:      {"cmd":"LICENSE_ACTIVATE","code":"Base32"}
+///   ESP -> App:      {"type":"LICENSE_RESULT","status":"OK","reason":"...","expires":epoch}
 ///                  | {"type":"LICENSE_RESULT","status":"ERROR","reason":"...","expires":0}
 ///
 /// Every factory here validates its fields and returns `null` (or throws on an
 /// invalid value) so malformed / unknown frames never crash the app.
-library;
 
 /// Lifecycle status of the device license as reported by the firmware.
 enum LicenseDeviceStatus {
@@ -136,7 +137,7 @@ LicenseType? _parseLicenseType(Object? value) {
 /// the frame is not a valid license message (telemetry, malformed JSON, unknown
 /// type, missing/invalid fields). This never throws and never crashes.
 LicenseMessage? parseLicenseMessage(String raw) {
-  if (raw == null || raw.trim().isEmpty) return null;
+  if (raw.trim().isEmpty) return null;
 
   final trimmed = raw.trim();
   if (!trimmed.startsWith('{')) return null;

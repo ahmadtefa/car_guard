@@ -6,7 +6,7 @@ import '../core/models/license_models.dart';
 import '../core/widgets/loading_view.dart';
 import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/license/models/license_state.dart';
-import '../features/license/pages/license_page.dart';
+import '../features/license/pages/license_page.dart' as license_page;
 import '../features/license/providers/license_provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 
@@ -40,7 +40,7 @@ class HomeGate extends ConsumerWidget {
         return const DashboardPage();
 
       case LicenseDeviceStatus.locked:
-        return const LicensePage();
+        return const license_page.LicensePage();
 
       case LicenseDeviceStatus.unknown:
         // No definitive status yet (connecting / querying / device unreachable).
