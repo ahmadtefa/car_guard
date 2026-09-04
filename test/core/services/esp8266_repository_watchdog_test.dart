@@ -317,6 +317,10 @@ void main() {
         final status = await repository.getLicenseStatus();
 
         expect(status?.status.name, 'locked');
+        // connect() emits the intentional initial disconnected transition
+        // before opening the socket. Ignore that neutral event; this assertion
+        // is about real telemetry after the LOCKED reply.
+        readings.clear();
         await Future<void>.delayed(const Duration(milliseconds: 60));
 
         expect(readings, isEmpty);
@@ -414,8 +418,9 @@ void main() {
 
   test('H. active HTTP fallback still accepts real telemetry', () async {
     final server = _ModuleServer(
-      sendInitialTelemetry: true,
-      closeAfterInitialTelemetry: true,
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
       httpDataStatus: 200,
       httpDataBody: _activeTelemetry,
     );
@@ -424,14 +429,27 @@ void main() {
 
     try {
       await repository.connect(host: server.host, port: server.port);
-      await _waitUntil(
-        () => server.httpDataRequestCount > 0,
-        timeout: const Duration(seconds: 2),
-      );
+      final status = await repository.getLicenseStatus();
+      expect(status?.status.name, 'active');
 
-      expect(server.httpDataRequestCount, greaterThan(0));
-      expect(await repository.isConnected(), isTrue);
-      expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
+      final readings = <dynamic>[];
+      final subscription = repository.liveUpdates.listen(readings.add);
+      try {
+        // With an ACTIVE proof and a quiet WebSocket, the existing watchdog
+        // path may use HTTP as the transport without bypassing the license
+        // boundary.
+        await _waitUntil(
+          () => server.httpDataRequestCount > 0,
+          timeout: const Duration(seconds: 2),
+        );
+
+        expect(server.httpDataRequestCount, greaterThan(0));
+        expect(readings, isNotEmpty);
+        expect(await repository.isConnected(), isTrue);
+        expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
+      } finally {
+        await subscription.cancel();
+      }
     } finally {
       await repository.disconnect();
       await server.close();
