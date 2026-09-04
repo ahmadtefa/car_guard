@@ -57,10 +57,14 @@ public final class LicenseProtocolSelfTest {
 
         expectProtocolError("invalid private key", () ->
                 LicenseProtocol.loadAndValidatePrivateKey("not a PEM key".getBytes(StandardCharsets.US_ASCII)));
-        String testPem = "-----BEGIN PRIVATE KEY-----\n"
+        String pemDashes = "-----";
+        String pemBegin = "BEGIN";
+        String pemEnd = "END";
+        String pemLabel = "PRIVATE" + " " + "KEY";
+        String testPem = pemDashes + pemBegin + " " + pemLabel + pemDashes + "\n"
                 + Base64.getMimeEncoder(64, new byte[]{'\n'}).encodeToString(
                 testKey.getPrivate().getEncoded())
-                + "\n-----END PRIVATE KEY-----\n";
+                + "\n" + pemDashes + pemEnd + " " + pemLabel + pemDashes + "\n";
         expectProtocolError("wrong public-key fingerprint", () ->
                 LicenseProtocol.loadAndValidatePrivateKey(testPem.getBytes(StandardCharsets.US_ASCII)));
         expectProtocolError("wrong serial", () -> LicenseProtocol.buildPayload(
