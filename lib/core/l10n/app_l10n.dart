@@ -213,6 +213,8 @@ class AppL10n {
   String get testFan => isAr ? 'تجربة المروحة' : 'Test fan';
   String get manualFanOn => isAr ? 'تشغيل يدوي للمروحة' : 'Manual fan ON';
   String get manualFanOff => isAr ? 'إيقاف يدوي للمروحة' : 'Manual fan OFF';
+  String get manualFanForceStop =>
+      isAr ? 'إيقاف التشغيل الإجباري' : 'Force stop manual fan';
   String get manualFanOnConfirmTitle =>
       isAr ? 'تشغيل المروحة يدويًا؟' : 'Turn the fan on manually?';
   String get manualFanOnConfirmBody => isAr

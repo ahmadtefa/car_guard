@@ -122,16 +122,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
 
     final l = ref.read(l10nProvider);
+    var commandTurnOn = turnOn;
+
     if (turnOn) {
-      final confirmed = await showDialog<bool>(
+      final selectedAction = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: Text(l.manualFanOnConfirmTitle),
           content: Text(l.manualFanOnConfirmBody),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
+              onPressed: () => Navigator.of(dialogContext).pop<bool>(null),
               child: Text(l.cancel),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l.manualFanForceStop),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -141,12 +147,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ),
       );
 
-      if (confirmed != true || !mounted) return;
+      if (selectedAction == null || !mounted) return;
+      commandTurnOn = selectedAction;
     }
 
     setState(() => _fanCommandInFlight = true);
 
-    final succeeded = turnOn
+    final succeeded = commandTurnOn
         ? await ref.read(esp8266RepositoryProvider).fanOn()
         : await ref.read(esp8266RepositoryProvider).fanOff();
 
@@ -159,7 +166,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         SnackBar(
           content: Text(
             succeeded
-                ? (turnOn ? l.manualFanOnSuccess : l.manualFanOffSuccess)
+                ? (commandTurnOn
+                    ? l.manualFanOnSuccess
+                    : l.manualFanOffSuccess)
                 : l.manualFanCommandFailed,
           ),
         ),
@@ -380,7 +389,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 },
               ),
               IconButton(
-                tooltip: fanRunning ? l.manualFanOff : l.manualFanOn,
+                tooltip: fanRunning ? l.manualFanForceStop : l.manualFanOn,
                 visualDensity: VisualDensity.compact,
                 icon: Icon(
                   Icons.air_rounded,

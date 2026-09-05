@@ -1183,6 +1183,37 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Reads one fresh telemetry frame after a fan command.
+  ///
+  /// The module's WebSocket broadcaster skips frames when temperature and
+  /// voltage are unchanged, so a fan-only state transition may otherwise not
+  /// reach the live status stream. This uses the existing `/data` telemetry
+  /// endpoint and [DeviceStatus.controlData.fanRunning] remains authoritative;
+  /// no local fan state is created.
+  Future<void> _refreshLiveStatus() async {
+    if (_stopped) return;
+
+    try {
+      final response = await http
+          .get(Uri.parse(_httpUrl(_activeHost, '/data')))
+          .timeout(httpTimeout);
+
+      if (response.statusCode == 200) {
+        _handleData(response.body);
+      }
+    } catch (e) {
+      debugPrint('LIVE STATUS REFRESH FAILED: $e');
+    }
+  }
+
+  Future<bool> _sendFanCommand(String endpoint) async {
+    final succeeded = await sendDeviceCommand(endpoint);
+    if (succeeded) {
+      await _refreshLiveStatus();
+    }
+    return succeeded;
+  }
+
   /// Silences the module buzzer (`/mute`).
   Future<bool> muteBuzzer() => sendDeviceCommand(DeviceEndpoints.mute);
 
@@ -1190,10 +1221,10 @@ class Esp8266Repository implements DeviceRepository {
   Future<bool> testFan() => sendDeviceCommand(DeviceEndpoints.testFan);
 
   /// Enables the firmware's persistent manual radiator-fan override (`/fanon`).
-  Future<bool> fanOn() => sendDeviceCommand(DeviceEndpoints.fanOn);
+  Future<bool> fanOn() => _sendFanCommand(DeviceEndpoints.fanOn);
 
   /// Cancels the manual radiator-fan override and turns it off (`/fanoff`).
-  Future<bool> fanOff() => sendDeviceCommand(DeviceEndpoints.fanOff);
+  Future<bool> fanOff() => _sendFanCommand(DeviceEndpoints.fanOff);
 
   /// Reboots the module (`/restart`).
   Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);

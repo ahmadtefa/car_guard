@@ -73,12 +73,16 @@ class LicenseStatusBanner extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color),
             const SizedBox(width: AppSpacing.sm),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisSize: CrossAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -93,6 +97,7 @@ class LicenseStatusBanner extends ConsumerWidget {
                   Text(body, softWrap: true),
                   const SizedBox(height: AppSpacing.sm),
                   Align(
+                    widthFactor: 1.0,
                     alignment: AlignmentDirectional.centerEnd,
                     child: retryable
                         ? TextButton.icon(

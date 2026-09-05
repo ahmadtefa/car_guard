@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../providers/voltage_delta_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import 'base_dashboard_card.dart';
 import 'mini_gauges.dart';
 
-/// Shows the battery voltage change over the last ~90 seconds on a
+/// Shows the voltage difference reported by the device on the existing
 /// center-zero differential gauge: green to the right while charging,
 /// red to the left while dropping.
 class VoltageDeltaCard extends ConsumerWidget {
@@ -16,8 +16,10 @@ class VoltageDeltaCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-
-    final delta = ref.watch(voltageDeltaProvider);
+    final device = ref.watch(deviceStatusProvider).value;
+    final delta = device == null || !device.connected
+        ? null
+        : device.batteryData.voltageDifference;
 
     final String valueText;
     final String statusText;
@@ -42,7 +44,7 @@ class VoltageDeltaCard extends ConsumerWidget {
     return BaseDashboardCard(
       title: l.voltageDifference,
       value: valueText,
-      subtitle: l.voltageDeltaInfo,
+      subtitle: l.chargingDeltaInfo,
       statusText: statusText,
       child: DeltaGauge(delta: delta, scale: 1.5),
     );
