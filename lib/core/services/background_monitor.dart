@@ -33,6 +33,7 @@ class BackgroundMonitorHandler extends TaskHandler {
   final NotificationService _notifications = NotificationServiceImpl();
 
   bool _everConnected = false;
+  bool _lastFetchWasLicenseLocked = false;
 
   /// True after the offline alarm has rung for the current disconnection
   /// streak; reset to false on the next successful read so a fresh drop
@@ -76,6 +77,21 @@ class BackgroundMonitorHandler extends TaskHandler {
     final status = await _fetchStatus(hostToQuery);
 
     if (status == null) {
+      if (_lastFetchWasLicenseLocked) {
+        // A locked/expired module is reachable, not disconnected. Clear old
+        // alert notifications and keep the foreground-service text free of
+        // stale temperature/voltage values.
+        _activeAlertIds.clear();
+        _offlineNotified = false;
+        await _notifications.clear();
+        try {
+          await FlutterForegroundTask.updateService(
+            notificationText: 'License required',
+          );
+        } catch (_) {}
+        return;
+      }
+
       await _maybeNotifyConnectionLost(settings);
       return;
     }
@@ -116,6 +132,7 @@ class BackgroundMonitorHandler extends TaskHandler {
   }
 
   Future<DeviceStatus?> _fetchStatus(String host) async {
+    _lastFetchWasLicenseLocked = false;
     try {
       final response = await http
           .get(Uri.parse('http://$host/data'))
@@ -135,7 +152,13 @@ class BackgroundMonitorHandler extends TaskHandler {
 
         final decoded = jsonDecode(body);
         if (decoded is! Map) return null;
-        return _statusFromJson(Map<String, dynamic>.from(decoded));
+        final json = Map<String, dynamic>.from(decoded);
+        final licenseStatus = json['licenseStatus'];
+        if (licenseStatus is String && licenseStatus != 'ACTIVE') {
+          _lastFetchWasLicenseLocked = true;
+          return null;
+        }
+        return _statusFromJson(json);
       }
 
       return _statusFromCsv(body);
@@ -145,6 +168,12 @@ class BackgroundMonitorHandler extends TaskHandler {
   }
 
   DeviceStatus? _statusFromJson(Map<String, dynamic> json) {
+    final licenseStatus = json['licenseStatus'];
+    if (licenseStatus is String && licenseStatus != 'ACTIVE') {
+      _lastFetchWasLicenseLocked = true;
+      return null;
+    }
+
     // Do not turn a generic JSON error/license object into zero-valued
     // telemetry. A real JSON reading must carry the two primary sensors.
     final rawTemperature = json['temp'];

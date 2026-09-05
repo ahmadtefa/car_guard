@@ -45,6 +45,8 @@ class _ModuleServer {
   final Map<WebSocket, Timer> _telemetryTimers = <WebSocket, Timer>{};
   final List<String> receivedCommands = <String>[];
   final List<String> receivedActivationCodes = <String>[];
+  final List<int> receivedActivationTimes = <int>[];
+  final List<int> receivedStatusTimes = <int>[];
   var websocketConnectionCount = 0;
   var httpDataRequestCount = 0;
   var _closing = false;
@@ -98,6 +100,16 @@ class _ModuleServer {
       onDone: () => _removeSocket(socket),
     );
 
+    // Mirror the firmware's connection handshake: license status is sent
+    // before any possible telemetry frame. This lets the repository apply the
+    // same ACTIVE output gate without a first-frame race.
+    if (replyToStatus) {
+      socket.add(
+        '{"type":"LICENSE_STATUS","status":"$licenseStatus",'
+        '"licenseType":"$licenseType","expires":0}',
+      );
+    }
+
     if (sendInitialTelemetry) {
       socket.add(_activeTelemetry);
       if (closeAfterInitialTelemetry) {
@@ -142,6 +154,12 @@ class _ModuleServer {
     receivedCommands.add(command);
     if (command == 'LICENSE_ACTIVATE' && payload['code'] is String) {
       receivedActivationCodes.add(payload['code'] as String);
+      if (payload['activationTime'] is int) {
+        receivedActivationTimes.add(payload['activationTime'] as int);
+      }
+    }
+    if (command == 'LICENSE_STATUS' && payload['currentTime'] is int) {
+      receivedStatusTimes.add(payload['currentTime'] as int);
     }
 
     switch (command) {
@@ -240,7 +258,12 @@ void main() {
   });
 
   test('A. ACTIVE telemetry keeps the existing watchdog healthy', () async {
-    final server = _ModuleServer(sendPeriodicTelemetry: true);
+    final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
+      sendPeriodicTelemetry: true,
+    );
     await server.start();
     final repository = _repositoryFor(server);
 
@@ -302,6 +325,8 @@ void main() {
         expect(await repository.isConnected(), isTrue);
         expect(server.websocketConnectionCount, 1);
         expect(server.receivedCommands, contains('LICENSE_STATUS'));
+        expect(server.receivedStatusTimes, hasLength(1));
+        expect(server.receivedStatusTimes.single, greaterThan(1640995200));
         expect(server.httpDataRequestCount, 0);
       } finally {
         await repository.disconnect();
@@ -311,7 +336,7 @@ void main() {
   );
 
   test(
-    'D. read-only telemetry remains available while the status is LOCKED',
+    'D. LOCKED status never exposes telemetry readings to the repository',
     () async {
       final server = _ModuleServer(
         replyToStatus: true,
@@ -331,7 +356,12 @@ void main() {
         expect(status?.status.name, 'locked');
         await Future<void>.delayed(const Duration(milliseconds: 60));
 
-        expect(readings, isNotEmpty);
+        // The locked status frame may clear the previous stream with a
+        // disconnected marker, but no connected sensor reading is allowed.
+        expect(
+          readings.where((reading) => reading.connected),
+          isEmpty,
+        );
         expect(repository.hasAuthoritativeActiveLicense, isFalse);
       } finally {
         await subscription.cancel();
@@ -428,6 +458,9 @@ void main() {
 
   test('H. a stalled WebSocket still follows the reconnect path', () async {
     final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
       sendInitialTelemetry: true,
       httpDataStatus: 403,
     );
@@ -474,6 +507,8 @@ void main() {
         expect(server.websocketConnectionCount, greaterThanOrEqualTo(2));
         expect(server.receivedCommands, contains('LICENSE_ACTIVATE'));
         expect(server.receivedActivationCodes, contains(activationCode));
+        expect(server.receivedActivationTimes, hasLength(1));
+        expect(server.receivedActivationTimes.single, greaterThan(1640995200));
       } finally {
         await repository.disconnect();
         await server.close();
@@ -483,6 +518,9 @@ void main() {
 
   test('I. active HTTP fallback still accepts real telemetry', () async {
     final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
       sendInitialTelemetry: true,
       closeAfterInitialTelemetry: true,
       httpDataStatus: 200,

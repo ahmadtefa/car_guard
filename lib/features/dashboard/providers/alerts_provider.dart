@@ -59,12 +59,13 @@ class AlertsNotifier extends Notifier<AlertsState> {
       settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
     );
     final generation = ++_accessGeneration;
-    final initiallyAuthorized = ref.read(licenseAuthorizationProvider);
+    final initiallyAuthorized = ref.watch(licenseAuthorizationProvider);
 
-    // Alert evaluation is read-only telemetry and remains available while the
-    // module is LOCKED. The separate control gate below prevents an
-    // unlicensed session from driving the in-app siren.
-    _dataAccessAllowed = settingsReady;
+    // Alert evaluation consumes real sensor telemetry, so a locked/expired
+    // module must not keep old alerts or emit new reading notifications.
+    // Demo mode remains local and license-independent.
+    _dataAccessAllowed =
+        settingsReady && (demoEnabled || initiallyAuthorized);
     _controlsAuthorized = demoEnabled || initiallyAuthorized;
 
     ref.listen(
@@ -72,8 +73,13 @@ class AlertsNotifier extends Notifier<AlertsState> {
       (previous, authorized) {
         if (generation != _accessGeneration) return;
         _controlsAuthorized = demoEnabled || authorized;
-        if (!_controlsAuthorized) {
+        _dataAccessAllowed = settingsReady && _controlsAuthorized;
+        if (!_dataAccessAllowed) {
+          _activeAlertIds.clear();
+          _everConnected = false;
+          state = const AlertsState();
           unawaited(ref.read(alarmServiceProvider).stop());
+          unawaited(ref.read(notificationServiceProvider).clear());
         }
       },
       fireImmediately: true,
@@ -83,15 +89,16 @@ class AlertsNotifier extends Notifier<AlertsState> {
     _everConnected = false;
 
     if (!_dataAccessAllowed) {
-      // Settings are still loading, so there is no trustworthy source to
-      // evaluate yet. Stop any local alarm left over from an old session.
+      // Settings or the authoritative license proof are not ready, so there
+      // is no trustworthy sensor source to evaluate. Stop and clear alerts.
       unawaited(ref.read(alarmServiceProvider).stop());
+      unawaited(ref.read(notificationServiceProvider).clear());
       return const AlertsState();
     }
 
     if (!_controlsAuthorized) {
-      // A locked module may still report alerts/readings; only local audible
-      // control is disabled until the module reports ACTIVE.
+      // This branch is retained for the demo/control distinction; real
+      // locked-module telemetry never reaches the provider now.
       unawaited(ref.read(alarmServiceProvider).stop());
     }
 

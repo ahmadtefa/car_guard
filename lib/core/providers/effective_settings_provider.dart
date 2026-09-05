@@ -17,8 +17,8 @@ import 'device_status_provider.dart';
 final effectiveSettingsProvider = Provider<AppSettings>((ref) {
   final settings = ref.watch(settingsProvider).value;
   final local = settings ?? const AppSettings();
-  // Module limits are read-only telemetry and remain useful before
-  // activation, just like the temperature and voltage readings.
+  // Module limits are metadata used by settings/redline UI; unlike the live
+  // temperature and voltage values, they do not expose a current reading.
   final limits = settings != null
       ? ref.watch(deviceStatusProvider).value?.moduleLimits
       : null;

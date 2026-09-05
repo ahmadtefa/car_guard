@@ -179,8 +179,8 @@ void main() {
         LicenseFailureReason.serialMismatch,
       );
       expect(
-        licenseFailureReasonFromFirmware('NTP_UNAVAILABLE'),
-        LicenseFailureReason.ntpUnavailable,
+        licenseFailureReasonFromFirmware('INVALID_TIMESTAMP'),
+        LicenseFailureReason.invalidTimestamp,
       );
       expect(
         licenseFailureReasonFromFirmware('ALREADY_USED'),
@@ -203,8 +203,20 @@ void main() {
         LicenseFailureReason.invalidDate,
       );
       expect(
-        licenseFailureReasonFromFirmware('NTP_FAILED'),
-        LicenseFailureReason.ntpUnavailable,
+        licenseCheckStatusForFailure(LicenseFailureReason.invalidTimestamp),
+        LicenseCheckStatus.error,
+      );
+      expect(
+        licenseFailureReasonFromFirmware('CLOCK_ROLLBACK'),
+        LicenseFailureReason.clockRollback,
+      );
+      expect(
+        licenseFailureReasonFromFirmware('CLOCK_PERSIST_FAILED'),
+        LicenseFailureReason.clockPersistFailed,
+      );
+      expect(
+        licenseCheckStatusForFailure(LicenseFailureReason.clockRollback),
+        LicenseCheckStatus.error,
       );
       expect(
         licenseFailureReasonFromFirmware('CANNOT_REPLACE_PERMANENT'),
@@ -216,10 +228,6 @@ void main() {
         LicenseFailureReason.unknown,
       );
       expect(licenseFailureReasonFromFirmware(null), LicenseFailureReason.unknown);
-      expect(
-        licenseCheckStatusForFailure(LicenseFailureReason.ntpUnavailable),
-        LicenseCheckStatus.error,
-      );
       expect(
         licenseCheckStatusForFailure(LicenseFailureReason.invalidSignature),
         LicenseCheckStatus.invalid,

@@ -34,10 +34,12 @@ class AlertsAnalysisPage extends ConsumerWidget {
     final history = ref.watch(readingsHistoryProvider);
     final settings = ref.watch(settingsProvider).value;
     final license = ref.watch(licenseProvider);
-    // Analysis and live readings are read-only. Keep rendering them while the
-    // module is LOCKED; the license notice explains that only protected
-    // controls remain unavailable.
-    final dataAccessAllowed = settings != null;
+    // Analysis and live readings are real-module data. Hide both the current
+    // sample and cached history while the authoritative license is not ACTIVE;
+    // demo mode remains independent of the module license.
+    final dataAccessAllowed =
+        settings != null &&
+        (settings.demoModeEnabled || license.canUseProtectedControls);
     final status = dataAccessAllowed ? rawStatus : null;
     final showLicenseNotice =
         settings == null || !license.canUseProtectedControls;

@@ -12,6 +12,7 @@ import '../../../core/services/notification_service.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
 import '../../dashboard/providers/trip_provider.dart';
 import '../../dashboard/providers/voltage_delta_provider.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
 import '../services/analysis_engine.dart';
@@ -124,6 +125,9 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
 
   bool _analysisAccessAllowed = false;
   int _accessGeneration = 0;
+  int _protectedPersistenceGeneration = 0;
+  Future<void>? _purgeProtectedPersistence;
+  bool _purgedForCurrentLock = false;
   bool _everConnected = false;
 
   DateTime _lastPassAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -157,10 +161,22 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    // Analysis is a read-only consumer of the live stream. Keep it running
-    // while the module is LOCKED; only hardware writes and control actions
-    // use the authoritative license gate.
-    final allowed = settingsReady;
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    final license = ref.watch(licenseProvider);
+    final authorized = license.canUseProtectedControls;
+    // Analysis consumes real sensor data, so clear it while the module is
+    // LOCKED/expired. Demo mode remains local and license-independent.
+    final allowed = settingsReady && (demoEnabled || authorized);
+    if (settingsReady && !demoEnabled && license.isLocked) {
+      if (!_purgedForCurrentLock) {
+        _purgedForCurrentLock = true;
+        _purgeProtectedPersistence = _purgeStoredData();
+      }
+    } else if (authorized) {
+      _purgedForCurrentLock = false;
+    }
     final generation = ++_accessGeneration;
     _analysisAccessAllowed = allowed;
 
@@ -247,8 +263,24 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   // Persistence
   // ------------------------------------------------------------------
 
+  Future<void> _purgeStoredData() async {
+    ++_protectedPersistenceGeneration;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        prefs.remove(_baselineKey),
+        prefs.remove(_historyKey),
+      ]);
+    } catch (_) {}
+    // The generation is intentionally retained: any write that started before
+    // LOCKED must not recreate the purged temperature/voltage history.
+  }
+
   Future<void> _loadPersisted(int generation) async {
+    final purge = _purgeProtectedPersistence;
+    if (purge != null) await purge;
     if (!_analysisAccessAllowed || generation != _accessGeneration) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -282,7 +314,11 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
       merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       if (merged.length > _maxHistory) merged.length = _maxHistory;
 
-      if (!_analysisAccessAllowed || generation != _accessGeneration) return;
+      if (!_analysisAccessAllowed ||
+          generation != _accessGeneration ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
 
       state = state.copyWith(
         baseline: baseline,
@@ -300,20 +336,28 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
 
   Future<void> _persistBaseline() async {
     if (!_analysisAccessAllowed) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (!_analysisAccessAllowed) return;
+      if (!_analysisAccessAllowed ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
       await prefs.setString(_baselineKey, jsonEncode(state.baseline.toJson()));
     } catch (_) {}
   }
 
   Future<void> _persistHistory() async {
     if (!_analysisAccessAllowed) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (!_analysisAccessAllowed) return;
+      if (!_analysisAccessAllowed ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
       await prefs.setString(
         _historyKey,
         AlertHistoryEntry.encodeList(state.history),

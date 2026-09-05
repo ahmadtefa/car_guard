@@ -675,8 +675,12 @@ class AppL10n {
       isAr ? 'تاريخ الترخيص غير صالح.' : 'Invalid license date.';
   String get failureInvalidMonths =>
       isAr ? 'مدة الترخيص غير صالحة.' : 'Invalid license duration.';
-  String get failureNtpUnavailable =>
-      isAr ? 'تعذر الحصول على وقت موثوق — تأكد من اتصال الجهاز بالإنترنت.' : 'Could not get a trusted time — make sure the device is online.';
+  String get failureInvalidTimestamp =>
+      isAr ? 'وقت الهاتف غير صالح — تحقق من إعدادات التاريخ والوقت.' : 'The phone time is invalid — check the device date and time settings.';
+  String get failureClockRollback =>
+      isAr ? 'ساعة الهاتف رجعت للخلف — صحح التاريخ والوقت ثم حاول مجدداً.' : 'The phone clock moved backwards — correct the date and time, then try again.';
+  String get failureClockPersistFailed =>
+      isAr ? 'تعذر حفظ حالة ساعة الهاتف على الجهاز.' : 'Could not save the phone-clock state on the device.';
   String get failureAlreadyUsed =>
       isAr ? 'كود الترخيص مستخدم مسبقاً.' : 'This license code was already used.';
   String get failurePermanentAlreadyActive =>

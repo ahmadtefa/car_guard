@@ -28,8 +28,8 @@ class Esp8266Repository implements DeviceRepository {
     this.watchdogTimeout = const Duration(seconds: 6),
     this.httpTimeout = const Duration(seconds: 3),
     this.webSocketInitialTimeout = const Duration(milliseconds: 1500),
-    // Firmware may spend up to eight seconds obtaining trusted NTP time
-    // before it returns LICENSE_RESULT for a valid activation code.
+    // Keep the activation response window at twelve seconds so the firmware
+    // can finish validation and EEPROM persistence without a transport race.
     this.licenseRequestTimeout = const Duration(seconds: 12),
     WebSocketConnector? webSocketConnector,
   }) : _activeHost = host,
@@ -49,8 +49,8 @@ class Esp8266Repository implements DeviceRepository {
   final bool enableMdnsDiscovery;
 
   /// These defaults are the production transport timings. They are constructor
-  /// options so watchdog tests can run faster; the license timeout intentionally
-  /// exceeds the firmware's trusted-NTP activation wait.
+  /// options so watchdog tests can run faster; the license timeout remains
+  /// twelve seconds for the complete firmware activation response.
   final Duration watchdogTimeout;
   final Duration httpTimeout;
   final Duration webSocketInitialTimeout;
@@ -64,6 +64,13 @@ class Esp8266Repository implements DeviceRepository {
   String _httpUrl(String targetHost, String pathAndQuery) {
     final portSuffix = httpPort == 80 ? '' : ':$httpPort';
     return 'http://$targetHost$portSuffix$pathAndQuery';
+  }
+
+  /// Returns the phone's current UTC Unix time in seconds. This value is sent
+  /// only as the activation/status time input; the signed license payload and
+  /// activation code remain byte-for-byte unchanged.
+  int _phoneEpochSeconds() {
+    return DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
   }
 
   WebSocketChannel? _channel;
@@ -87,8 +94,8 @@ class Esp8266Repository implements DeviceRepository {
   int _pollFailureCount = 0;
 
   /// True after at least one valid license-protocol reply has arrived on the
-  /// current WebSocket. This is separate from telemetry: a LOCKED module may
-  /// still send read-only sensor frames, but it has no control authorization.
+  /// current WebSocket. This is separate from telemetry: a LOCKED module can
+  /// keep the license socket alive without sending sensor frames.
   bool _licenseProofOfLife = false;
 
   /// Whether this WebSocket session has already produced telemetry. Keeping
@@ -96,6 +103,10 @@ class Esp8266Repository implements DeviceRepository {
   /// telemetry/HTTP watchdog path even while its license handshake is still
   /// settling.
   bool _telemetrySeenOnSocket = false;
+
+  /// Last authorized reading for a newly authorized stream subscriber. This
+  /// is cleared on LOCKED/disconnect, so it cannot become a stale leak.
+  DeviceStatus? _lastTelemetryStatus;
 
   /// Monotonic count of valid license replies on the current socket. It lets a
   /// watchdog probe accept any valid license reply that raced with its own
@@ -1083,9 +1094,9 @@ class Esp8266Repository implements DeviceRepository {
   /// Returns null when the device is unreachable or replies with an
   /// unexpected payload.
   Future<DeviceModuleSettings?> getDeviceSettings() async {
-    // Reading module limits is telemetry, not a protected write. It remains
-    // available while the device is LOCKED; save/calibration/control methods
-    // below still use _protectedCommandAllowed().
+    // Module-limit metadata remains available for the settings UI; the live
+    // temperature/voltage output is gated separately by the license status.
+    // Save/calibration/control methods below still use _protectedCommandAllowed().
     if (_stopped) {
       return null;
     }
@@ -1455,6 +1466,14 @@ class Esp8266Repository implements DeviceRepository {
         final json =
             jsonDecode(data);
 
+        // Current firmware keeps /data available for license diagnostics but
+        // marks locked/expired responses explicitly. Never reinterpret the
+        // redacted zero placeholders as a live reading.
+        final licenseStatus = json["licenseStatus"];
+        if (licenseStatus is String && licenseStatus != 'ACTIVE') {
+          return null;
+        }
+
         // Coolant may arrive as 1/0, "1"/"0" or true/false depending on the
         // firmware revision; when the key is absent we optimistically assume
         // coolant is available instead of crying wolf.
@@ -1692,12 +1711,15 @@ class Esp8266Repository implements DeviceRepository {
   void _invalidateLicenseAuthorization() {
     _licenseProofOfLife = false;
     _licenseDeviceStatus = null;
+    _lastTelemetryStatus = null;
+    _statusController.add(DeviceStatus.disconnected());
   }
 
   void _clearLicenseConnectionHealth() {
 
     _licenseProofOfLife = false;
     _telemetrySeenOnSocket = false;
+    _lastTelemetryStatus = null;
     _licenseActivityGeneration = 0;
     _licenseDeviceStatus = null;
     _lastLicenseCommand = null;
@@ -1708,10 +1730,9 @@ class Esp8266Repository implements DeviceRepository {
 
 
   /// Handles an incoming payload from any transport: parses valid telemetry
-  /// and reports whether parsing succeeded. Sensor readings are intentionally
-  /// available while the module is LOCKED; the license proof remains a
-  /// separate gate for protected writes and local control features. Invalid
-  /// data never counts as proof that the module is alive.
+  /// and reports whether parsing succeeded. Locked/expired firmware responses
+  /// are redacted and never enter the live-reading stream. Invalid data never
+  /// counts as proof that the module is alive.
   ///
   /// License-protocol replies ride the same channel and are routed to
   /// [licenseStream] instead of telemetry. A valid license reply is also proof
@@ -1726,6 +1747,16 @@ class Esp8266Repository implements DeviceRepository {
 
       _recordLicenseActivity(license);
 
+      if (license is LicenseStatusMessage &&
+          license.status != LicenseDeviceStatus.active) {
+        // Clear the last real sample as soon as the module reports LOCKED or
+        // EXPIRED (firmware represents both as LOCKED). License replies still
+        // remain available on this same WebSocket.
+        _telemetrySeenOnSocket = false;
+        _lastTelemetryStatus = null;
+        _statusController.add(DeviceStatus.disconnected());
+      }
+
       if (!_licenseController.isClosed) {
         _licenseController.add(license);
       }
@@ -1733,6 +1764,11 @@ class Esp8266Repository implements DeviceRepository {
       return true;
 
     }
+
+    // Once the module has explicitly reported LOCKED, do not promote any
+    // sensor frame from that session. An ACTIVE JSON /data response remains
+    // usable during the existing HTTP fallback path; the UI provider still
+    // requires a fresh ACTIVE license proof before exposing that stream.
 
     final status = _parseStatus(data);
 
@@ -1747,12 +1783,16 @@ class Esp8266Repository implements DeviceRepository {
 
     }
 
+    if (_licenseDeviceStatus == LicenseDeviceStatus.locked) {
+      debugPrint("TELEMETRY BLOCKED — LICENSE_REQUIRED");
+      return false;
+    }
+
 
     _telemetrySeenOnSocket = true;
-
-    // The firmware deliberately keeps the read-only sensor feed available in
-    // LOCKED state. Keep that separation here too: license authorization is
-    // enforced by _protectedCommandAllowed(), not by hiding genuine readings.
+    if (_licenseDeviceStatus == LicenseDeviceStatus.active) {
+      _lastTelemetryStatus = status;
+    }
     _statusController.add(status);
 
     return true;
@@ -1894,8 +1934,31 @@ class Esp8266Repository implements DeviceRepository {
 
 
   @override
-  Stream<DeviceStatus> get liveUpdates =>
-      _statusController.stream;
+  Stream<DeviceStatus> get liveUpdates {
+    // Replay only the last authorized frame to a new subscriber. The cache is
+    // cleared whenever the license/transport becomes invalid, so activation
+    // can resume immediately without retaining locked readings.
+    late StreamController<DeviceStatus> replayController;
+    StreamSubscription<DeviceStatus>? subscription;
+    replayController = StreamController<DeviceStatus>(
+      sync: true,
+      onListen: () {
+        subscription = _statusController.stream.listen(
+          replayController.add,
+          onError: (Object error, StackTrace stack) {
+            replayController.addError(error, stack);
+          },
+          onDone: replayController.close,
+        );
+        final cached = _lastTelemetryStatus;
+        if (cached != null) replayController.add(cached);
+      },
+      onCancel: () async {
+        await subscription?.cancel();
+      },
+    );
+    return replayController.stream;
+  }
 
 
 
@@ -2007,11 +2070,15 @@ class Esp8266Repository implements DeviceRepository {
         (_) => true,
       );
 
-  /// { "cmd":"LICENSE_STATUS" } -> { "type":"LICENSE_STATUS", ... }.
+  /// { "cmd":"LICENSE_STATUS","currentTime":<UTC epoch> } ->
+  /// { "type":"LICENSE_STATUS", ... }.
   @override
   Future<LicenseStatusMessage?> getLicenseStatus() async {
     final status = await _requestLicense<LicenseStatusMessage>(
-      {'cmd': 'LICENSE_STATUS'},
+      {
+        'cmd': 'LICENSE_STATUS',
+        'currentTime': _phoneEpochSeconds(),
+      },
       (_) => true,
     );
 
@@ -2024,11 +2091,16 @@ class Esp8266Repository implements DeviceRepository {
     return status;
   }
 
-  /// { "cmd":"LICENSE_ACTIVATE","code":... } -> { "type":"LICENSE_RESULT", ... }.
+  /// { "cmd":"LICENSE_ACTIVATE","code":...,"activationTime":<UTC epoch> }
+  /// -> { "type":"LICENSE_RESULT", ... }.
   @override
   Future<LicenseResultMessage?> activateLicense(String code) =>
       _requestLicense<LicenseResultMessage>(
-        {'cmd': 'LICENSE_ACTIVATE', 'code': code},
+        {
+          'cmd': 'LICENSE_ACTIVATE',
+          'code': code,
+          'activationTime': _phoneEpochSeconds(),
+        },
         (_) => true,
       );
 

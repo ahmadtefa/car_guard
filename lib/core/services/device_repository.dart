@@ -23,7 +23,8 @@ abstract class DeviceRepository {
   Future<void> sendJson(Map<String, dynamic> payload);
 
   /// True only after this repository has observed a fresh ACTIVE license
-  /// reply on the current ESP8266 transport session. This is not persisted.
+  /// reply on the current ESP8266 transport session. This is not persisted and
+  /// gates both protected controls and real-module telemetry output.
   bool get hasAuthoritativeActiveLicense;
 
   /// Streams live updates emitted by the device.

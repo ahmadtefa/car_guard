@@ -19,8 +19,8 @@ class DashboardNotifier extends Notifier<DashboardState> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    // The dashboard is read-only telemetry and remains visible while the
-    // module is LOCKED. Protected controls use the separate license gate.
+    // Keep the dashboard shell available while the module is LOCKED; the
+    // device-status stream supplies disconnected placeholders until ACTIVE.
     final dataAccessAllowed = settingsReady;
     _dataAccessAllowed = dataAccessAllowed;
 

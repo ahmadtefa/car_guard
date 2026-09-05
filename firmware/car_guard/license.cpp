@@ -5,7 +5,7 @@
 //    * decode Base32 -> 83 bytes (19 payload + 64 raw signature)
 //    * ECDSA P-256 / SHA-256 signature verification (no DER)
 //    * device serial check (chip-derived "KCG_XXXXXXXX")
-//    * NTP-based activation time (never phone/app time)
+//    * phone-supplied activation time (no network time dependency)
 //    * transition policy (LOCKED/TEMPORARY/PERMANENT)
 //    * replay protection (SHA-256 fingerprint of the whole code)
 //    * calendar-aware (clamped) expiry for temporary licenses
@@ -21,7 +21,25 @@
 
 // Internal license record in RAM
 static LicenseRecord _licenseRecord;
-static bool _sntpConfigured = false;
+
+// The app supplies UTC Unix seconds. Keep that value as a monotonic runtime
+// base so temporary-license checks do not call an external time service.
+static uint32_t _phoneTimeEpoch = 0;
+static uint32_t _phoneTimeMillis = 0;
+static bool _phoneTimeAvailable = false;
+
+// Last phone timestamp accepted by the anti-rollback check. The EEPROM copy
+// is refreshed in coarse intervals, plus immediately for activation/rollback
+// transitions, so a status poll does not cause an EEPROM write every time.
+static uint32_t _lastPhoneTime = 0;
+static uint32_t _lastPersistedPhoneTime = 0;
+static bool _clockRecordValid = false;
+static bool _clockRollbackDetected = false;
+static bool _clockRollbackPersisted = false;
+static bool _temporaryExpired = false;
+static bool _temporaryExpiredPersisted = false;
+static const uint32_t PHONE_CLOCK_PERSIST_INTERVAL = 60;
+
 char last_activation_reason[64] = "";
 
 // ---------------------------------------------------------
@@ -109,28 +127,173 @@ static bool add_months_clamped(uint32_t epoch, int months, uint32_t& outEpoch) {
 }
 
 // ---------------------------------------------------------
-// NTP: obtain a trusted time (never phone / app provided).
-// configTime is idempotent; it is started lazily so a permanent license
-// can boot without waiting for a network. Temporary-license status checks
-// require a plausible NTP timestamp before they can grant ACTIVE.
+// Phone time validation, persistence and runtime clock.
+//
+// The timestamp is deliberately outside the signed 83-byte license payload:
+// the license cryptography and payload layout remain unchanged. It is accepted
+// only as a valid Unix-seconds value and is then advanced with millis() while
+// the ESP8266 remains powered. The app refreshes it on LICENSE_STATUS, which
+// also restores the time base after a reboot without an external time service.
 // ---------------------------------------------------------
-static void ensure_ntp_configured() {
-  if (_sntpConfigured) return;
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov", "ntp.aliyun.com");
-  _sntpConfigured = true;
+static uint32_t compute_clock_checksum(const LicenseClockRecord& rec) {
+  LicenseClockRecord tmp = rec;
+  tmp.checksum = 0;
+  const uint8_t* p = reinterpret_cast<const uint8_t*>(&tmp);
+  size_t len = offsetof(LicenseClockRecord, checksum);
+  uint32_t sum = 0;
+  for (size_t i = 0; i < len; i++) {
+    sum = sum + p[i];
+  }
+  return sum;
 }
 
-static uint32_t license_wait_ntp_time(uint32_t timeout_ms) {
-  ensure_ntp_configured();
-  uint32_t start = millis();
-  while (millis() - start < timeout_ms) {
-    time_t now = time(nullptr);
-    if ((uint64_t)now > (uint64_t)LICENSE_NTP_MIN_VALID_EPOCH) {
-      return (uint32_t)now;
-    }
-    delay(100);
+static bool valid_phone_epoch(uint32_t epoch) {
+  return epoch >= LICENSE_MIN_VALID_EPOCH;
+}
+
+static uint32_t current_phone_epoch() {
+  if (!_phoneTimeAvailable) return 0;
+
+  const uint32_t elapsedSeconds = (millis() - _phoneTimeMillis) / 1000UL;
+  if (0xFFFFFFFFUL - _phoneTimeEpoch < elapsedSeconds) {
+    return 0xFFFFFFFFUL;
   }
-  return 0;
+  return _phoneTimeEpoch + elapsedSeconds;
+}
+
+static bool persist_phone_clock(uint32_t lastPhoneTime,
+                                bool clockRollback,
+                                bool temporaryExpired) {
+  if (!valid_phone_epoch(lastPhoneTime)) return false;
+
+  LicenseClockRecord rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.magic = LICENSE_CLOCK_EEPROM_MAGIC;
+  rec.version = LICENSE_CLOCK_EEPROM_VERSION;
+  rec.clockRollback = clockRollback ? 1 : 0;
+  rec.temporaryExpired = temporaryExpired ? 1 : 0;
+  rec.lastPhoneTime = lastPhoneTime;
+  rec.checksum = compute_clock_checksum(rec);
+
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.put(LICENSE_CLOCK_EEPROM_OFFSET, rec);
+  const bool ok = EEPROM.commit();
+  EEPROM.end();
+
+  if (ok) {
+    _clockRecordValid = true;
+    _lastPersistedPhoneTime = lastPhoneTime;
+    _clockRollbackPersisted = clockRollback;
+    _temporaryExpiredPersisted = temporaryExpired;
+  }
+  return ok;
+}
+
+static void load_phone_clock() {
+  _phoneTimeEpoch = 0;
+  _phoneTimeMillis = 0;
+  _phoneTimeAvailable = false;
+  _lastPhoneTime = 0;
+  _lastPersistedPhoneTime = 0;
+  _clockRecordValid = false;
+  _clockRollbackDetected = false;
+  _clockRollbackPersisted = false;
+  _temporaryExpired = false;
+  _temporaryExpiredPersisted = false;
+
+  EEPROM.begin(EEPROM_SIZE);
+  LicenseClockRecord rec;
+  EEPROM.get(LICENSE_CLOCK_EEPROM_OFFSET, rec);
+  EEPROM.end();
+
+  const bool valid =
+      rec.magic == LICENSE_CLOCK_EEPROM_MAGIC &&
+      rec.version == LICENSE_CLOCK_EEPROM_VERSION &&
+      rec.checksum == compute_clock_checksum(rec) &&
+      valid_phone_epoch(rec.lastPhoneTime);
+  if (!valid) return;
+
+  _lastPhoneTime = rec.lastPhoneTime;
+  _lastPersistedPhoneTime = rec.lastPhoneTime;
+  _clockRecordValid = true;
+  _clockRollbackDetected = rec.clockRollback != 0;
+  _clockRollbackPersisted = _clockRollbackDetected;
+  _temporaryExpired = rec.temporaryExpired != 0;
+  _temporaryExpiredPersisted = _temporaryExpired;
+
+  // Continue from the last accepted time until the app supplies a fresher
+  // value. This is deliberately monotonic during the current boot.
+  _phoneTimeEpoch = rec.lastPhoneTime;
+  _phoneTimeMillis = millis();
+  _phoneTimeAvailable = true;
+}
+
+static bool phone_time_would_rollback(uint32_t epoch) {
+  return _lastPhoneTime != 0 && epoch < _lastPhoneTime;
+}
+
+enum PhoneTimeResult {
+  PHONE_TIME_ACCEPTED = 0,
+  PHONE_TIME_INVALID = 1,
+  PHONE_TIME_ROLLBACK = 2,
+  PHONE_TIME_PERSIST_FAILED = 3,
+};
+
+static void record_clock_rollback() {
+  _clockRollbackDetected = true;
+  if (!_clockRollbackPersisted) {
+    // Keep the previous trusted time; only persist the diagnostic flag.
+    persist_phone_clock(_lastPhoneTime, true, _temporaryExpired);
+  }
+}
+
+static PhoneTimeResult accept_phone_time(uint32_t epoch,
+                                         bool forcePersist,
+                                         bool clearTemporaryExpired) {
+  if (!valid_phone_epoch(epoch)) return PHONE_TIME_INVALID;
+
+  if (phone_time_would_rollback(epoch)) {
+    record_clock_rollback();
+    return PHONE_TIME_ROLLBACK;
+  }
+
+  const uint32_t runningTime = current_phone_epoch();
+  const bool persistNeeded =
+      forcePersist ||
+      !_clockRecordValid ||
+      (epoch > _lastPersistedPhoneTime &&
+       epoch - _lastPersistedPhoneTime >= PHONE_CLOCK_PERSIST_INTERVAL) ||
+      (_clockRollbackDetected != _clockRollbackPersisted) ||
+      (clearTemporaryExpired && _temporaryExpired);
+
+  const bool nextTemporaryExpired =
+      clearTemporaryExpired ? false : _temporaryExpired;
+  if (persistNeeded &&
+      !persist_phone_clock(epoch, _clockRollbackDetected, nextTemporaryExpired)) {
+    return PHONE_TIME_PERSIST_FAILED;
+  }
+
+  _lastPhoneTime = epoch;
+  if (!_phoneTimeAvailable || epoch > runningTime) {
+    _phoneTimeEpoch = epoch;
+    _phoneTimeMillis = millis();
+    _phoneTimeAvailable = true;
+  }
+  if (clearTemporaryExpired) {
+    _temporaryExpired = false;
+  }
+  return PHONE_TIME_ACCEPTED;
+}
+
+static void mark_temporary_expired() {
+  if (_temporaryExpired) return;
+  _temporaryExpired = true;
+
+  // This is a one-time write for the current license state. If the write
+  // fails, keep the RAM lock and avoid repeatedly wearing EEPROM.
+  if (!_temporaryExpiredPersisted) {
+    persist_phone_clock(_lastPhoneTime, _clockRollbackDetected, true);
+  }
 }
 
 // ---------------------------------------------------------
@@ -161,9 +324,15 @@ static TransitionState current_transition_state(uint32_t now) {
   if (!record_matches_device()) return ST_LOCKED;
   if (_licenseRecord.status != LICENSE_ACTIVE) return ST_LOCKED;
   if (_licenseRecord.type == LICENSE_PERMANENT) return ST_PERM_ACTIVE;
-  // Temporary: 'active' only if not expired.
-  if (_licenseRecord.expirationEpoch == 0) return ST_LOCKED;
-  if (now >= _licenseRecord.expirationEpoch) return ST_LOCKED;
+  // Temporary: 'active' only if not expired. The sticky expired bit prevents
+  // a later lower phone timestamp from reviving an already-ended term.
+  if (_temporaryExpired || _licenseRecord.expirationEpoch == 0) {
+    return ST_LOCKED;
+  }
+  if (now >= _licenseRecord.expirationEpoch) {
+    mark_temporary_expired();
+    return ST_LOCKED;
+  }
   return ST_TEMP_ACTIVE;
 }
 
@@ -239,6 +408,10 @@ void license_load() {
   } else {
     license_init();
   }
+
+  // Load the separate anti-rollback clock record without changing the
+  // existing LicenseRecord or its EEPROM offset.
+  load_phone_clock();
 }
 
 bool license_is_active() {
@@ -249,15 +422,16 @@ bool license_is_active() {
     return false;
   }
 
-  // A TEMPORARY license is only considered active while trusted NTP time is
-  // available and the term has not expired. PERMANENT licenses do not need a
-  // clock and never expire.
+  // A TEMPORARY license is considered active while the phone-supplied runtime
+  // clock is available and the term has not expired. PERMANENT licenses do not
+  // need a clock and never expire.
   if (_licenseRecord.type == LICENSE_TEMPORARY) {
-    if (_licenseRecord.expirationEpoch == 0 || !license_has_ntp_time()) {
+    const uint32_t now = current_phone_epoch();
+    if (_temporaryExpired || _licenseRecord.expirationEpoch == 0 || now == 0) {
       return false;
     }
-    time_t now = time(nullptr);
-    if ((uint64_t)now >= (uint64_t)_licenseRecord.expirationEpoch) {
+    if (now >= _licenseRecord.expirationEpoch) {
+      mark_temporary_expired();
       return false; // expired -> LOCKED
     }
   }
@@ -291,10 +465,13 @@ const char* license_get_status_reason() {
       _licenseRecord.expirationEpoch == 0) {
     return "INVALID";
   }
-  if (!license_has_ntp_time()) return "TIME_UNAVAILABLE";
-  return (time(nullptr) >= (time_t)_licenseRecord.expirationEpoch)
-             ? "EXPIRED"
-             : "ACTIVE";
+  const uint32_t now = current_phone_epoch();
+  if (_temporaryExpired || now >= _licenseRecord.expirationEpoch) {
+    mark_temporary_expired();
+    return "EXPIRED";
+  }
+  if (now == 0) return "TIME_UNAVAILABLE";
+  return "ACTIVE";
 }
 
 const char* license_get_status_message() {
@@ -302,7 +479,7 @@ const char* license_get_status_message() {
   if (strcmp(reason, "ACTIVE") == 0) return "License active";
   if (strcmp(reason, "EXPIRED") == 0) return "Temporary license expired";
   if (strcmp(reason, "TIME_UNAVAILABLE") == 0) {
-    return "Waiting for trusted network time";
+    return "Waiting for phone time";
   }
   if (strcmp(reason, "SERIAL_MISMATCH") == 0) {
     return "License belongs to another device";
@@ -311,16 +488,10 @@ const char* license_get_status_message() {
   return "License required for this device";
 }
 
-bool license_has_ntp_time() {
-  ensure_ntp_configured();
-  time_t now = time(nullptr);
-  return (uint64_t)now > (uint64_t)LICENSE_NTP_MIN_VALID_EPOCH;
-}
-
 // ---------------------------------------------------------
 // Activation
 // ---------------------------------------------------------
-bool license_attempt_activate(const String& base32code) {
+bool license_attempt_activate(const String& base32code, uint32_t activationEpoch) {
   strcpy(last_activation_reason, "");
 
   if (base32code.length() == 0) {
@@ -331,6 +502,7 @@ bool license_attempt_activate(const String& base32code) {
 #if PUBLIC_KEY_CONFIGURED == 0
   // No production public key configured. Every activation must fail.
   (void)base32code;
+  (void)activationEpoch;
   strcpy(last_activation_reason, "PUBLIC_KEY_NOT_CONFIGURED");
   return false;
 #endif
@@ -378,14 +550,23 @@ bool license_attempt_activate(const String& base32code) {
     return false;
   }
 
-  // 5. NTP time (never accept phone/app-provided time). ~8 s timeout.
-  uint32_t now = license_wait_ntp_time(8000);
-  if (now == 0) {
-    strcpy(last_activation_reason, "NTP_UNAVAILABLE");
+  // 5. Validate the phone timestamp after the signed code checks. It is only
+  // sanity-checked here; no external time lookup is performed.
+  if (!valid_phone_epoch(activationEpoch)) {
+    strcpy(last_activation_reason, "INVALID_TIMESTAMP");
+    return false;
+  }
+  if (phone_time_would_rollback(activationEpoch)) {
+    record_clock_rollback();
+    strcpy(last_activation_reason, "CLOCK_ROLLBACK");
     return false;
   }
 
-  // 6. Replay protection: SHA-256 fingerprint of the whole 83-byte code.
+  // 6. Use the validated phone timestamp for transition and expiry
+  // calculations. The signed payload, Base32 and signature rules are unchanged.
+  const uint32_t now = activationEpoch;
+
+  // 7. Replay protection: SHA-256 fingerprint of the whole 83-byte code.
   uint8_t replay[32];
   license_compute_replay_hash(decoded, decodedLen, replay);
   bool alreadyUsed =
@@ -396,14 +577,13 @@ bool license_attempt_activate(const String& base32code) {
     return false;
   }
 
-  // 7. Transition policy (LOCKED/TEMPORARY/PERMANENT).
+  // 8. Transition policy (LOCKED/TEMPORARY/PERMANENT).
   uint8_t newType = (pl.type == LICENSE_PERMANENT) ? LICENSE_PERMANENT : LICENSE_TEMPORARY;
   if (!transition_allowed(newType, now)) {
     return false; // reason already set
   }
 
-  // 8. Compute activation (creation) date + expiration from NTP time.
-  //    creation date = current NTP time (authoritative, not from the code/app).
+  // 9. Compute activation (creation) date + expiration from the phone time.
   uint32_t activation = now;
   uint32_t expiration = 0; // 0 = permanent
   if (newType == LICENSE_TEMPORARY) {
@@ -413,7 +593,7 @@ bool license_attempt_activate(const String& base32code) {
     }
   }
 
-  // 9. Build + persist ONLY after every check passes.
+  // 10. Build + persist ONLY after every check passes.
   LicenseRecord rec;
   memset(&rec, 0, sizeof(rec));
   rec.magic = LICENSE_EEPROM_MAGIC;
@@ -426,6 +606,19 @@ bool license_attempt_activate(const String& base32code) {
   rec.activationEpoch = activation;
   rec.expirationEpoch = expiration;
   memcpy(rec.replayHash, replay, sizeof(rec.replayHash));
+
+  // Persist the accepted phone time before the license record. This guarantees
+  // a reboot cannot compare a future activation against an older clock value.
+  const PhoneTimeResult timeResult =
+      accept_phone_time(activationEpoch, true, true);
+  if (timeResult == PHONE_TIME_ROLLBACK) {
+    strcpy(last_activation_reason, "CLOCK_ROLLBACK");
+    return false;
+  }
+  if (timeResult != PHONE_TIME_ACCEPTED) {
+    strcpy(last_activation_reason, "CLOCK_PERSIST_FAILED");
+    return false;
+  }
 
   if (!license_persist(rec)) {
     strcpy(last_activation_reason, "EEPROM_COMMIT_FAILED");
@@ -444,7 +637,7 @@ bool license_attempt_activate(const String& base32code) {
 // the reply string. The caller (car_guard.ino onWsEvent) sends the reply.
 // Security: never returns the replay hash, never echoes or logs the raw
 // activation code, and relies on license_attempt_activate() — the only
-// activation path — which itself requires a valid NTP-derived time.
+// activation path — which itself requires a valid phone timestamp.
 // =========================================================
 
 // Minimal, dependency-free JSON string-value lookup for `"key":"..."`.
@@ -478,6 +671,48 @@ static bool jsonGetString(const char* json, const char* key, String& out) {
   return true;
 }
 
+// Minimal JSON unsigned-integer lookup for UTC Unix-second fields.
+// The activation timestamp is numeric, required, non-empty and bounded to the
+// same uint32_t range used by LicenseRecord; no JSON library or network clock
+// is involved.
+static bool jsonGetUint32(const char* json, const char* key, uint32_t& out) {
+  if (json == NULL || key == NULL) return false;
+
+  char needle[48];
+  size_t kn = strlen(key);
+  if (kn + 3 > sizeof(needle)) return false;
+  needle[0] = '"';
+  memcpy(needle + 1, key, kn);
+  needle[kn + 1] = '"';
+  needle[kn + 2] = '\0';
+
+  const char* p = strstr(json, needle);
+  if (p == NULL) return false;
+  p += strlen(needle);
+
+  while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+  if (*p != ':') return false;
+  p++;
+  while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+  if (*p < '0' || *p > '9') return false;
+
+  uint64_t value = 0;
+  while (*p >= '0' && *p <= '9') {
+    const uint64_t digit = (uint64_t)(*p - '0');
+    if (value > (0xFFFFFFFFULL - digit) / 10ULL) return false;
+    value = value * 10ULL + digit;
+    p++;
+  }
+
+  while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+  if (*p != ',' && *p != '}' && *p != '\0') return false;
+
+  const uint32_t epoch = (uint32_t)value;
+  if (!valid_phone_epoch(epoch)) return false;
+  out = epoch;
+  return true;
+}
+
 bool license_handle_ws_command(const char* json, const char* deviceSerial, String& response) {
   if (json == NULL) return false;
 
@@ -494,6 +729,16 @@ bool license_handle_ws_command(const char* json, const char* deviceSerial, Strin
 
   // 2. LICENSE_STATUS  (no secrets: no replay hash, no serial, no code)
   if (cmd == "LICENSE_STATUS") {
+    uint32_t currentTime = 0;
+    // The field is optional for compatibility with older clients. Car Guard
+    // sends it on every status query so temporary expiry also works after a
+    // reboot without an external time service.
+    if (jsonGetUint32(json, "currentTime", currentTime)) {
+      // A rollback is recorded and rejected; the previous runtime clock stays
+      // in force, so a stale phone cannot extend a temporary license.
+      accept_phone_time(currentTime, false, false);
+    }
+
     bool active = license_is_active();
     String licType = "NONE";
     uint32_t expires = 0;
@@ -520,7 +765,14 @@ bool license_handle_ws_command(const char* json, const char* deviceSerial, Strin
       response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"ERROR\",\"reason\":\"MISSING_CODE\",\"expires\":0}";
       return true;
     }
-    bool ok = license_attempt_activate(code);
+
+    uint32_t activationTime = 0;
+    if (!jsonGetUint32(json, "activationTime", activationTime)) {
+      response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"ERROR\",\"reason\":\"INVALID_TIMESTAMP\",\"expires\":0}";
+      return true;
+    }
+
+    bool ok = license_attempt_activate(code, activationTime);
     if (ok) {
       response = "{\"type\":\"LICENSE_RESULT\",\"status\":\"OK\",\"reason\":\"";
       response += String(last_activation_reason);

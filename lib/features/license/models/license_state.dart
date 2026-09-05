@@ -71,14 +71,14 @@ class LicenseState {
   bool get hasError => checkStatus == LicenseCheckStatus.error;
 
   /// True only after the ESP8266 reports ACTIVE on the current session.
-  /// This gate protects fan, buzzer and other module-control commands; it is
-  /// not a gate for read-only telemetry.
+  /// This proof gates fan/buzzer controls and the real-module telemetry
+  /// output; demo telemetry remains local and independent.
   bool get canUseProtectedControls =>
       status == LicenseDeviceStatus.active &&
       checkStatus == LicenseCheckStatus.licensed;
 
-  /// Backward-compatible name for callers that still consume the license
-  /// state. It now describes protected controls, never the read-only stream.
+  /// Backward-compatible name for callers that consume the real module
+  /// output. It is true only for the fresh ACTIVE session proof.
   bool get canUseRealData => canUseProtectedControls;
 
   bool get isActivating => activationState == LicenseActivationState.loading;

@@ -7,7 +7,7 @@
 // =========================================================
 //  CarGuard License System — storage layout + public API
 //  Stage 3.2: full activation (BearerSSL ECDSA P-256 / SHA-256),
-//  NTP-based activation date, transition + replay policy.
+//  phone-supplied activation time, transition + replay policy.
 // =========================================================
 
 // ---------------------------------------------------------
@@ -28,8 +28,10 @@
 //     -> [0, 183].
 //   * the license record lives at the fixed offset below, clear of
 //     the settings region: [256, 256+sizeof(LicenseRecord)-1].
-//   * EEPROM_SIZE 512 leaves room for both without any overlap and
-//     without changing the existing settings layout.
+//   * the appended phone-clock record follows LicenseRecord and stores the
+//     anti-rollback timestamp/flags without moving either existing region.
+//   * EEPROM_SIZE 512 leaves room for all records without any overlap and
+//     without changing the existing settings or LicenseRecord layout.
 // ---------------------------------------------------------
 #define LICENSE_EEPROM_OFFSET 256
 #define LICENSE_EEPROM_MAGIC 0x4C494345 // 'LICE'
@@ -45,9 +47,9 @@
 #define LICENSE_SIGNATURE_LEN     64
 #define LICENSE_PAYLOAD_SERIAL_LEN 12
 
-// Minimum time_t considered a valid NTP-synchronized timestamp
-// (2022-01-01 00:00:00 UTC).
-#define LICENSE_NTP_MIN_VALID_EPOCH 1640995200
+// Minimum Unix timestamp accepted from the phone (2022-01-01 00:00:00 UTC).
+// It is only a sanity bound; the phone is the time source for activation.
+#define LICENSE_MIN_VALID_EPOCH 1640995200
 
 // ---------------------------------------------------------
 // License state / type enums
@@ -85,17 +87,37 @@ struct LicenseRecord {
   uint8_t  type;            // LicenseType
   uint8_t  reserved;
   char     serial[24];      // NUL terminated device serial
-  uint32_t activationEpoch; // seconds since epoch (UTC) = creation date (NTP)
+  uint32_t activationEpoch; // seconds since epoch (UTC) supplied by the phone
   uint32_t expirationEpoch; // 0 for permanent
   uint8_t  replayHash[32];  // SHA-256 of the whole decoded 83-byte license code
   uint32_t checksum;        // simple additive checksum
 };
 
+// A separate append-only EEPROM record keeps the anti-rollback clock state
+// without changing LicenseRecord or moving the existing license record.
+#define LICENSE_CLOCK_EEPROM_OFFSET (LICENSE_EEPROM_OFFSET + sizeof(LicenseRecord))
+#define LICENSE_CLOCK_EEPROM_MAGIC 0x50434C4B // 'PCLK'
+#define LICENSE_CLOCK_EEPROM_VERSION 1
+
+struct LicenseClockRecord {
+  uint32_t magic;           // LICENSE_CLOCK_EEPROM_MAGIC
+  uint8_t  version;         // LICENSE_CLOCK_EEPROM_VERSION
+  uint8_t  clockRollback;   // sticky diagnostic/anti-rollback state
+  uint8_t  temporaryExpired; // sticky state for an expired temporary license
+  uint8_t  reserved;
+  uint32_t lastPhoneTime;   // last accepted phone UTC Unix seconds
+  uint32_t checksum;        // additive checksum over preceding fields
+};
+
 // Compile-time sanity checks
 static_assert(sizeof(LicenseRecord) == 76, "Unexpected LicenseRecord size");
+static_assert(sizeof(LicenseClockRecord) == 16,
+              "Unexpected LicenseClockRecord size");
 #ifdef EEPROM_SIZE
 static_assert(LICENSE_EEPROM_OFFSET + sizeof(LicenseRecord) <= EEPROM_SIZE,
               "LicenseRecord does not fit in configured EEPROM_SIZE");
+static_assert(LICENSE_CLOCK_EEPROM_OFFSET + sizeof(LicenseClockRecord) <= EEPROM_SIZE,
+              "LicenseClockRecord does not fit in configured EEPROM_SIZE");
 #endif
 
 // ---------------------------------------------------------
@@ -118,13 +140,10 @@ const char* license_get_status_message();
 // Attempt activation using the Base32 string code (RFC4648 uppercase, no padding).
 // Returns true if activation succeeded and the license was persisted. On failure
 // returns false and sets a textual reason in last_activation_reason (max 64 chars).
-bool license_attempt_activate(const String& base32code);
+bool license_attempt_activate(const String& base32code, uint32_t activationEpoch);
 
 // Last activation attempt reason (populated on failure)
 extern char last_activation_reason[64];
-
-// True when the device has a plausible NTP-synchronized time available.
-bool license_has_ntp_time();
 
 // ---------------------------------------------------------
 // License commands over WebSocket (dependency-free, no socket / no secrets).
@@ -133,8 +152,8 @@ bool license_has_ntp_time();
 // `deviceSerial` is the device identity string (e.g. getChipId()).
 // Recognized commands:
 //   {"cmd":"DEVICE_SERIAL"}
-//   {"cmd":"LICENSE_STATUS"}
-//   {"cmd":"LICENSE_ACTIVATE","code":"<BASE32>"}
+//   {"cmd":"LICENSE_STATUS","currentTime":<UTC epoch>} (currentTime optional)
+//   {"cmd":"LICENSE_ACTIVATE","code":"<BASE32>","activationTime":<UTC epoch>}
 //
 // On success fills `response` with the reply and returns true. Returns false
 // if the message is NOT a recognized license command (caller should ignore it,

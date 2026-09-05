@@ -537,6 +537,16 @@ void updateLedStatus() {
 // WEBSOCKET BROADCAST
 // =========================================================
 void broadcastWsData() {
+  // Telemetry is an output gate only: sensor acquisition and the existing
+  // filters keep running, but a locked/expired license never receives a
+  // temperature or voltage frame. Reset the change detector so the first
+  // frame after re-activation is sent immediately.
+  if (!license_is_active()) {
+    lastBroadcastTemp = -999;
+    lastBroadcastVolt = -999;
+    return;
+  }
+
   if (webSocket.connectedClients() == 0) return;
 
   if (abs(filteredTemp - lastBroadcastTemp) < 0.5 &&
@@ -572,6 +582,17 @@ void sendLicenseWsReply(uint8_t clientId, const char* json) {
   String serial = getChipId();
   if (license_handle_ws_command(json, serial.c_str(), response)) {
     webSocket.sendTXT(clientId, response);
+
+    // A successful status/activation reply may be the transition from
+    // LOCKED to ACTIVE. Push the first real telemetry frame immediately;
+    // broadcastWsData still applies the same license gate and CSV format.
+    if (license_is_active() &&
+        (response.indexOf("\"type\":\"LICENSE_STATUS\"") >= 0 ||
+         response.indexOf("\"type\":\"LICENSE_RESULT\"") >= 0)) {
+      lastBroadcastTemp = -999;
+      lastBroadcastVolt = -999;
+      broadcastWsData();
+    }
   }
 }
 
@@ -643,20 +664,27 @@ void handleData() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
 
+  // This is deliberately an output gate, not a sensor gate. Keep the
+  // established sensor acquisition/calibration and JSON field names intact,
+  // but never put the real readings in /data while LOCKED/expired.
+  const bool licenseActive = license_is_active();
+  const float exposedTemp = licenseActive ? filteredTemp : 0.0f;
+  const float exposedVolt = licenseActive ? filteredVolt : 0.0f;
+
   // [APP SYNC] alarm + muted mirror the buzzer state on the module.
   String json = "{";
-  json += "\"temp\":"     + String(filteredTemp, 1) + ",";
-  json += "\"volt\":"     + String(filteredVolt, 2) + ",";
+  json += "\"temp\":"     + String(exposedTemp, 1) + ",";
+  json += "\"volt\":"     + String(exposedVolt, 2) + ",";
   json += "\"maxTemp\":"  + String(MAX_TEMP)         + ",";
   json += "\"fanOnTemp\":" + String(FAN_ON_TEMP)     + ",";
   json += "\"minVolt\":"  + String(MIN_VOLT)         + ",";
   json += "\"maxVolt\":"  + String(MAX_VOLT)         + ",";
   json += "\"offset\":"   + String(tempOffset, 2)   + ",";
-  json += "\"fanState\":" + String((license_is_active() &&
+  json += "\"fanState\":" + String((licenseActive &&
                                       (fanState || fanTestActive)) ? 1 : 0) + ",";
-  json += "\"alarm\":"    + String((license_is_active() && alarmActive) ? 1 : 0) + ",";
-  json += "\"muted\":"    + String((license_is_active() && buzzMuted) ? 1 : 0) + ",";
-  json += "\"licenseStatus\":\"" + String(license_is_active() ? "ACTIVE" : "LOCKED") + "\",";
+  json += "\"alarm\":"    + String((licenseActive && alarmActive) ? 1 : 0) + ",";
+  json += "\"muted\":"    + String((licenseActive && buzzMuted) ? 1 : 0) + ",";
+  json += "\"licenseStatus\":\"" + String(licenseActive ? "ACTIVE" : "LOCKED") + "\",";
   json += "\"licenseType\":\"" +
           String(license_has_record()
                      ? (license_get_type() == LICENSE_PERMANENT ? "PERMANENT" : "TEMPORARY")
@@ -882,6 +910,10 @@ void handleRestart() {
 void handleCalibrateVoltage() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
   if (!server.hasArg("realVolt")) {
     server.send(400, "text/plain", "Missing realVolt");
@@ -938,8 +970,15 @@ void handleRoot() {
     html += license_get_status_message();
     html += "</small></div>";
   }
-  html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
-  html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
+  if (licenseActive) {
+    html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
+    html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
+  } else {
+    // Keep the existing cards/layout, but never render sensor values while
+    // the device is locked or a temporary license has expired.
+    html += "<div class='data'>🌡️ Temp: <span>LICENSE_REQUIRED</span></div>";
+    html += "<div class='data'>⚡ Volt: <span>LICENSE_REQUIRED</span></div>";
+  }
   html += "<div class='data'>🌀 Fan: <span>"  +
           String((licenseActive && fanState) ? "ON" : "OFF") + "</span></div>";
   html += "<div class='data'>📱 Clients: <span>" + String(WiFi.softAPgetStationNum()) + "</span></div>";

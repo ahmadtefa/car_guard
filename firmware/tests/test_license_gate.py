@@ -37,12 +37,19 @@ class LicenseGateStaticTest(unittest.TestCase):
             "LICENSE_PAYLOAD_SERIAL_LEN": "12",
             "LICENSE_EEPROM_OFFSET": "256",
             "LICENSE_EEPROM_VERSION": "1",
-            "LICENSE_NTP_MIN_VALID_EPOCH": "1640995200",
+            "LICENSE_MIN_VALID_EPOCH": "1640995200",
+            "LICENSE_CLOCK_EEPROM_MAGIC": "0x50434C4B",
+            "LICENSE_CLOCK_EEPROM_VERSION": "1",
         }.items():
             self.assertRegex(LICENSE_H, rf"#define\s+{name}\s+{value}\b")
         self.assertIn("LICENSE_TEMPORARY = 0", LICENSE_H)
         self.assertIn("LICENSE_PERMANENT = 1", LICENSE_H)
         self.assertIn("static_assert(sizeof(LicenseRecord) == 76", LICENSE_H)
+        self.assertIn("static_assert(sizeof(LicenseClockRecord) == 16", LICENSE_H)
+        self.assertIn("LICENSE_CLOCK_EEPROM_OFFSET", LICENSE_H)
+        self.assertIn("clockRollback", LICENSE_CPP)
+        self.assertIn("temporaryExpired", LICENSE_CPP)
+        self.assertIn("EEPROM.put(LICENSE_CLOCK_EEPROM_OFFSET", LICENSE_CPP)
         self.assertIn("EEPROM.put(LICENSE_EEPROM_OFFSET", LICENSE_CPP)
         self.assertIn("EEPROM.put(0, settings)", INO)
         self.assertNotIn("EEPROM" + ".clear(", INO + LICENSE_CPP)
@@ -55,7 +62,14 @@ class LicenseGateStaticTest(unittest.TestCase):
             "verify_ecdsa_p256_sha256",
             "license_parse_payload",
             "SERIAL_MISMATCH",
-            "license_wait_ntp_time",
+            "CLOCK_ROLLBACK",
+            "clockRollback",
+            "jsonGetUint32",
+            "activationTime",
+            "currentTime",
+            "accept_phone_time",
+            "load_phone_clock",
+            "CLOCK_PERSIST_FAILED",
             "license_compute_replay_hash",
             "ALREADY_USED",
             "transition_allowed",
@@ -68,6 +82,17 @@ class LicenseGateStaticTest(unittest.TestCase):
         self.assertIn("newType == LICENSE_PERMANENT) return true", LICENSE_CPP)
         self.assertIn("case ST_PERM_ACTIVE", LICENSE_CPP)
         self.assertIn("return false; // reason already set", LICENSE_CPP)
+        self.assertIn('"INVALID_TIMESTAMP"', LICENSE_CPP)
+        self.assertIn("const uint32_t now = activationEpoch", LICENSE_CPP)
+        self.assertNotIn("license_wait_ntp_time", LICENSE_CPP)
+        self.assertNotIn("NTP_UNAVAILABLE", LICENSE_CPP)
+        self.assertNotIn("configTime(", LICENSE_CPP)
+        self.assertIn('"activationTime"', LICENSE_CPP)
+        self.assertIn('"currentTime"', LICENSE_CPP)
+        status_handler = section(LICENSE_CPP, 'if (cmd == "LICENSE_STATUS")', '  // 3. LICENSE_ACTIVATE')
+        self.assertNotIn("license_persist", status_handler)
+        self.assertNotIn("license_attempt_activate", status_handler)
+        self.assertIn("accept_phone_time(currentTime, false, false)", status_handler)
         self.assertIn("br_ecdsa_vrfy_raw_get_default", HELPERS_CPP)
         self.assertIn("sig_len != LICENSE_SIGNATURE_LEN", HELPERS_CPP)
 

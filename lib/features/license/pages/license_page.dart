@@ -115,8 +115,12 @@ class _LicensePageState extends ConsumerState<LicensePage> {
         return l.failureInvalidDate;
       case LicenseFailureReason.invalidMonths:
         return l.failureInvalidMonths;
-      case LicenseFailureReason.ntpUnavailable:
-        return l.failureNtpUnavailable;
+      case LicenseFailureReason.invalidTimestamp:
+        return l.failureInvalidTimestamp;
+      case LicenseFailureReason.clockRollback:
+        return l.failureClockRollback;
+      case LicenseFailureReason.clockPersistFailed:
+        return l.failureClockPersistFailed;
       case LicenseFailureReason.alreadyUsed:
         return l.failureAlreadyUsed;
       case LicenseFailureReason.permanentAlreadyActive:

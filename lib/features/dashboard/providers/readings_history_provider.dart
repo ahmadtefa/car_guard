@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/reading_sample.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 
 /// Keeps a sliding window of live readings (about five minutes at one
@@ -22,9 +23,15 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    // History is a read-only view of the same telemetry that the dashboard
-    // displays, so it remains available while the module is LOCKED.
-    final dataAccessAllowed = settingsReady;
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    // History is a view of real telemetry and must be cleared when the
+    // authoritative module license is no longer ACTIVE. Demo mode remains
+    // local and does not depend on the module license.
+    final dataAccessAllowed =
+        settingsReady &&
+        (demoEnabled || ref.watch(licenseAuthorizationProvider));
     _dataAccessAllowed = dataAccessAllowed;
 
     if (!dataAccessAllowed) {
@@ -40,8 +47,12 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
         next.whenData((status) {
           if (!_dataAccessAllowed || generation != _accessGeneration) return;
 
-          // Ignore disconnected payloads so charts don't drop to zero.
-          if (!status.connected) return;
+          // A locked/expired module is represented as disconnected. Clear
+          // history instead of retaining old sensor values in charts.
+          if (!status.connected) {
+            state = const <ReadingSample>[];
+            return;
+          }
 
           state = [
             ...state,

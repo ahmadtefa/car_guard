@@ -11,12 +11,15 @@ import 'dart:convert';
 ///   App -> ESP:      {"cmd":"DEVICE_SERIAL"}
 ///   ESP -> App:      {"type":"DEVICE_SERIAL","serial":"KCG_XXXXXXXX"}
 ///
-///   App -> ESP:      {"cmd":"LICENSE_STATUS"}
+///   App -> ESP:      {"cmd":"LICENSE_STATUS","currentTime":epoch}
 ///   ESP -> App:      {"type":"LICENSE_STATUS","status":"LOCKED","licenseType":"NONE","expires":0}
 ///                  | {"type":"LICENSE_STATUS","status":"ACTIVE","licenseType":"TEMPORARY","expires":epoch}
 ///                  | {"type":"LICENSE_STATUS","status":"ACTIVE","licenseType":"PERMANENT","expires":0}
 ///
-///   App -> ESP:      {"cmd":"LICENSE_ACTIVATE","code":"Base32"}
+/// The ESP8266 redacts sensor outputs and stops telemetry frames while the
+/// status is LOCKED; the license commands remain available on the same socket.
+///
+///   App -> ESP:      {"cmd":"LICENSE_ACTIVATE","code":"Base32","activationTime":epoch}
 ///   ESP -> App:      {"type":"LICENSE_RESULT","status":"OK","reason":"...","expires":epoch}
 ///                  | {"type":"LICENSE_RESULT","status":"ERROR","reason":"...","expires":0}
 ///
@@ -40,7 +43,8 @@ enum LicenseDeviceStatus {
 /// This is deliberately separate from [LicenseDeviceStatus]. The firmware
 /// protocol uses `LOCKED` for more than one reason, while the UI and control
 /// gate must not confuse "still checking" or "network unavailable" with an
-/// expired license. Read-only telemetry does not use this gate.
+/// expired license. Real-module telemetry uses the fresh ACTIVE proof as an
+/// output gate as well.
 enum LicenseCheckStatus {
   /// No fresh authoritative status has been received yet.
   checking,
@@ -155,7 +159,7 @@ class LicenseResultMessage extends LicenseMessage {
   /// Raw `"OK"` / `"ERROR"` string from the firmware.
   final String status;
 
-  /// Firmware reason string (e.g. `SERIAL_MISMATCH`, `NTP_UNAVAILABLE`).
+  /// Firmware reason string (e.g. `SERIAL_MISMATCH`, `INVALID_TIMESTAMP`).
   /// Contains no cryptographic internals for the normal UI path.
   final String reason;
 
@@ -268,8 +272,14 @@ enum LicenseFailureReason {
   /// The requested month count is out of range for a temporary license.
   invalidMonths,
 
-  /// No trusted NTP time available on the module.
-  ntpUnavailable,
+  /// The phone timestamp was missing or outside the accepted Unix range.
+  invalidTimestamp,
+
+  /// The phone clock moved behind the last trusted time.
+  clockRollback,
+
+  /// The clock record could not be persisted safely.
+  clockPersistFailed,
 
   /// The code was already used (replay protection).
   alreadyUsed,
@@ -333,10 +343,14 @@ LicenseFailureReason licenseFailureReasonFromFirmware(String? reason) {
     case 'SERIAL_MISMATCH':
       return LicenseFailureReason.serialMismatch;
 
-    case 'NTP_UNAVAILABLE':
-    case 'NTP_ERROR':
-    case 'NTP_FAILED':
-      return LicenseFailureReason.ntpUnavailable;
+    case 'INVALID_TIMESTAMP':
+      return LicenseFailureReason.invalidTimestamp;
+
+    case 'CLOCK_ROLLBACK':
+      return LicenseFailureReason.clockRollback;
+
+    case 'CLOCK_PERSIST_FAILED':
+      return LicenseFailureReason.clockPersistFailed;
 
     case 'ALREADY_USED':
       return LicenseFailureReason.alreadyUsed;
@@ -362,7 +376,9 @@ LicenseFailureReason licenseFailureReasonFromFirmware(String? reason) {
 /// Error; code/signature/device validation failures are Invalid.
 LicenseCheckStatus licenseCheckStatusForFailure(LicenseFailureReason reason) {
   switch (reason) {
-    case LicenseFailureReason.ntpUnavailable:
+    case LicenseFailureReason.invalidTimestamp:
+    case LicenseFailureReason.clockRollback:
+    case LicenseFailureReason.clockPersistFailed:
     case LicenseFailureReason.publicKeyNotConfigured:
     case LicenseFailureReason.eepromCommitFailed:
     case LicenseFailureReason.unknown:

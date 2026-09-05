@@ -8,6 +8,7 @@ import '../core/providers/widget_updater_provider.dart';
 import '../core/services/background_monitor.dart';
 import '../core/theme/app_theme.dart';
 import '../features/analysis/providers/analysis_provider.dart';
+import '../features/license/providers/license_provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 import 'router.dart';
 
@@ -25,16 +26,18 @@ class CarGuardApp extends ConsumerWidget {
     // المحلية للحالات الخطرة) من غير ما يعيد بناء الواجهة مع كل تحديث.
     ref.listen(analysisProvider, (_, _) {});
 
-    // Background monitoring consumes the same read-only telemetry as the
-    // foreground dashboard. It must not be disabled merely because the
-    // module is LOCKED; protected hardware controls remain separately gated
-    // in the repository and firmware.
+    // Background monitoring consumes the same telemetry gate as the
+    // foreground dashboard. Do not keep a foreground notification/polling
+    // loop alive while the real module is LOCKED or temporarily expired.
+    ref.watch(licenseAuthorizationProvider);
+
     void syncBackgroundMonitor() {
       final settings = ref.read(settingsProvider).value;
       final canMonitor =
           settings != null &&
           !settings.demoModeEnabled &&
-          settings.backgroundMonitoringEnabled;
+          settings.backgroundMonitoringEnabled &&
+          ref.read(licenseAuthorizationProvider);
 
       if (canMonitor) {
         // Convert the bool result to Future<void> for unawaited(); the
@@ -46,6 +49,7 @@ class CarGuardApp extends ConsumerWidget {
     }
 
     ref.listen(settingsProvider, (_, _) => syncBackgroundMonitor());
+    ref.listen(licenseAuthorizationProvider, (_, _) => syncBackgroundMonitor());
     // `ref.listen` starts on the next provider change in Riverpod 3. Run the
     // initial synchronization explicitly so persisted settings are honored
     // on the first build as well.
