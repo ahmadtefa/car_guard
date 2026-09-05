@@ -136,6 +136,10 @@ void maybeStartStaAndMdns() {
   if (settings.staSSID[0] == 0) return;
 
   WiFi.mode(WIFI_AP_STA);
+  // Let the ESP8266 station manager retry without reissuing WiFi.begin()
+  // from loop(). In AP+STA mode, repeatedly restarting the STA connection
+  // can disturb the shared radio/channel and drop AP clients.
+  WiFi.setAutoReconnect(true);
   WiFi.begin(settings.staSSID, settings.staPASS);
 }
 
@@ -1175,17 +1179,9 @@ void loop() {
     MDNS.update();
   }
 
-  // [STA+mDNS] if the hotspot link drops, quietly re-attempt the join.
-  if (settings.staSSID[0] != 0) {
-    static unsigned long lastStaCheck = 0;
-    if (millis() - lastStaCheck > 15000) {
-      lastStaCheck = millis();
-      if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("📡 STA lost — retrying join...");
-        WiFi.begin(settings.staSSID, settings.staPASS);
-      }
-    }
-  }
+  // [STA+mDNS] STA reconnects are handled by the ESP8266 WiFi manager.
+  // Do not reissue WiFi.begin() from loop(): AP+STA shares one radio and
+  // restarting the STA association can interrupt AP clients.
 
   updateSensors();
   handleAlarm();

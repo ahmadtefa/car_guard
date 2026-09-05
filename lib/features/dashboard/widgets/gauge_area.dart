@@ -62,18 +62,56 @@ Widget buildGaugeArea(
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: temperatureGauge),
-          const SizedBox(width: AppSpacing.md),
-          const Expanded(child: VoltageDeltaCard()),
-        ],
+      _ResponsivePrimaryReadings(
+        temperature: temperatureGauge,
+        voltageDifference: const VoltageDeltaCard(),
       ),
       const SizedBox(height: AppSpacing.md),
       TripCards(showControls: !compact),
     ],
   );
+}
+
+/// Uses the same natural two-column/one-column behavior as the dashboard's
+/// other responsive cards: the primary readings share a row only when the
+/// available width can support both cards without compressing their content.
+class _ResponsivePrimaryReadings extends StatelessWidget {
+  const _ResponsivePrimaryReadings({
+    required this.temperature,
+    required this.voltageDifference,
+  });
+
+  final Widget temperature;
+  final Widget voltageDifference;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sideBySide = constraints.maxWidth >= 460;
+
+        if (!sideBySide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              temperature,
+              const SizedBox(height: AppSpacing.md),
+              voltageDifference,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: temperature),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: voltageDifference),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// Keeps the existing style picker meaningful while the second primary metric
@@ -208,23 +246,15 @@ class _UnavailableGaugeArea extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _UnavailableGaugeCard(
-                label: l.engineTempLabel,
-                unit: '°C',
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _UnavailableGaugeCard(
-                label: l.voltageDifference,
-                unit: 'V',
-              ),
-            ),
-          ],
+        _ResponsivePrimaryReadings(
+          temperature: _UnavailableGaugeCard(
+            label: l.engineTempLabel,
+            unit: '°C',
+          ),
+          voltageDifference: _UnavailableGaugeCard(
+            label: l.voltageDifference,
+            unit: 'V',
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
