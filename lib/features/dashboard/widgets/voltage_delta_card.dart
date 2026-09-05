@@ -11,12 +11,13 @@ import 'mini_gauges.dart';
 
 /// Shows the live voltage difference — the module-reported value when the
 /// firmware streams one, otherwise the change over the last ~90 seconds —
-/// on a center-zero differential gauge: green to the right while charging,
-/// red to the left while dropping.
+/// as a positive-only magnitude on the selected dashboard gauge style.
 ///
 /// Style selection is shared with the temperature gauge: the classic
 /// 'cards' style keeps the original [DeltaGauge] card, while every other
-/// dashboard style delegates to the definitive [StyledDeltaGauge].
+/// dashboard style delegates to the definitive [StyledDeltaGauge]. The
+/// displayed value is always the magnitude: a negative computed delta is
+/// rendered as its absolute value — never as a negative region.
 class VoltageDeltaCard extends ConsumerWidget {
   const VoltageDeltaCard({
     super.key,
@@ -30,10 +31,11 @@ class VoltageDeltaCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
 
-    // Definitive data source: module-reported difference when the firmware
-    // streams one, otherwise the locally computed live delta; null (empty)
-    // until either exists — never a synthetic 0.00.
-    final delta = ref.watch(dashboardVoltageDeltaProvider);
+    // Definitive, positive-only data source: module-reported difference
+    // when the firmware streams one, otherwise the locally computed live
+    // delta — rendered as a magnitude. Null (empty) until either exists —
+    // never a synthetic 0.00 and never a negative reading.
+    final delta = ref.watch(voltageDeltaMagnitudeProvider);
 
     if (styleName != 'cards' &&
         AppSettings.dashboardStyleNames.contains(styleName)) {
@@ -51,17 +53,8 @@ class VoltageDeltaCard extends ConsumerWidget {
       valueText = '--.- V';
       statusText = l.collectingData;
     } else {
-      final sign = delta >= 0 ? '+' : '';
-
-      valueText = '$sign${delta.toStringAsFixed(2)} V';
-
-      if (delta.abs() < 0.15) {
-        statusText = l.deltaStable;
-      } else if (delta > 0) {
-        statusText = l.deltaRising;
-      } else {
-        statusText = l.deltaFalling;
-      }
+      valueText = '${delta.toStringAsFixed(2)} V';
+      statusText = delta < 0.15 ? l.deltaStable : l.liveReading;
     }
 
     return BaseDashboardCard(

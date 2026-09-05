@@ -54,4 +54,22 @@ void main() {
       expect(computeVoltageDelta(history), closeTo(-0.8, 0.0001));
     });
   });
+
+  group('voltageDeltaMagnitude', () {
+    test('keeps a positive delta positive', () {
+      expect(voltageDeltaMagnitude(0.42), 0.42);
+    });
+
+    test('maps a negative internal delta to its absolute value', () {
+      expect(voltageDeltaMagnitude(-0.42), 0.42);
+    });
+
+    test('keeps zero at zero (scale start)', () {
+      expect(voltageDeltaMagnitude(0), 0);
+    });
+
+    test('does not turn null into a fake zero', () {
+      expect(voltageDeltaMagnitude(null), isNull);
+    });
+  });
 }

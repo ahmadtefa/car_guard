@@ -8,19 +8,21 @@ import 'mini_gauges.dart';
 
 /// Voltage-difference gauge that follows the currently selected dashboard
 /// style — the same visual language the Engine Temperature gauge uses for
-/// that style — adapted to a signed, center-zero reading:
+/// that style — rendered as a positive-only magnitude:
 ///
-/// * zero stays at the center of the gauge,
-/// * a positive value fills to the right (or clockwise) in green,
-/// * a negative value fills to the left (or counter-clockwise) in red,
-/// * null renders an empty track.
+/// * the displayed value is always the magnitude (a negative computed
+///   delta is shown as its absolute value),
+/// * zero sits at the START of the scale (left edge / dial start / bottom),
+/// * the indicator moves in a single positive direction,
+/// * there is no center-zero, no negative half and no counter-clockwise
+///   sweep,
+/// * null renders an empty track (never a fake 0.00).
 ///
 /// The existing style gauges ([RacingGauge], [NeonRingGauge], ...) take an
-/// unsigned percent and fill from the scale start, so they cannot express
-/// center-zero semantics on their own. Each branch below mirrors one
-/// style's card, typography and geometry instead of inventing a separate
-/// visual system; the classic 'cards' style keeps using [VoltageDeltaCard]
-/// with the original [DeltaGauge].
+/// unsigned percent starting at the scale start, so each branch below
+/// mirrors one style's card, typography and geometry and simply feeds it
+/// the voltage-difference magnitude. The classic 'cards' style uses
+/// [VoltageDeltaCard] with the positive-only [DeltaGauge].
 class StyledDeltaGauge extends StatelessWidget {
   const StyledDeltaGauge({
     super.key,
@@ -35,53 +37,46 @@ class StyledDeltaGauge extends StatelessWidget {
   /// One of AppSettings.dashboardStyleNames ('racing', 'sporty', ...).
   final String styleName;
 
-  /// The signed difference to display; null renders an empty track.
+  /// The difference to display as a magnitude; null renders an empty
+  /// track. A negative input is rendered as its absolute value —
+  /// display logic never draws a negative region.
   final double? delta;
 
   final String label;
 
   final String unit;
 
-  /// Full-scale magnitude (both directions), in [unit]s.
+  /// Full-scale magnitude, in [unit]s.
   final double scale;
 
   final VoidCallback? onTap;
 
-  /// Signed fill fraction in [-1, 1]; 0 while [delta] is null.
+  /// Fill fraction in [0, 1]; 0 while [delta] is null.
   double get _fraction {
     final value = delta;
     if (value == null) return 0;
-    return (value / scale).clamp(-1.0, 1.0);
+    return (value.abs() / scale).clamp(0.0, 1.0);
   }
 
-  bool get _isEmpty => delta == null || delta!.abs() < 0.005;
+  bool get _isEmpty => delta == null;
 
   Color get _accent {
     final value = delta;
     if (value == null || value.abs() < 0.005) return AppColors.neonCyan;
-    return value > 0 ? AppColors.neonGreen : AppColors.neonRed;
-  }
-
-  /// Signed fill color: green to the right, red to the left.
-  Color get _fillColor {
-    final value = delta;
-    if (value == null) return AppColors.neonCyan;
-    return value >= 0 ? AppColors.neonGreen : AppColors.neonRed;
+    return AppColors.neonGreen;
   }
 
   String get _valueText {
     final value = delta;
     if (value == null) return '--.- $unit';
-    final sign = value > 0 ? '+' : '';
-    return '$sign${value.toStringAsFixed(2)} $unit';
+    return '${value.abs().toStringAsFixed(2)} $unit';
   }
 
-  /// Signed number without the unit, for the center of the round gauges.
-  String get _signedNumber {
+  /// Magnitude without the unit, for the center of the round gauges.
+  String get _numberText {
     final value = delta;
     if (value == null) return '--.-';
-    final sign = value > 0 ? '+' : '';
-    return '$sign${value.toStringAsFixed(2)}';
+    return value.abs().toStringAsFixed(2);
   }
 
   Widget _shell(BuildContext context, {required List<Widget> children}) {
@@ -156,8 +151,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // racing — big number over a gradient bar (see RacingGauge), here the
-  // bar starts at the central zero and grows to either side.
+  // racing — big number over a gradient bar (see RacingGauge); the bar
+  // fills from the left (zero at the start) in a cyan-to-green ramp.
   // ------------------------------------------------------------------
   Widget _buildRacing(BuildContext context) {
     return _shell(context,
@@ -185,8 +180,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // sporty — analog dial with needle (see SportyGauge), here the dial
-  // spans -scale .. +scale with the zero at the top.
+  // sporty — analog dial with needle (see SportyGauge); the dial spans
+  // 0 .. scale with the zero at the start of the sweep.
   // ------------------------------------------------------------------
   Widget _buildSporty(BuildContext context) {
     return _shell(context,
@@ -196,9 +191,7 @@ class StyledDeltaGauge extends StatelessWidget {
           painter: _SportyDeltaPainter(
             fraction: _fraction,
             scale: scale,
-            // Null hides the needle (empty); a real ~zero reading keeps a
-            // neutral cyan needle pointing at the central zero.
-            empty: delta == null,
+            empty: _isEmpty,
             accent: _accent,
           ),
         ),
@@ -217,15 +210,13 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // segments — 12 blocks (see SegmentedGauge), here filling outward from
-  // the central zero: upper half green, lower half red.
+  // segments — 12 blocks (see SegmentedGauge) lighting bottom-to-top,
+  // zero at the bottom, all lit blocks green.
   // ------------------------------------------------------------------
   Widget _buildSegments(BuildContext context) {
     const blocks = 12;
-    const half = blocks ~/ 2;
 
-    final lit = (_fraction.abs() * half).round();
-    final positive = _fraction >= 0;
+    final lit = (_fraction * blocks).round();
 
     return _shell(context,
       children: [
@@ -240,27 +231,18 @@ class StyledDeltaGauge extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
-            // Index 0 is the bottom block, like SegmentedGauge: blocks
-            // 0-5 sit below the zero line (red side), 6-11 above (green).
+            // Index 0 is the bottom block, like SegmentedGauge: the zero
+            // sits at the bottom and blocks light upward only.
             verticalDirection: VerticalDirection.up,
             children: List.generate(blocks, (index) {
-              final bool active;
-              if (_isEmpty || lit == 0) {
-                active = false;
-              } else if (positive) {
-                active = index >= half && index < half + lit;
-              } else {
-                active = index < half && index >= half - lit;
-              }
-
-              final color = positive ? AppColors.neonGreen : AppColors.neonRed;
+              final active = !_isEmpty && index < lit;
 
               return Container(
                 height: 7,
                 margin: const EdgeInsets.symmetric(vertical: 0.75),
                 decoration: BoxDecoration(
                   color: active
-                      ? color
+                      ? AppColors.neonGreen
                       : Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -281,8 +263,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // sweeper — trapezoid sweep (see AudiSweeperGauge), here sweeping from
-  // the central zero to the right (green) or to the left (red).
+  // sweeper — trapezoid sweep (see AudiSweeperGauge) filling from the
+  // left start of the scale.
   // ------------------------------------------------------------------
   Widget _buildSweeper(BuildContext context) {
     return _shell(context,
@@ -293,10 +275,7 @@ class StyledDeltaGauge extends StatelessWidget {
           height: 46,
           width: double.infinity,
           child: CustomPaint(
-            painter: _SweeperDeltaPainter(
-              fraction: _fraction,
-              color: _fillColor,
-            ),
+            painter: _SweeperDeltaPainter(fraction: _fraction),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -315,8 +294,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // ring — smartwatch progress ring (see NeonRingGauge), here sweeping
-  // from the top-zero clockwise (green) or counter-clockwise (red).
+  // ring — smartwatch progress ring (see NeonRingGauge) sweeping from
+  // the top start clockwise only.
   // ------------------------------------------------------------------
   Widget _buildRing(BuildContext context) {
     return _shell(context,
@@ -332,7 +311,6 @@ class StyledDeltaGauge extends StatelessWidget {
                 size: const Size(132, 132),
                 painter: _RingDeltaPainter(
                   fraction: _fraction,
-                  color: _fillColor,
                   empty: _isEmpty,
                 ),
               ),
@@ -341,7 +319,7 @@ class StyledDeltaGauge extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _signedNumber,
+                      _numberText,
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w900,
@@ -368,15 +346,13 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // led — 20 glowing blocks (see LedStripGauge), here lighting outward
-  // from the central zero: green to the right, red to the left.
+  // led — 20 glowing blocks (see LedStripGauge) lighting left-to-right
+  // from the zero start, all green.
   // ------------------------------------------------------------------
   Widget _buildLed(BuildContext context) {
     const blocks = 20;
-    const half = blocks ~/ 2;
 
-    final lit = (_fraction.abs() * half).round();
-    final positive = _fraction >= 0;
+    final lit = (_fraction * blocks).round();
 
     return _shell(context,
       children: [
@@ -397,22 +373,13 @@ class StyledDeltaGauge extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        // The strip is signed (left = negative): keep blocks in canvas
-        // order even in RTL locales.
+        // The strip reads left-to-right (zero at the left start): keep
+        // blocks in canvas order even in RTL locales.
         Directionality(
           textDirection: TextDirection.ltr,
           child: Row(
             children: List.generate(blocks, (index) {
-              final bool litBlock;
-              if (_isEmpty || lit == 0) {
-                litBlock = false;
-              } else if (positive) {
-                litBlock = index >= half && index < half + lit;
-              } else {
-                litBlock = index < half && index >= half - lit;
-              }
-
-              final color = _fillColor;
+              final litBlock = !_isEmpty && index < lit;
 
               return Expanded(
                 child: Container(
@@ -420,13 +387,13 @@ class StyledDeltaGauge extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 1.5),
                   decoration: BoxDecoration(
                     color: litBlock
-                        ? color
+                        ? AppColors.neonGreen
                         : Colors.white.withAlpha((255 * 0.07).round()),
                     borderRadius: BorderRadius.circular(3),
                     boxShadow: litBlock
                         ? [
                             BoxShadow(
-                              color: color.withAlpha(110),
+                              color: AppColors.neonGreen.withAlpha(110),
                               blurRadius: 6,
                             ),
                           ]
@@ -442,8 +409,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // needle — VU-style meter (see NeedleMeterGauge), here the needle rests
-  // at the central zero and swings right (green) or left (red).
+  // needle — VU-style meter (see NeedleMeterGauge) with the needle
+  // resting at the zero start (left) and moving clockwise only.
   // ------------------------------------------------------------------
   Widget _buildNeedle(BuildContext context) {
     return _shell(context,
@@ -471,10 +438,8 @@ class StyledDeltaGauge extends StatelessWidget {
           child: CustomPaint(
             painter: _NeedleDeltaPainter(
               fraction: _fraction,
-              color: _fillColor,
-              // Null renders an empty meter (no needle), like every other
-              // style: only zones, ticks and the pivot remain.
-              empty: delta == null,
+              accent: _accent,
+              empty: _isEmpty,
             ),
           ),
         ),
@@ -483,8 +448,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // orb — liquid orb (see LiquidOrbGauge), here the liquid rises above
-  // the central zero line (green) or below it (red).
+  // orb — liquid orb (see LiquidOrbGauge): the liquid rises from the
+  // bottom (zero) as the magnitude grows.
   // ------------------------------------------------------------------
   Widget _buildOrb(BuildContext context) {
     return _shell(context,
@@ -500,13 +465,12 @@ class StyledDeltaGauge extends StatelessWidget {
                 size: const Size(118, 118),
                 painter: _OrbDeltaPainter(
                   fraction: _fraction,
-                  color: _fillColor,
                   empty: _isEmpty,
                 ),
               ),
               Center(
                 child: Text(
-                  '$_signedNumber\n$unit',
+                  '$_numberText\n$unit',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
@@ -527,9 +491,8 @@ class StyledDeltaGauge extends StatelessWidget {
   }
 
   // ------------------------------------------------------------------
-  // combo — 260° cluster ring with lit dots (see DigitalClusterGauge),
-  // here lighting from the top-zero clockwise (green) or
-  // counter-clockwise (red).
+  // combo — 260° cluster ring with lit dots (see DigitalClusterGauge)
+  // lighting from the sweep start clockwise only.
   // ------------------------------------------------------------------
   Widget _buildCluster(BuildContext context) {
     return _shell(context,
@@ -545,7 +508,6 @@ class StyledDeltaGauge extends StatelessWidget {
                 size: const Size(150, 132),
                 painter: _ClusterDeltaPainter(
                   fraction: _fraction,
-                  color: _fillColor,
                   empty: _isEmpty,
                 ),
               ),
@@ -555,7 +517,7 @@ class StyledDeltaGauge extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _signedNumber,
+                      _numberText,
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
@@ -581,15 +543,15 @@ class StyledDeltaGauge extends StatelessWidget {
 }
 
 // ======================================================================
-// Painters — signed, center-zero adaptations of the style painters in
-// dashboard_gauges.dart / more_gauges.dart.
+// Painters — positive-only, zero-at-start adaptations of the style
+// painters in dashboard_gauges.dart / more_gauges.dart.
 // ======================================================================
 
-/// racing bar: track + central zero line + gradient fill from the center.
+/// racing bar: track + gradient fill from the left start of the scale.
 class _RacingDeltaPainter extends CustomPainter {
   _RacingDeltaPainter({required this.fraction});
 
-  /// Signed fraction in [-1, 1].
+  /// Fill fraction in [0, 1].
   final double fraction;
 
   @override
@@ -607,45 +569,21 @@ class _RacingDeltaPainter extends CustomPainter {
       Paint()..color = Colors.white.withAlpha((255 * 0.08).round()),
     );
 
-    final center = w / 2;
-    final reach = (w / 2 - 2);
-
-    if (fraction.abs() > 0.003) {
-      final x = center + fraction * reach;
-      final fill = Rect.fromLTRB(
-        math.min(center, x),
-        1,
-        math.max(center, x),
-        size.height - 2,
-      );
-
-      final positive = fraction > 0;
-      final colors = positive
-          ? const [AppColors.neonCyan, AppColors.neonGreen]
-          : const [AppColors.neonAmber, AppColors.neonRed];
+    if (fraction > 0.003) {
+      final fillWidth = fraction * w;
+      final fill = Rect.fromLTWH(0, 1, fillWidth, size.height - 2);
 
       canvas.save();
       canvas.clipRRect(barRect);
       canvas.drawRect(
         fill,
         Paint()
-          ..shader = LinearGradient(
-            begin: positive ? Alignment.centerLeft : Alignment.centerRight,
-            end: positive ? Alignment.centerRight : Alignment.centerLeft,
-            colors: colors,
+          ..shader = const LinearGradient(
+            colors: [AppColors.neonCyan, AppColors.neonGreen],
           ).createShader(fill),
       );
       canvas.restore();
     }
-
-    // Central zero line.
-    canvas.drawLine(
-      Offset(center, -1),
-      Offset(center, size.height + 1),
-      Paint()
-        ..strokeWidth = 2
-        ..color = Colors.white.withAlpha((255 * 0.55).round()),
-    );
   }
 
   @override
@@ -653,7 +591,7 @@ class _RacingDeltaPainter extends CustomPainter {
       oldDelegate.fraction != fraction;
 }
 
-/// sporty dial: 240° face from -scale to +scale, zero at the top.
+/// sporty dial: 240° face from 0 to scale, zero at the sweep start.
 class _SportyDeltaPainter extends CustomPainter {
   _SportyDeltaPainter({
     required this.fraction,
@@ -678,9 +616,7 @@ class _SportyDeltaPainter extends CustomPainter {
     const end = 30 * math.pi / 180;
     final range = end - start;
 
-    // Signed value mapped onto the dial: -1 .. 0 .. +1 -> start .. middle .. end.
-    final pct = (fraction + 1) / 2;
-    final angle = start + pct * range;
+    final angle = start + fraction * range;
 
     // Gauge face.
     canvas.drawCircle(
@@ -697,31 +633,25 @@ class _SportyDeltaPainter extends CustomPainter {
         ..color = const Color(0xFF22222A),
     );
 
-    // Negative half (left of zero) red zone, positive half green zone.
-    for (final (from, to, color) in [
-      (0.0, 0.5, AppColors.neonRed.withAlpha((255 * 0.18).round())),
-      (0.5, 1.0, AppColors.neonGreen.withAlpha((255 * 0.18).round())),
-    ]) {
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset(cx, cy), radius: r),
-        start + from * range,
-        (to - from) * range,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 6
-          ..color = color,
-      );
-    }
+    // Single positive zone across the whole scale.
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r),
+      start,
+      range,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = AppColors.neonGreen.withAlpha((255 * 0.18).round()),
+    );
 
-    // Ticks and scale numbers: -scale, -scale/2, 0, +scale/2, +scale.
+    // Ticks and scale numbers: 0 .. scale (zero at the start).
     const steps = 4;
     for (var i = 0; i <= steps; i++) {
       final f = i / steps;
       final a = start + f * range;
 
-      final isZero = i == steps ~/ 2;
-
+      final isZero = i == 0;
       final x1 = cx + (r - (isZero ? 9 : 5)) * math.cos(a);
       final y1 = cy + (r - (isZero ? 9 : 5)) * math.sin(a);
       final x2 = cx + r * math.cos(a);
@@ -736,7 +666,7 @@ class _SportyDeltaPainter extends CustomPainter {
               .withAlpha((255 * (isZero ? 1.0 : 0.8)).round()),
       );
 
-      final value = -scale + f * 2 * scale;
+      final value = f * scale;
       final tp = TextPainter(
         text: TextSpan(
           text: value.toStringAsFixed(1),
@@ -757,7 +687,7 @@ class _SportyDeltaPainter extends CustomPainter {
 
     if (empty) return;
 
-    // Needle resting at the central zero when the value is zero.
+    // Needle rises from the zero start of the sweep.
     final needle = Path()
       ..moveTo(
         cx - 3 * math.cos(angle + math.pi / 2),
@@ -794,22 +724,24 @@ class _SportyDeltaPainter extends CustomPainter {
       oldDelegate.accent != accent;
 }
 
-/// sweeper trapezoid: filled from the central zero to either side.
+/// sweeper trapezoid: filled from the left start of the scale.
 class _SweeperDeltaPainter extends CustomPainter {
-  _SweeperDeltaPainter({required this.fraction, required this.color});
+  _SweeperDeltaPainter({required this.fraction});
 
   final double fraction;
-  final Color color;
 
-  /// Same slanted-sides trapezoid as the Audi sweeper, over [x0, x1].
-  Path _trapezoid(double w, double h, double x0, double x1) {
-    const slant = 18.0;
+  /// Same slanted-sides trapezoid as the Audi sweeper: [right] bounds the
+  /// filled span measured from the left edge (the zero start).
+  Path _trapezoid(double w, double h, double fillWidth) {
+    if (w < 40 || h <= 0) return Path();
+
+    final right = fillWidth.clamp(18.0, w);
 
     return Path()
-      ..moveTo(x0, h)
-      ..lineTo(x0 + slant, 5)
-      ..lineTo(x1, 5)
-      ..lineTo(math.max(x0, x1 - slant), h)
+      ..moveTo(0, h)
+      ..lineTo(18, 5)
+      ..lineTo(right, 5)
+      ..lineTo(math.max(0.0, right - 18), h)
       ..close();
   }
 
@@ -820,39 +752,28 @@ class _SweeperDeltaPainter extends CustomPainter {
 
     if (w < 40 || h <= 0) return;
 
-    final full = _trapezoid(w, h, 0, w);
+    final full = _trapezoid(w, h, w);
 
     canvas.drawPath(
       full,
       Paint()..color = Colors.white.withAlpha((255 * 0.03).round()),
     );
 
-    final center = w / 2;
+    final fill = _trapezoid(w, h, fraction * w);
 
-    if (fraction.abs() > 0.003) {
-      final x = center + fraction * (w / 2 - 18);
-      final fill = _trapezoid(
-        w,
-        h,
-        math.min(center, x),
-        math.max(center, x),
-      );
-
-      final positive = fraction > 0;
-
-      canvas.save();
-      canvas.clipPath(fill);
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, w, h),
-        Paint()
-          ..shader = LinearGradient(
-            begin: positive ? Alignment.centerLeft : Alignment.centerRight,
-            end: positive ? Alignment.centerRight : Alignment.centerLeft,
-            colors: [color.withAlpha(80), color],
-          ).createShader(Rect.fromLTWH(0, 0, w, h)),
-      );
-      canvas.restore();
-    }
+    canvas.save();
+    canvas.clipPath(fill);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            AppColors.neonGreen.withAlpha(80),
+            AppColors.neonGreen,
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
+    canvas.restore();
 
     canvas.drawPath(
       full,
@@ -861,33 +782,18 @@ class _SweeperDeltaPainter extends CustomPainter {
         ..strokeWidth = 2
         ..color = Colors.white.withAlpha((255 * 0.06).round()),
     );
-
-    // Central zero line.
-    canvas.drawLine(
-      Offset(center, 2),
-      Offset(center, h),
-      Paint()
-        ..strokeWidth = 2
-        ..color = Colors.white.withAlpha((255 * 0.45).round()),
-    );
   }
 
   @override
   bool shouldRepaint(_SweeperDeltaPainter oldDelegate) =>
-      oldDelegate.fraction != fraction || oldDelegate.color != color;
+      oldDelegate.fraction != fraction;
 }
 
-/// neon ring: value sweeps from the top-zero clockwise (+, green) or
-/// counter-clockwise (-, red).
+/// neon ring: the value sweeps clockwise from the top start only.
 class _RingDeltaPainter extends CustomPainter {
-  _RingDeltaPainter({
-    required this.fraction,
-    required this.color,
-    required this.empty,
-  });
+  _RingDeltaPainter({required this.fraction, required this.empty});
 
   final double fraction;
-  final Color color;
   final bool empty;
 
   @override
@@ -909,31 +815,27 @@ class _RingDeltaPainter extends CustomPainter {
         ..color = Colors.white.withAlpha((255 * 0.07).round()),
     );
 
-    // Zero marker at the top of the ring.
-    canvas.drawLine(
-      Offset(center.dx, center.dy - radius - 11),
-      Offset(center.dx, center.dy - radius + 11),
+    if (empty || fraction < 0.003) return;
+
+    final sweep = fraction * math.pi * 2;
+
+    canvas.drawArc(
+      rect,
+      start,
+      sweep,
+      false,
       Paint()
-        ..strokeWidth = 2.5
-        ..color = Colors.white.withAlpha((255 * 0.7).round()),
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 11
+        ..shader = SweepGradient(
+          startAngle: start,
+          endAngle: start + math.pi * 2,
+          colors: const [AppColors.neonCyan, AppColors.neonGreen],
+        ).createShader(rect),
     );
 
-    if (empty || fraction.abs() < 0.003) return;
-
-    // Half the circle is one sign's full scale.
-    final sweep = fraction.abs() * math.pi;
-    final from = fraction > 0 ? start : start - sweep;
-
-    final paint =
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 11
-          ..color = color;
-
-    canvas.drawArc(rect, from, sweep, false, paint);
-
-    final knobAngle = fraction > 0 ? start + sweep : start - sweep;
+    final knobAngle = start + sweep;
 
     canvas.drawCircle(
       Offset(
@@ -947,21 +849,19 @@ class _RingDeltaPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RingDeltaPainter oldDelegate) =>
-      oldDelegate.fraction != fraction ||
-      oldDelegate.empty != empty ||
-      oldDelegate.color != color;
+      oldDelegate.fraction != fraction || oldDelegate.empty != empty;
 }
 
-/// VU needle: -50°..+50° around the central zero.
+/// VU needle: rises from the zero start (-50°) toward +50° only.
 class _NeedleDeltaPainter extends CustomPainter {
   _NeedleDeltaPainter({
     required this.fraction,
-    required this.color,
+    required this.accent,
     required this.empty,
   });
 
   final double fraction;
-  final Color color;
+  final Color accent;
   final bool empty;
 
   static const double _sweepDeg = 100; // -50 .. +50
@@ -986,30 +886,23 @@ class _NeedleDeltaPainter extends CustomPainter {
 
     final zoneRect = Rect.fromCircle(center: pivot, radius: radius);
 
-    // Negative half (left) dim red, positive half (right) dim green.
-    final zones = [
-      (-_sweepDeg / 2, 0.0, AppColors.neonRed.withAlpha((255 * 0.20).round())),
-      (0.0, _sweepDeg / 2, AppColors.neonGreen.withAlpha((255 * 0.20).round())),
-    ];
+    // Single positive zone across the whole scale.
+    canvas.drawArc(
+      zoneRect,
+      (-_sweepDeg / 2 - 90) * math.pi / 180,
+      _sweepDeg * math.pi / 180,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.neonGreen.withAlpha((255 * 0.20).round()),
+    );
 
-    for (final (fromDeg, toDeg, color) in zones) {
-      canvas.drawArc(
-        zoneRect,
-        (fromDeg - 90) * math.pi / 180,
-        (toDeg - fromDeg) * math.pi / 180,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
-          ..strokeCap = StrokeCap.round
-          ..color = color,
-      );
-    }
-
-    // Ticks; the central one marks the zero.
+    // Ticks; the first one marks the zero start.
     for (var i = 0; i <= 10; i++) {
       final deg = -_sweepDeg / 2 + (i / 10) * _sweepDeg;
-      final isZero = i == 5;
+      final isZero = i == 0;
 
       canvas.drawLine(
         point(deg, radius - (isZero ? 7 : 4)),
@@ -1020,10 +913,10 @@ class _NeedleDeltaPainter extends CustomPainter {
       );
     }
 
-    // Needle swings from the central zero; omitted entirely while there is
-    // no reading so null renders an empty track like the other styles.
+    // Needle rises from the zero start; omitted while there is no reading
+    // so null renders an empty track like the other styles.
     if (!empty) {
-      final needleDeg = (fraction / 2) * _sweepDeg;
+      final needleDeg = -_sweepDeg / 2 + fraction * _sweepDeg;
       final tip = point(needleDeg, radius - 10);
 
       canvas.drawLine(
@@ -1032,7 +925,7 @@ class _NeedleDeltaPainter extends CustomPainter {
         Paint()
           ..strokeWidth = 3
           ..strokeCap = StrokeCap.round
-          ..color = color,
+          ..color = accent,
       );
     }
 
@@ -1051,20 +944,15 @@ class _NeedleDeltaPainter extends CustomPainter {
   bool shouldRepaint(_NeedleDeltaPainter oldDelegate) =>
       oldDelegate.fraction != fraction ||
       oldDelegate.empty != empty ||
-      oldDelegate.color != color;
+      oldDelegate.accent != accent;
 }
 
-/// liquid orb: wavy liquid above (+, green) or below (-, red) the
-/// central zero line.
+/// liquid orb: the liquid level rises from the bottom (zero) as the
+/// magnitude grows.
 class _OrbDeltaPainter extends CustomPainter {
-  _OrbDeltaPainter({
-    required this.fraction,
-    required this.color,
-    required this.empty,
-  });
+  _OrbDeltaPainter({required this.fraction, required this.empty});
 
   final double fraction;
-  final Color color;
   final bool empty;
 
   @override
@@ -1087,54 +975,51 @@ class _OrbDeltaPainter extends CustomPainter {
     canvas.save();
     canvas.clipPath(Path()..addOval(orbRect));
 
-    if (!empty && fraction.abs() > 0.003) {
-      // Liquid surface sits fraction * radius away from the zero line.
-      final surfaceY = center.dy - fraction * radius;
-
-      final top = math.min(center.dy, surfaceY);
-      final bottom = math.max(center.dy, surfaceY);
+    if (!empty && fraction > 0.003) {
+      // Liquid surface rises from the bottom with the magnitude.
+      final surfaceY = center.dy + radius - 2 * radius * fraction;
 
       final wave = Path()
-        ..moveTo(center.dx - radius, top)
+        ..moveTo(center.dx - radius, surfaceY)
         ..cubicTo(
           center.dx - radius / 2,
-          top - 6,
+          surfaceY - 6,
           center.dx,
-          top + 6,
+          surfaceY + 6,
           center.dx + radius / 2,
-          top,
+          surfaceY,
         )
         ..cubicTo(
           center.dx + radius * 0.85,
-          top - 4,
+          surfaceY - 4,
           center.dx + radius,
-          top,
+          surfaceY,
           center.dx + radius,
-          top,
+          surfaceY,
         )
-        ..lineTo(center.dx + radius, bottom)
-        ..lineTo(center.dx - radius, bottom)
+        ..lineTo(center.dx + radius, center.dy + radius)
+        ..lineTo(center.dx - radius, center.dy + radius)
         ..close();
 
       canvas.drawPath(
         wave,
         Paint()
-          ..shader = LinearGradient(
+          ..shader = const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [color.withAlpha(0x99), color.withAlpha(0xCC)],
+            colors: [Color(0x9900D4FF), Color(0xCC00FF88)],
           ).createShader(orbRect),
       );
 
       // Bubbles inside the liquid.
       final bubblePaint = Paint()..color = Colors.white.withAlpha(60);
       canvas.drawCircle(
-        center.translate(-radius * 0.3, (top + bottom) / 2 - center.dy),
+        center.translate(-radius * 0.3, radius * (1 - fraction)),
         3,
         bubblePaint,
       );
       canvas.drawCircle(
-        center.translate(radius * 0.25, (top + bottom) / 2 - center.dy * 0.9),
+        center.translate(radius * 0.25, radius * (1 - fraction) - 10),
         2.5,
         bubblePaint,
       );
@@ -1147,36 +1032,20 @@ class _OrbDeltaPainter extends CustomPainter {
       Paint()..color = Colors.white.withAlpha(35),
     );
 
-    // Central zero line.
-    canvas.drawLine(
-      Offset(center.dx - radius, center.dy),
-      Offset(center.dx + radius, center.dy),
-      Paint()
-        ..strokeWidth = 1.5
-        ..color = Colors.white.withAlpha((255 * 0.4).round()),
-    );
-
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(_OrbDeltaPainter oldDelegate) =>
-      oldDelegate.fraction != fraction ||
-      oldDelegate.empty != empty ||
-      oldDelegate.color != color;
+      oldDelegate.fraction != fraction || oldDelegate.empty != empty;
 }
 
-/// digital cluster: 260° arc + dots lighting from the top-zero clockwise
-/// (+, green) or counter-clockwise (-, red).
+/// digital cluster: 260° arc + dots lighting from the sweep start
+/// clockwise only.
 class _ClusterDeltaPainter extends CustomPainter {
-  _ClusterDeltaPainter({
-    required this.fraction,
-    required this.color,
-    required this.empty,
-  });
+  _ClusterDeltaPainter({required this.fraction, required this.empty});
 
   final double fraction;
-  final Color color;
   final bool empty;
 
   static const double _startDeg = 140;
@@ -1190,7 +1059,6 @@ class _ClusterDeltaPainter extends CustomPainter {
 
     final start = _startDeg * math.pi / 180;
     final sweep = _sweepDeg * math.pi / 180;
-    final zeroAngle = start + sweep / 2;
 
     // Track.
     canvas.drawArc(
@@ -1204,7 +1072,7 @@ class _ClusterDeltaPainter extends CustomPainter {
         ..color = Colors.white.withAlpha((255 * 0.08).round()),
     );
 
-    // Dots along the arc; lit dots radiate from the central zero.
+    // Dots along the arc, lit from the sweep start up to the magnitude.
     const dots = 14;
 
     for (var i = 0; i <= dots; i++) {
@@ -1216,48 +1084,39 @@ class _ClusterDeltaPainter extends CustomPainter {
         center.dy + radius * math.sin(angle),
       );
 
-      final signedF = (f - 0.5) * 2; // -1 .. 0 .. +1
-
-      final lit = !empty &&
-          ((fraction > 0 && signedF > 0 && signedF <= fraction) ||
-              (fraction < 0 && signedF < 0 && -signedF <= -fraction));
-
-      final isZero = i == dots ~/ 2;
+      final lit = !empty && f <= fraction && fraction > 0.003;
 
       canvas.drawCircle(
         dotPos,
-        lit ? 3.4 : (isZero ? 3.4 : 2.2),
+        lit ? 3.4 : 2.2,
         Paint()
           ..color = lit
-              ? color
-              : isZero
-              ? Colors.white.withAlpha((255 * 0.6).round())
+              ? AppColors.neonGreen
               : Colors.white.withAlpha((255 * 0.14).round()),
       );
     }
 
-    // Main arc from the central zero toward the value.
-    if (!empty && fraction.abs() > 0.003) {
-      final arcSweep = fraction.abs() * sweep / 2;
-      final arcStart = fraction > 0 ? zeroAngle : zeroAngle - arcSweep;
-
+    // Main arc from the sweep start.
+    if (!empty && fraction > 0.003) {
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius - 11),
-        arcStart,
-        arcSweep,
+        start,
+        fraction * sweep,
         false,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 8
           ..strokeCap = StrokeCap.round
-          ..color = color,
+          ..shader = SweepGradient(
+            startAngle: start,
+            endAngle: start + sweep,
+            colors: const [AppColors.neonCyan, AppColors.neonGreen],
+          ).createShader(rect),
       );
     }
   }
 
   @override
   bool shouldRepaint(_ClusterDeltaPainter oldDelegate) =>
-      oldDelegate.fraction != fraction ||
-      oldDelegate.empty != empty ||
-      oldDelegate.color != color;
+      oldDelegate.fraction != fraction || oldDelegate.empty != empty;
 }

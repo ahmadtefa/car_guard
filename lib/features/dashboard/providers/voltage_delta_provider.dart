@@ -58,3 +58,19 @@ final dashboardVoltageDeltaProvider = Provider<double?>((ref) {
 
   return ref.watch(voltageDeltaProvider);
 });
+
+/// Display-layer value for the voltage-difference gauges: the magnitude of
+/// the computed/reported difference.
+///
+/// The dashboard never renders a signed voltage difference: a negative
+/// computed delta is shown as its absolute value, while null stays null so
+/// "no data" never turns into a fake 0.00 reading.
+double? voltageDeltaMagnitude(double? delta) => delta?.abs();
+
+/// Positive-only voltage difference consumed by every dashboard gauge
+/// style, so all styles share identical positive-only semantics: the zero
+/// sits at the start of the scale and the indicator moves in a single
+/// direction.
+final voltageDeltaMagnitudeProvider = Provider<double?>((ref) {
+  return voltageDeltaMagnitude(ref.watch(dashboardVoltageDeltaProvider));
+});

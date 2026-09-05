@@ -458,9 +458,10 @@ class _VoltBarPainter extends CustomPainter {
 
 enum AlignmentBucket { left, center, right }
 
-/// Center-zero differential gauge: positive fills right (green), negative
-/// fills left (red). The selected dashboard style changes its visual theme
-/// without changing that signed behavior.
+/// Positive-only differential gauge: the voltage-difference magnitude fills
+/// from the left (zero at the start of the scale) in green. The selected
+/// dashboard style changes its visual theme without changing that
+/// positive-only behavior — there is no negative half and no center zero.
 class DeltaGauge extends StatelessWidget {
   const DeltaGauge({
     super.key,
@@ -469,10 +470,11 @@ class DeltaGauge extends StatelessWidget {
     this.styleName = 'cards',
   });
 
-  /// The signed difference to display; null renders an empty track.
+  /// The difference to display; null renders an empty track. A negative
+  /// input is rendered as its absolute value (positive-only semantics).
   final double? delta;
 
-  /// Full-scale magnitude (both directions).
+  /// Full-scale magnitude.
   final double scale;
 
   /// The persisted dashboard style selected for the primary gauges.
@@ -541,7 +543,6 @@ class _DeltaPainter extends CustomPainter {
 
     final value = delta;
     final accent = _styleAccent();
-    final center = w / 2;
 
     if (_segmentedStyle) {
       _paintSegments(canvas, size, value, accent);
@@ -573,54 +574,53 @@ class _DeltaPainter extends CustomPainter {
       );
     }
 
-    // Center zero line.
+    if (value != null && value.abs() > 0.005) {
+      // Positive-only: magnitude from the left start of the scale.
+      final fraction = (value.abs() / scale).clamp(0.0, 1.0);
+      final fillWidth = fraction * (w - 4);
+
+      final fillRect = Rect.fromLTWH(2, barTop, fillWidth, barHeight);
+
+      final rrect = RRect.fromRectAndRadius(
+        fillRect,
+        const Radius.circular(6),
+      );
+      final fillPaint = Paint()..color = AppColors.neonGreen;
+
+      if (_gradientStyle) {
+        fillPaint.shader = LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            AppColors.neonGreen.withAlpha((255 * 0.55).round()),
+            AppColors.neonGreen,
+          ],
+        ).createShader(fillRect);
+      }
+
+      canvas.drawRRect(
+        rrect.inflate(2.5),
+        Paint()..color = AppColors.neonGreen.withAlpha((255 * 0.18).round()),
+      );
+      canvas.drawRRect(rrect, fillPaint);
+
+      canvas.drawCircle(
+        Offset(2 + fillWidth, barTop + barHeight / 2),
+        styleName == 'orb' ? 7 : 6,
+        Paint()..color = Colors.white,
+      );
+    }
+
+    // Zero marker at the start of the scale.
     canvas.drawLine(
-      Offset(center, barTop - 4),
-      Offset(center, barTop + barHeight + 4),
+      const Offset(2, 4),
+      const Offset(2, 24),
       Paint()
         ..strokeWidth = styleName == 'sporty' || styleName == 'needle' ? 3 : 2
         ..color = styleName == 'cards'
             ? Colors.white.withAlpha((255 * 0.55).round())
             : accent.withAlpha((255 * 0.8).round()),
     );
-
-    if (value != null && value.abs() > 0.005) {
-      final fraction = (value / scale).clamp(-1.0, 1.0);
-      final fillWidth = fraction * (w / 2 - 2);
-      final color = value > 0 ? AppColors.neonGreen : AppColors.neonRed;
-
-      final fillRect = Rect.fromCenter(
-        center: Offset(center + fillWidth / 2, barTop + barHeight / 2),
-        width: fillWidth.abs(),
-        height: barHeight,
-      );
-
-      final rrect = RRect.fromRectAndRadius(
-        fillRect,
-        const Radius.circular(6),
-      );
-      final fillPaint = Paint()..color = color;
-
-      if (_gradientStyle) {
-        fillPaint.shader = LinearGradient(
-          begin: value > 0 ? Alignment.centerLeft : Alignment.centerRight,
-          end: value > 0 ? Alignment.centerRight : Alignment.centerLeft,
-          colors: [color.withAlpha((255 * 0.55).round()), color],
-        ).createShader(fillRect);
-      }
-
-      canvas.drawRRect(
-        rrect.inflate(2.5),
-        Paint()..color = color.withAlpha((255 * 0.18).round()),
-      );
-      canvas.drawRRect(rrect, fillPaint);
-
-      canvas.drawCircle(
-        Offset(center + fillWidth, barTop + barHeight / 2),
-        styleName == 'orb' ? 7 : 6,
-        Paint()..color = Colors.white,
-      );
-    }
 
     // Scale labels.
     void label(String text, double x, bool alignRight) {
@@ -642,8 +642,7 @@ class _DeltaPainter extends CustomPainter {
       tp.paint(canvas, Offset(dx, barTop + barHeight + 4));
     }
 
-    label('-$scale', 0, false);
-    label('0', center, false);
+    label('0', 5, false);
     label('+$scale', w, true);
   }
 
@@ -658,17 +657,13 @@ class _DeltaPainter extends CustomPainter {
     const barTop = 8.0;
     const barHeight = 10.0;
     final segmentWidth = (size.width - gap * (segmentCount - 1)) / segmentCount;
-    final fraction = value == null ? 0.0 : (value / scale).clamp(-1.0, 1.0);
-    final activeCount = (fraction.abs() * segmentCount / 2).round();
+    final fraction = value == null
+        ? 0.0
+        : (value.abs() / scale).clamp(0.0, 1.0);
+    final activeCount = (fraction * segmentCount).round();
 
     for (var index = 0; index < segmentCount; index++) {
-      final isRight = index >= segmentCount / 2;
-      final distanceFromCenter = isRight
-          ? index - segmentCount / 2
-          : segmentCount / 2 - index - 1;
-      final active = value != null &&
-          distanceFromCenter < activeCount &&
-          ((fraction > 0 && isRight) || (fraction < 0 && !isRight));
+      final active = index < activeCount;
       final left = index * (segmentWidth + gap);
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(left, barTop, segmentWidth, barHeight),
@@ -679,19 +674,10 @@ class _DeltaPainter extends CustomPainter {
         rect,
         Paint()
           ..color = active
-              ? (fraction > 0 ? AppColors.neonGreen : AppColors.neonRed)
+              ? AppColors.neonGreen
               : accent.withAlpha((255 * 0.18).round()),
       );
     }
-
-    final center = size.width / 2;
-    canvas.drawLine(
-      Offset(center, barTop - 4),
-      Offset(center, barTop + barHeight + 4),
-      Paint()
-        ..strokeWidth = 2
-        ..color = accent.withAlpha((255 * 0.8).round()),
-    );
 
     void label(String text, double x, bool alignRight) {
       final tp = TextPainter(
@@ -708,8 +694,7 @@ class _DeltaPainter extends CustomPainter {
       tp.paint(canvas, Offset(dx, barTop + barHeight + 4));
     }
 
-    label('-$scale', 0, false);
-    label('0', center, false);
+    label('0', 5, false);
     label('+$scale', size.width, true);
   }
 
