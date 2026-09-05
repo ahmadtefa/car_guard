@@ -673,7 +673,7 @@ class Esp8266Repository implements DeviceRepository {
           "WATCHDOG TIMEOUT - PROBING LICENSE OVER WEBSOCKET",
         );
 
-        final alive = await _probeLicenseOverWebSocket(socketAtTimeout!);
+        final alive = await _probeLicenseOverWebSocket(socketAtTimeout);
 
         // A network transition or explicit disconnect may have replaced the
         // socket while the asynchronous probe was waiting for its reply.
@@ -1286,8 +1286,7 @@ class Esp8266Repository implements DeviceRepository {
       final response = await http
           .get(
             Uri.parse(
-              _httpUrl(_activeHost, DeviceEndpoints.calibrateVoltage)
-              "?realVolt=$realVolt",
+              '${_httpUrl(_activeHost, DeviceEndpoints.calibrateVoltage)}?realVolt=$realVolt',
             ),
           )
           .timeout(
