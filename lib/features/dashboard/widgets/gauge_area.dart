@@ -7,8 +7,10 @@ import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../models/dashboard_state.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'battery_voltage_card.dart';
 import 'dashboard_gauges.dart';
+import 'delta_style_gauge.dart';
 import 'engine_temperature_card.dart';
 import 'more_gauges.dart';
 import 'voltage_delta_card.dart';
@@ -29,6 +31,11 @@ Widget buildGaugeArea(
   final connected = device?.connected ?? false;
   final temperature = device?.temperatureData.engineTemperature ?? 0;
   final voltage = device?.batteryData.voltage ?? 0;
+
+  // The live voltage difference shown by every dashboard style: the
+  // module-reported value when the firmware streams one, otherwise the
+  // locally computed delta; null renders an empty gauge.
+  final delta = ref.watch(dashboardVoltageDeltaProvider);
 
   final tempPercent = (temperature / 180).clamp(0.0, 1.0);
   final voltPercent = ((voltage - 10) / 6).clamp(0.0, 1.0);
@@ -60,65 +67,91 @@ Widget buildGaugeArea(
             warning: voltWarning,
             onTap: () => onOpenHud('volt'),
           ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'racing',
+            delta: delta,
+            label: l.voltageDifference,
+          ),
         ],
       );
 
     case 'sporty':
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
         children: [
-          Expanded(
-            child: SportyGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              min: 0,
-              max: 180,
-              redlineValue: settings.engineTempCritical,
-              unit: '°C',
-              warning: tempWarning,
-              onTap: () => onOpenHud('temp'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SportyGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  min: 0,
+                  max: 180,
+                  redlineValue: settings.engineTempCritical,
+                  unit: '°C',
+                  warning: tempWarning,
+                  onTap: () => onOpenHud('temp'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: SportyGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  min: 10,
+                  max: 16,
+                  redlineValue: settings.maxBatteryVoltage,
+                  unit: 'V',
+                  warning: voltWarning,
+                  onTap: () => onOpenHud('volt'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: SportyGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              min: 10,
-              max: 16,
-              redlineValue: settings.maxBatteryVoltage,
-              unit: 'V',
-              warning: voltWarning,
-              onTap: () => onOpenHud('volt'),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'sporty',
+            delta: delta,
+            label: l.voltageDifference,
           ),
         ],
       );
 
     case 'segments':
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
         children: [
-          Expanded(
-            child: SegmentedGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              activeCount: (tempPercent * 12).round(),
-              danger: tempWarning,
-              onTap: () => onOpenHud('temp'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SegmentedGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  unit: '°C',
+                  activeCount: (tempPercent * 12).round(),
+                  danger: tempWarning,
+                  onTap: () => onOpenHud('temp'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: SegmentedGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  unit: 'V',
+                  activeCount: (voltPercent * 12).round(),
+                  danger: voltWarning,
+                  onTap: () => onOpenHud('volt'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: SegmentedGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              activeCount: (voltPercent * 12).round(),
-              danger: voltWarning,
-              onTap: () => onOpenHud('volt'),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'segments',
+            delta: delta,
+            label: l.voltageDifference,
           ),
         ],
       );
@@ -157,33 +190,49 @@ Widget buildGaugeArea(
                 : AppColors.neonGreen,
             onTap: () => onOpenHud('volt'),
           ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'sweeper',
+            delta: delta,
+            label: l.voltageDifference,
+          ),
         ],
       );
 
     case 'ring':
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
         children: [
-          Expanded(
-            child: NeonRingGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              danger: tempWarning,
-              onTap: () => onOpenHud('temp'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: NeonRingGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  unit: '°C',
+                  percent: tempPercent,
+                  danger: tempWarning,
+                  onTap: () => onOpenHud('temp'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: NeonRingGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  unit: 'V',
+                  percent: voltPercent,
+                  danger: voltWarning,
+                  onTap: () => onOpenHud('volt'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: NeonRingGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              danger: voltWarning,
-              onTap: () => onOpenHud('volt'),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'ring',
+            delta: delta,
+            label: l.voltageDifference,
           ),
         ],
       );
@@ -208,6 +257,12 @@ Widget buildGaugeArea(
             danger: voltWarning,
             onTap: () => onOpenHud('volt'),
           ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'led',
+            delta: delta,
+            label: l.voltageDifference,
+          ),
         ],
       );
 
@@ -231,61 +286,87 @@ Widget buildGaugeArea(
             danger: voltWarning,
             onTap: () => onOpenHud('volt'),
           ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'needle',
+            delta: delta,
+            label: l.voltageDifference,
+          ),
         ],
       );
 
     case 'orb':
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
         children: [
-          Expanded(
-            child: LiquidOrbGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              danger: tempWarning,
-              onTap: () => onOpenHud('temp'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: LiquidOrbGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  unit: '°C',
+                  percent: tempPercent,
+                  danger: tempWarning,
+                  onTap: () => onOpenHud('temp'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: LiquidOrbGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  unit: 'V',
+                  percent: voltPercent,
+                  danger: voltWarning,
+                  onTap: () => onOpenHud('volt'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: LiquidOrbGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              danger: voltWarning,
-              onTap: () => onOpenHud('volt'),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'orb',
+            delta: delta,
+            label: l.voltageDifference,
           ),
         ],
       );
 
     case 'combo':
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Column(
         children: [
-          Expanded(
-            child: DigitalClusterGauge(
-              label: l.engineTempLabel,
-              value: temperature,
-              unit: '°C',
-              percent: tempPercent,
-              danger: tempWarning,
-              onTap: () => onOpenHud('temp'),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DigitalClusterGauge(
+                  label: l.engineTempLabel,
+                  value: temperature,
+                  unit: '°C',
+                  percent: tempPercent,
+                  danger: tempWarning,
+                  onTap: () => onOpenHud('temp'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: DigitalClusterGauge(
+                  label: l.batteryVoltLabel,
+                  value: voltage,
+                  unit: 'V',
+                  percent: voltPercent,
+                  danger: voltWarning,
+                  onTap: () => onOpenHud('volt'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: DigitalClusterGauge(
-              label: l.batteryVoltLabel,
-              value: voltage,
-              unit: 'V',
-              percent: voltPercent,
-              danger: voltWarning,
-              onTap: () => onOpenHud('volt'),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          StyledDeltaGauge(
+            styleName: 'combo',
+            delta: delta,
+            label: l.voltageDifference,
           ),
         ],
       );

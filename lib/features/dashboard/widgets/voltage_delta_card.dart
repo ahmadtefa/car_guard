@@ -7,8 +7,9 @@ import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
 import 'mini_gauges.dart';
 
-/// Shows the battery voltage change over the last ~90 seconds on a
-/// center-zero differential gauge: green to the right while charging,
+/// Shows the live voltage difference — the module-reported value when the
+/// firmware streams one, otherwise the change over the last ~90 seconds —
+/// on a center-zero differential gauge: green to the right while charging,
 /// red to the left while dropping.
 class VoltageDeltaCard extends ConsumerWidget {
   const VoltageDeltaCard({super.key});
@@ -17,7 +18,7 @@ class VoltageDeltaCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
 
-    final delta = ref.watch(voltageDeltaProvider);
+    final delta = ref.watch(dashboardVoltageDeltaProvider);
 
     final String valueText;
     final String statusText;

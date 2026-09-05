@@ -140,7 +140,9 @@ class BackgroundMonitorHandler extends TaskHandler {
       deviceId: 'Car Guard',
       batteryData: BatteryData(
         voltage: (json['volt'] as num?)?.toDouble() ?? 0,
-        voltageDifference: (json['voltDiff'] as num?)?.toDouble() ?? 0,
+        // Null when the firmware streams no difference field (same rule as
+        // Esp8266Repository._parseStatus).
+        voltageDifference: (json['voltDiff'] as num?)?.toDouble(),
       ),
       temperatureData: TemperatureData(
         engineTemperature: (json['temp'] as num?)?.toDouble() ?? 0,

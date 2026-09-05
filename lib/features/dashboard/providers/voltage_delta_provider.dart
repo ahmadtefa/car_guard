@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/reading_sample.dart';
+import '../../../core/providers/device_status_provider.dart';
 import 'readings_history_provider.dart';
 
 /// Computes the battery voltage change over the recent window.
@@ -35,4 +36,25 @@ double? computeVoltageDelta(
 /// Live voltage delta (V) for the dashboard gauge.
 final voltageDeltaProvider = Provider<double?>((ref) {
   return computeVoltageDelta(ref.watch(readingsHistoryProvider));
+});
+
+/// The voltage difference shown by every dashboard gauge style.
+///
+/// Prefers the value streamed by the module itself (firmware builds that
+/// send `voltDiff`/`voltageDifference`). Firmware that streams no such
+/// field — including the stock Car Guard CSV/JSON payloads — leaves it
+/// null, so the gauges fall back to the delta computed from the live
+/// battery-voltage history: a real value derived from live telemetry
+/// rather than a synthetic zero. Null (empty gauge) only until either
+/// source has data.
+final dashboardVoltageDeltaProvider = Provider<double?>((ref) {
+  final reported = ref
+      .watch(deviceStatusProvider)
+      .value
+      ?.batteryData
+      .voltageDifference;
+
+  if (reported != null) return reported;
+
+  return ref.watch(voltageDeltaProvider);
 });

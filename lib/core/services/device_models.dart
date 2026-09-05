@@ -147,16 +147,24 @@ class DeviceStatus {
 class BatteryData {
   const BatteryData({
     this.voltage = 0.0,
-    this.voltageDifference = 0.0,
+    this.voltageDifference,
   });
 
   final double voltage;
-  final double voltageDifference;
+
+  /// Voltage difference reported by the module itself.
+  ///
+  /// Nullable on purpose: firmware builds that never stream such a field
+  /// (the stock Car Guard CSV/JSON payloads don't) leave it null so the UI
+  /// can fall back to the locally computed voltage delta or render empty —
+  /// instead of showing a synthetic 0.00 that is indistinguishable from a
+  /// real reading.
+  final double? voltageDifference;
 
   factory BatteryData.fromJson(Map<String, dynamic> json) {
     return BatteryData(
       voltage: (json['voltage'] as num?)?.toDouble() ?? 0.0,
-      voltageDifference: (json['voltageDifference'] as num?)?.toDouble() ?? 0.0,
+      voltageDifference: (json['voltageDifference'] as num?)?.toDouble(),
     );
   }
 

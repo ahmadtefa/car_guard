@@ -1150,10 +1150,12 @@ class Esp8266Repository implements DeviceRepository {
                 (json["volt"] as num)
                     .toDouble(),
 
+            // Keep null when the firmware streams no difference field so
+            // the UI falls back to the locally computed delta instead of
+            // displaying a synthetic 0.00.
             voltageDifference:
                 (json["voltDiff"] as num?)?.toDouble() ??
-                (json["voltageDifference"] as num?)?.toDouble() ??
-                0.0,
+                (json["voltageDifference"] as num?)?.toDouble(),
 
           ),
 

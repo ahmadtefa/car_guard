@@ -21,6 +21,10 @@ class DashboardNotifier extends Notifier<DashboardState> {
             return;
           }
 
+          // Null when the firmware streams no difference field — keep the
+          // placeholder instead of formatting a synthetic zero.
+          final voltageDelta = deviceStatus.batteryData.voltageDifference;
+
           state = DashboardState(
             connectionStatus:
                 deviceStatus.connected ? 'Connected' : 'Disconnected',
@@ -31,8 +35,9 @@ class DashboardNotifier extends Notifier<DashboardState> {
             batteryVoltage:
                 '${deviceStatus.batteryData.voltage.toStringAsFixed(2)} V',
 
-            voltageDifference:
-                '${deviceStatus.batteryData.voltageDifference.toStringAsFixed(2)} V',
+            voltageDifference: voltageDelta == null
+                ? '--.- V'
+                : '${voltageDelta.toStringAsFixed(2)} V',
 
             coolantLevel: deviceStatus.coolantLevelData.coolantAvailable
                 ? 'Available'
