@@ -49,9 +49,11 @@ class NeonRingGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 label,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: accent,
                   fontWeight: FontWeight.w600,
@@ -60,46 +62,53 @@ class NeonRingGauge extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              SizedBox(
-                width: 132,
-                height: 132,
-                child: Stack(
-                  children: [
-                    CustomPaint(
-                      size: const Size(132, 132),
-                      painter: _NeonRingPainter(
-                        percent: percent.clamp(0.0, 1.0),
-                        danger: danger,
-                      ),
-                    ),
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            value.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              color: danger
-                                  ? AppColors.neonRed
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gaugeSize =
+                      math.min(constraints.maxWidth, 132.0).toDouble();
+                  return SizedBox(
+                    width: gaugeSize,
+                    height: gaugeSize,
+                    child: Stack(
+                      children: [
+                        CustomPaint(
+                          painter: _NeonRingPainter(
+                            percent: percent.clamp(0.0, 1.0),
+                            danger: danger,
                           ),
-                          Text(
-                            unit,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
+                        ),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                value.toStringAsFixed(1),
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: danger
+                                      ? AppColors.neonRed
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .onSurface,
+                                ),
+                              ),
+                              Text(
+                                unit,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),
@@ -231,31 +240,52 @@ class LedStripGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: danger ? AppColors.neonRed : AppColors.neonCyan,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  Text(
-                    '${value.toStringAsFixed(1)} $unit',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: danger
-                          ? AppColors.neonRed
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final valueText = '${value.toStringAsFixed(1)} $unit';
+                  final labelStyle = TextStyle(
+                    color: danger ? AppColors.neonRed : AppColors.neonCyan,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    letterSpacing: 1,
+                  );
+                  final valueStyle = TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: danger
+                        ? AppColors.neonRed
+                        : Theme.of(context).colorScheme.onSurface,
+                  );
+
+                  if (constraints.maxWidth < 280) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label, softWrap: true, style: labelStyle),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(valueText, softWrap: true, style: valueStyle),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: Text(label, softWrap: true, style: labelStyle)),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          valueText,
+                          softWrap: true,
+                          textAlign: TextAlign.end,
+                          style: valueStyle,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: AppSpacing.md),
               Row(
@@ -341,30 +371,52 @@ class NeedleMeterGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: danger ? AppColors.neonRed : AppColors.neonCyan,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  Text(
-                    '${value.toStringAsFixed(1)} $unit',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: danger
-                          ? AppColors.neonRed
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final valueText = '${value.toStringAsFixed(1)} $unit';
+                  final labelStyle = TextStyle(
+                    color: danger ? AppColors.neonRed : AppColors.neonCyan,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    letterSpacing: 1,
+                  );
+                  final valueStyle = TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: danger
+                        ? AppColors.neonRed
+                        : Theme.of(context).colorScheme.onSurface,
+                  );
+
+                  if (constraints.maxWidth < 280) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label, softWrap: true, style: labelStyle),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(valueText, softWrap: true, style: valueStyle),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: Text(label, softWrap: true, style: labelStyle)),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          valueText,
+                          softWrap: true,
+                          textAlign: TextAlign.end,
+                          style: valueStyle,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
               SizedBox(
@@ -537,9 +589,11 @@ class LiquidOrbGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 label,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: danger ? AppColors.neonRed : AppColors.neonCyan,
                   fontWeight: FontWeight.w600,
@@ -548,35 +602,40 @@ class LiquidOrbGauge extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              SizedBox(
-                width: 118,
-                height: 118,
-                child: Stack(
-                  children: [
-                    CustomPaint(
-                      size: const Size(118, 118),
-                      painter: _OrbPainter(
-                        percent: percent.clamp(0.0, 1.0),
-                        danger: danger,
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        '${value.toStringAsFixed(1)}\n$unit',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          height: 1.25,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white.withAlpha(235),
-                          shadows: const [
-                            Shadow(blurRadius: 6, color: Colors.black45),
-                          ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gaugeSize =
+                      math.min(constraints.maxWidth, 118.0).toDouble();
+                  return SizedBox(
+                    width: gaugeSize,
+                    height: gaugeSize,
+                    child: Stack(
+                      children: [
+                        CustomPaint(
+                          painter: _OrbPainter(
+                            percent: percent.clamp(0.0, 1.0),
+                            danger: danger,
+                          ),
                         ),
-                      ),
+                        Center(
+                          child: Text(
+                            '${value.toStringAsFixed(1)}\n$unit',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              height: 1.25,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white.withAlpha(235),
+                              shadows: const [
+                                Shadow(blurRadius: 6, color: Colors.black45),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),
@@ -712,9 +771,11 @@ class DigitalClusterGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 label,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: danger ? AppColors.neonRed : AppColors.neonCyan,
                   fontWeight: FontWeight.w600,
@@ -723,45 +784,52 @@ class DigitalClusterGauge extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              SizedBox(
-                width: 150,
-                height: 132,
-                child: Stack(
-                  children: [
-                    CustomPaint(
-                      size: const Size(150, 132),
-                      painter: _ClusterPainter(
-                        percent: percent.clamp(0.0, 1.0),
-                        danger: danger,
-                      ),
-                    ),
-                    Align(
-                      alignment: const Alignment(0, 0.35),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            value.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              color: danger ? AppColors.neonRed : null,
-                            ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gaugeWidth =
+                      math.min(constraints.maxWidth, 150.0).toDouble();
+                  final gaugeHeight =
+                      math.min(gaugeWidth * 0.88, 132.0).toDouble();
+                  return SizedBox(
+                    width: gaugeWidth,
+                    height: gaugeHeight,
+                    child: Stack(
+                      children: [
+                        CustomPaint(
+                          painter: _ClusterPainter(
+                            percent: percent.clamp(0.0, 1.0),
+                            danger: danger,
                           ),
-                          Text(
-                            unit,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
+                        ),
+                        Align(
+                          alignment: const Alignment(0, 0.35),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                value.toStringAsFixed(1),
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  color: danger ? AppColors.neonRed : null,
+                                ),
+                              ),
+                              Text(
+                                unit,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),

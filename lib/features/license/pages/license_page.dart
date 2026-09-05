@@ -187,14 +187,23 @@ class _LicensePageState extends ConsumerState<LicensePage> {
                 child: Padding(
                   padding: AppSpacing.padding,
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.tag_rounded, color: AppColors.neonCyan),
                       const SizedBox(width: AppSpacing.md),
-                      Text('${l.serialLabel}: '),
                       Expanded(
-                        child: Text(
-                          state.deviceSerial,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${l.serialLabel}: '),
+                            Text(
+                              state.deviceSerial,
+                              softWrap: true,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

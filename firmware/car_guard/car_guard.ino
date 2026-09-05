@@ -170,8 +170,9 @@ float filteredVolt = 12.0;
 // FAN
 // =========================================================
 const float FAN_HYSTERESIS = 5.0;
-bool  fanState      = false;
-bool  fanTestActive = false;
+bool  fanState          = false;
+bool  fanTestActive     = false;
+bool  manualFanOverride = false;
 unsigned long fanTestStopAt = 0;
 
 // =========================================================
@@ -372,6 +373,7 @@ void fanOn() {
     digitalWrite(RELAY_PIN, LOW);
     fanState = false;
     fanTestActive = false;
+    manualFanOverride = false;
     return;
   }
   digitalWrite(RELAY_PIN, HIGH);
@@ -387,8 +389,13 @@ void fanOff() {
 
 void updateFanControl() {
   if (!license_is_active()) {
+    manualFanOverride = false;
     fanTestActive = false;
     fanOff();
+    return;
+  }
+  if (manualFanOverride) {
+    if (!fanState) fanOn();
     return;
   }
   if (fanTestActive) {
@@ -870,14 +877,60 @@ void handleTestFan() {
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
   if (!license_is_active()) {
     fanTestActive = false;
+    manualFanOverride = false;
     fanOff();
     server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  // A manual override is already continuous; do not replace it with a timed
+  // test or let /testfan create a second fan-control mode.
+  if (manualFanOverride) {
+    fanOn();
+    playConfirmSound();
+    server.send(200, "text/plain", "OK");
     return;
   }
 
   fanTestActive = true;
   fanTestStopAt = millis() + 5000;
   fanOn();
+  playConfirmSound();
+  server.send(200, "text/plain", "OK");
+}
+
+void handleFanOn() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    manualFanOverride = false;
+    fanTestActive = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  manualFanOverride = true;
+  fanTestActive = false;
+  fanOn();
+  playConfirmSound();
+  server.send(200, "text/plain", "OK");
+}
+
+void handleFanOff() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    manualFanOverride = false;
+    fanTestActive = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  manualFanOverride = false;
+  fanTestActive = false;
+  fanOff();
   playConfirmSound();
   server.send(200, "text/plain", "OK");
 }
@@ -1068,6 +1121,8 @@ void setup() {
   server.on("/data",                handleData);
   server.on("/mute",                handleMute);
   server.on("/testfan",             handleTestFan);
+  server.on("/fanon",               handleFanOn);
+  server.on("/fanoff",              handleFanOff);
   server.on("/restart",             handleRestart);
   server.on("/savewifi",            handleSaveWiFiSettings);
   server.on("/joinwifi",            handleJoinWiFi);

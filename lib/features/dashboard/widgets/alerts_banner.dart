@@ -56,6 +56,7 @@ class AlertsBanner extends ConsumerWidget {
                 children: [
                   Text(
                     lead.title,
+                    softWrap: true,
                     style: Theme.of(
                       context,
                     ).textTheme.titleMedium?.copyWith(color: color),
@@ -63,6 +64,7 @@ class AlertsBanner extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     lead.message,
+                    softWrap: true,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (sorted.length > 1) ...[

@@ -211,6 +211,19 @@ class AppL10n {
   String get muteAlarm => isAr ? '🔇 كتم الإنذار' : '🔇 Mute alarm';
   String get enableAlarm => isAr ? '🔊 تشغيل الإنذار' : '🔊 Enable alarm';
   String get testFan => isAr ? 'تجربة المروحة' : 'Test fan';
+  String get manualFanOn => isAr ? 'تشغيل يدوي للمروحة' : 'Manual fan ON';
+  String get manualFanOff => isAr ? 'إيقاف يدوي للمروحة' : 'Manual fan OFF';
+  String get manualFanOnConfirmTitle =>
+      isAr ? 'تشغيل المروحة يدويًا؟' : 'Turn the fan on manually?';
+  String get manualFanOnConfirmBody => isAr
+      ? 'ستظل المروحة تعمل باستمرار حتى تختار إيقافها يدويًا.'
+      : 'The fan will stay on continuously until you turn it off manually.';
+  String get manualFanOnSuccess =>
+      isAr ? 'تم تشغيل المروحة يدويًا.' : 'Manual fan ON sent.';
+  String get manualFanOffSuccess =>
+      isAr ? 'تم إيقاف المروحة اليدوية.' : 'Manual fan OFF sent.';
+  String get manualFanCommandFailed =>
+      isAr ? 'تعذر تغيير حالة المروحة.' : 'Could not change the fan state.';
   String get restartDevice => isAr ? 'إعادة تشغيل الجهاز' : 'Restart device';
   String get moduleSettings => isAr ? 'إعدادات الجهاز' : 'Module settings';
   String get deviceConnection => isAr ? 'الاتصال بالجهاز' : 'Device connection';

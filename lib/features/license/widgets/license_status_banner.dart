@@ -83,13 +83,14 @@ class LicenseStatusBanner extends ConsumerWidget {
                 children: [
                   Text(
                     title,
+                    softWrap: true,
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  Text(body),
+                  Text(body, softWrap: true),
                   const SizedBox(height: AppSpacing.sm),
                   Align(
                     alignment: AlignmentDirectional.centerEnd,

@@ -141,19 +141,33 @@ class SportyGauge extends StatelessWidget {
         child: Padding(
           padding: AppSpacing.padding,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              CustomPaint(
-                size: const Size(170, 170),
-                painter: _SportyGaugePainter(
-                  value: value,
-                  min: min,
-                  max: max,
-                  redlineValue: redlineValue,
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gaugeSize =
+                      math.min(constraints.maxWidth, 170.0).toDouble();
+                  return Align(
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: gaugeSize,
+                      height: gaugeSize,
+                      child: CustomPaint(
+                        painter: _SportyGaugePainter(
+                          value: value,
+                          min: min,
+                          max: max,
+                          redlineValue: redlineValue,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 '${value.toStringAsFixed(1)} $unit',
+                textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: warning ? AppColors.neonRed : null,
@@ -162,6 +176,7 @@ class SportyGauge extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 label,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.neonCyan,
                   fontWeight: FontWeight.w600,

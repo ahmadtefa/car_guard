@@ -20,10 +20,18 @@ class SectionTitle extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            title,
+            softWrap: true,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           if (subtitle != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              subtitle!,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ],
       ),

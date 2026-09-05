@@ -11,5 +11,7 @@ class DeviceEndpoints {
   static const restart = '/restart';
   static const mute = '/mute';
   static const testFan = '/testfan';
+  static const fanOn = '/fanon';
+  static const fanOff = '/fanoff';
   static const otaUpdate = '/update';
 }

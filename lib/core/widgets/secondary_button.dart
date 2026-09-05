@@ -20,7 +20,7 @@ class SecondaryButton extends StatelessWidget {
   /// The widget displayed inside the button.
   final Widget child;
 
-  /// Optional fixed height for the button.
+  /// Minimum height for the button; wrapped labels may grow beyond it.
   final double height;
 
   /// Optional custom padding.
@@ -28,12 +28,16 @@ class SecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: height),
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          padding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
+          padding: padding ?? const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          minimumSize: Size(0, height),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: child,

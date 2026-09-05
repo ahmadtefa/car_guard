@@ -255,10 +255,11 @@ class _LicenseAnalysisNotice extends ConsumerWidget {
                 children: [
                   Text(
                     title,
+                    softWrap: true,
                     style: TextStyle(color: color, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  Text(body),
+                  Text(body, softWrap: true),
                   const SizedBox(height: AppSpacing.sm),
                   Align(
                     alignment: AlignmentDirectional.centerEnd,
@@ -398,13 +399,15 @@ class _CurrentAlertCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          kindTitle(alert.kind, l),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                      Text(
+                        kindTitle(alert.kind, l),
+                        softWrap: true,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
                       SeverityChip(severity: alert.severity, l: l),
                     ],
@@ -519,7 +522,10 @@ class _StatsGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+        final columns = constraints.maxWidth >= 420 ? 2 : 1;
+        final width = (constraints.maxWidth -
+                AppSpacing.sm * (columns - 1)) /
+            columns;
         return Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -559,18 +565,16 @@ class _StatTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
+                    softWrap: true,
                     style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     value,
+                    softWrap: true,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -835,11 +839,13 @@ class _HistoryCard extends StatelessWidget {
                 children: [
                   Text(
                     kindTitle(entry.kind, l),
+                    softWrap: true,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     formatDateTime(entry.timestamp, l.isAr),
+                    softWrap: true,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color:
                               Theme.of(context).colorScheme.onSurfaceVariant,
@@ -849,44 +855,46 @@ class _HistoryCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       readings,
+                      softWrap: true,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SeverityChip(severity: entry.severity, l: l),
+                      if (entry.occurrences > 1)
+                        Text(
+                          l.occurrencesLabel(entry.occurrences),
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (entry.escalated)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            l.escalatedTag,
+                            softWrap: true,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.danger),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                SeverityChip(severity: entry.severity, l: l),
-                if (entry.occurrences > 1) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    l.occurrencesLabel(entry.occurrences),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                if (entry.escalated) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      l.escalatedTag,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.danger),
-                    ),
-                  ),
-                ],
-              ],
             ),
           ],
         ),
@@ -937,7 +945,10 @@ class _TripStatsCard extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+        final columns = constraints.maxWidth >= 420 ? 2 : 1;
+        final width = (constraints.maxWidth -
+                AppSpacing.sm * (columns - 1)) /
+            columns;
         return Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -995,9 +1006,12 @@ class _SparklineCard extends StatelessWidget {
               children: [
                 const _LegendDot(color: AppColors.danger),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  l.engineTempLabel,
-                  style: Theme.of(context).textTheme.bodySmall,
+                Expanded(
+                  child: Text(
+                    l.engineTempLabel,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),
@@ -1017,9 +1031,12 @@ class _SparklineCard extends StatelessWidget {
               children: [
                 const _LegendDot(color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  l.batteryVoltLabel,
-                  style: Theme.of(context).textTheme.bodySmall,
+                Expanded(
+                  child: Text(
+                    l.batteryVoltLabel,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),

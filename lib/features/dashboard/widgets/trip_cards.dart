@@ -146,8 +146,8 @@ class _TripCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
+                    softWrap: true,
                     style: Theme.of(context).textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

@@ -1189,6 +1189,12 @@ class Esp8266Repository implements DeviceRepository {
   /// Runs the radiator fan test (`/testfan`).
   Future<bool> testFan() => sendDeviceCommand(DeviceEndpoints.testFan);
 
+  /// Enables the firmware's persistent manual radiator-fan override (`/fanon`).
+  Future<bool> fanOn() => sendDeviceCommand(DeviceEndpoints.fanOn);
+
+  /// Cancels the manual radiator-fan override and turns it off (`/fanoff`).
+  Future<bool> fanOff() => sendDeviceCommand(DeviceEndpoints.fanOff);
+
   /// Reboots the module (`/restart`).
   Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
 

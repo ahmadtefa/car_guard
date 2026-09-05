@@ -199,7 +199,7 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
                         Expanded(
                           child: Text(
                             _fileName ?? l.noFileSelected,
-                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: _fileName == null

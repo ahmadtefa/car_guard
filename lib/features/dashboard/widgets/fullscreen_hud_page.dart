@@ -69,22 +69,27 @@ class FullscreenHudPage extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                valueText,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 84,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                  letterSpacing: 2,
-                  shadows: [
-                    Shadow(color: color.withAlpha(120), blurRadius: 60),
-                  ],
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  valueText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 84,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(color: color.withAlpha(120), blurRadius: 60),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
                 labelText,
+                textAlign: TextAlign.center,
+                softWrap: true,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
