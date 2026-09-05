@@ -86,6 +86,18 @@ class _ModuleServer {
     await response.close();
   }
 
+  void _send(WebSocket socket, String message) {
+    // A server-side onDone callback and a client-side reconnect can race. A
+    // WebSocket sink is single-use; a late response must be discarded rather
+    // than surfacing "StreamSink is closed" as an unrelated test failure.
+    if (_closing || !_sockets.contains(socket)) return;
+    try {
+      socket.add(message);
+    } catch (_) {
+      _removeSocket(socket);
+    }
+  }
+
   Future<void> _upgradeWebSocket(HttpRequest request) async {
     final socket = await WebSocketTransformer.upgrade(request);
     if (_closing) {
@@ -104,14 +116,14 @@ class _ModuleServer {
     // before any possible telemetry frame. This lets the repository apply the
     // same ACTIVE output gate without a first-frame race.
     if (replyToStatus) {
-      socket.add(
+      _send(socket,
         '{"type":"LICENSE_STATUS","status":"$licenseStatus",'
         '"licenseType":"$licenseType","expires":0}',
       );
     }
 
     if (sendInitialTelemetry) {
-      socket.add(_activeTelemetry);
+      _send(socket, _activeTelemetry);
       if (closeAfterInitialTelemetry) {
         unawaited(Future<void>.delayed(const Duration(milliseconds: 20), () async {
           if (_sockets.contains(socket)) {
@@ -126,11 +138,7 @@ class _ModuleServer {
         const Duration(milliseconds: 20),
         (_) {
           if (!_sockets.contains(socket)) return;
-          try {
-            socket.add(_activeTelemetry);
-          } catch (_) {
-            // The onDone callback removes the socket and its timer.
-          }
+          _send(socket, _activeTelemetry);
         },
       );
     }
@@ -165,14 +173,14 @@ class _ModuleServer {
     switch (command) {
       case 'DEVICE_SERIAL':
         if (replyToSerial) {
-          socket.add(
+          _send(socket,
             '{"type":"DEVICE_SERIAL","serial":"KCG_1234ABCD"}',
           );
         }
         break;
       case 'LICENSE_STATUS':
         if (replyToStatus) {
-          socket.add(
+          _send(socket,
             '{"type":"LICENSE_STATUS","status":"$licenseStatus",'
             '"licenseType":"$licenseType","expires":0}',
           );
@@ -180,7 +188,7 @@ class _ModuleServer {
         break;
       case 'LICENSE_ACTIVATE':
         if (replyToActivation) {
-          socket.add(
+          _send(socket,
             '{"type":"LICENSE_RESULT","status":"OK",'
             '"reason":"OK","expires":0}',
           );
@@ -528,18 +536,32 @@ void main() {
     );
     await server.start();
     final repository = _repositoryFor(server);
+    final readings = <dynamic>[];
+    final subscription = repository.liveUpdates.listen(readings.add);
 
     try {
       await repository.connect(host: server.host, port: server.port);
       await _waitUntil(
-        () => server.httpDataRequestCount > 0,
+        // One connected reading came from the initial WebSocket frame; the
+        // second connected reading proves that the real /data body was
+        // accepted after that socket closed, rather than merely observing the
+        // request counter (the initial disconnect marker is also in the
+        // stream).
+        () => server.httpDataRequestCount > 0 &&
+            readings.where((reading) => reading.connected).length >= 2,
         timeout: const Duration(seconds: 2),
       );
 
       expect(server.httpDataRequestCount, greaterThan(0));
+      expect(
+        readings.where((reading) => reading.connected).length,
+        greaterThanOrEqualTo(2),
+      );
+      expect(readings.last.connected, isTrue);
       expect(await repository.isConnected(), isTrue);
       expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
     } finally {
+      await subscription.cancel();
       await repository.disconnect();
       await server.close();
     }

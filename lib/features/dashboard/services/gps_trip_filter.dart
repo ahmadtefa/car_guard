@@ -196,11 +196,18 @@ class GpsTripFilter {
     final rawDerivedMs = dtSeconds > 0 ? jumpM / dtSeconds : 0.0;
 
     final sensorMs = _sensorSpeedMs(position);
+    final sensorSpeedIsTrusted =
+        sensorMs >= 0 &&
+        (sensorMs >= 0.25 || position.speedAccuracy > 0);
     final double metersPerSecond;
 
-    // Trust any non-trivial Doppler speed. Previously 0.5 m/s (~1.8 km/h)
-    // clipped the first moments of motion; lowered so ~1 km/h registers.
-    if (sensorMs >= 0.25) {
+    // A reported zero with a positive speed accuracy is a trustworthy
+    // standstill and must win over GPS jitter. A zero speed with unknown
+    // accuracy (Android commonly reports speedAccuracy == 0) remains eligible
+    // for the derived-track fallback used when the speed sensor is silent.
+    // Trust any non-trivial Doppler speed too; this keeps the first moments of
+    // real low-speed motion responsive.
+    if (sensorSpeedIsTrusted) {
       metersPerSecond = sensorMs;
       _derivedMotionStreak = 0;
     } else {
