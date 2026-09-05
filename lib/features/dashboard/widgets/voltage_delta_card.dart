@@ -11,7 +11,13 @@ import 'mini_gauges.dart';
 /// center-zero differential gauge: green to the right while charging,
 /// red to the left while dropping.
 class VoltageDeltaCard extends ConsumerWidget {
-  const VoltageDeltaCard({super.key});
+  const VoltageDeltaCard({
+    super.key,
+    this.styleName = 'cards',
+  });
+
+  /// Uses the same persisted dashboard style as the temperature gauge.
+  final String styleName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,7 +52,11 @@ class VoltageDeltaCard extends ConsumerWidget {
       value: valueText,
       subtitle: l.chargingDeltaInfo,
       statusText: statusText,
-      child: DeltaGauge(delta: delta, scale: 1.5),
+      child: DeltaGauge(
+        delta: delta,
+        scale: 1.5,
+        styleName: styleName,
+      ),
     );
   }
 }

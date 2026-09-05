@@ -17,10 +17,10 @@ import 'voltage_delta_card.dart';
 /// Builds the four primary dashboard readings in their fixed order:
 /// engine temperature, voltage difference, speed, then distance.
 ///
-/// The selected dashboard style is still used for the temperature gauge. The
-/// voltage-difference card and the phone GPS trip cards keep their existing
-/// widgets/data sources; only their placement is centralized here so the
-/// normal and fullscreen dashboards cannot drift apart.
+/// The selected dashboard style is shared by the temperature and
+/// voltage-difference gauges. The voltage card and phone GPS trip cards keep
+/// their existing data sources; only their placement is centralized here so
+/// the normal and fullscreen dashboards cannot drift apart.
 Widget buildGaugeArea(
   BuildContext context,
   WidgetRef ref, {
@@ -64,7 +64,9 @@ Widget buildGaugeArea(
     children: [
       _ResponsivePrimaryReadings(
         temperature: temperatureGauge,
-        voltageDifference: const VoltageDeltaCard(),
+        voltageDifference: VoltageDeltaCard(
+          styleName: settings.dashboardStyleName,
+        ),
       ),
       const SizedBox(height: AppSpacing.md),
       TripCards(showControls: !compact),
