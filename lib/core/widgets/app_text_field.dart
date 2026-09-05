@@ -57,8 +57,10 @@ class AppTextField extends StatelessWidget {
         enabled: enabled,
         onSubmitted: onSubmitted,
         decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
+          label: labelText == null
+              ? null
+              : Text(labelText!, softWrap: true),
+          hint: hintText == null ? null : Text(hintText!, softWrap: true),
           prefixIcon: prefixIcon,
           suffixIcon: suffixIcon,
           border: OutlineInputBorder(borderRadius: AppRadius.medium),

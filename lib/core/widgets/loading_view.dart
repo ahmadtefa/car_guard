@@ -21,7 +21,7 @@ class LoadingView extends StatelessWidget {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: AppSpacing.md),
-            Text(message),
+            Text(message, softWrap: true, textAlign: TextAlign.center),
           ],
         ),
       ),

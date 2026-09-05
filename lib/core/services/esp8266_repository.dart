@@ -7,30 +7,77 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../constants/device_endpoints.dart';
+import '../models/license_models.dart';
 import 'device_models.dart';
 import 'device_repository.dart';
 import 'mdns_discovery_service.dart';
 import 'network_binding_service.dart';
 
+/// Factory used by the repository to create its one WebSocket transport.
+///
+/// Keeping this injectable makes the transport/watchdog contract testable
+/// without changing the production connector or opening a second socket.
+typedef WebSocketConnector = WebSocketChannel Function(Uri uri);
 
 class Esp8266Repository implements DeviceRepository {
   Esp8266Repository({
     required this.host,
     this.port = 81,
+    this.httpPort = 80,
+    this.enableMdnsDiscovery = true,
+    this.watchdogTimeout = const Duration(seconds: 6),
+    this.httpTimeout = const Duration(seconds: 3),
+    this.webSocketInitialTimeout = const Duration(milliseconds: 1500),
+    // Keep the activation response window at twelve seconds so the firmware
+    // can finish validation and EEPROM persistence without a transport race.
+    this.licenseRequestTimeout = const Duration(seconds: 12),
+    WebSocketConnector? webSocketConnector,
   }) : _activeHost = host,
-       _activePort = port;
+       _activePort = port,
+       _webSocketConnector = webSocketConnector ?? WebSocketChannel.connect;
 
   final String host;
   final int port;
 
+  /// HTTP is normally served on port 80 while the telemetry WebSocket uses
+  /// port 81. Tests and alternate module builds may expose both transports on
+  /// another port without changing the production defaults.
+  final int httpPort;
+
+  /// mDNS remains enabled by default; tests can turn discovery off so they
+  /// exercise only the WebSocket/watchdog behavior.
+  final bool enableMdnsDiscovery;
+
+  /// These defaults are the production transport timings. They are constructor
+  /// options so watchdog tests can run faster; the license timeout remains
+  /// twelve seconds for the complete firmware activation response.
+  final Duration watchdogTimeout;
+  final Duration httpTimeout;
+  final Duration webSocketInitialTimeout;
+  final Duration licenseRequestTimeout;
+
+  final WebSocketConnector _webSocketConnector;
+
   String _activeHost;
   int _activePort;
+
+  String _httpUrl(String targetHost, String pathAndQuery) {
+    final portSuffix = httpPort == 80 ? '' : ':$httpPort';
+    return 'http://$targetHost$portSuffix$pathAndQuery';
+  }
+
+  /// Returns the phone's current UTC Unix time in seconds. This value is sent
+  /// only as the activation/status time input; the signed license payload and
+  /// activation code remain byte-for-byte unchanged.
+  int _phoneEpochSeconds() {
+    return DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+  }
 
   WebSocketChannel? _channel;
   Timer? _httpTimer;
   Timer? _wsTimeoutTimer;
 
-  /// Fires when no valid data arrived for [_watchdogTimeout] while the link
+  /// Fires when no valid data arrived for [watchdogTimeout] while the link
   /// was believed to be up: a dead TCP connection (WiFi toggled off, module
   /// powered down) never delivers a close frame, so silence is the signal.
   Timer? _watchdogTimer;
@@ -42,18 +89,78 @@ class Esp8266Repository implements DeviceRepository {
   /// Serializes fallback polls: a stuck request must not stack followers.
   bool _httpRequestInFlight = false;
 
+  /// Invalidates an HTTP poll that belongs to an older transport session. A
+  /// response from such a poll must not mark a newly-created WebSocket
+  /// disconnected (or revive an obsolete fallback loop).
+  int _httpFallbackGeneration = 0;
+
   /// Consecutive failed fallback polls; a single dropped packet must not
   /// flap the UI to Disconnected.
   int _pollFailureCount = 0;
 
-  static const Duration _watchdogTimeout = Duration(seconds: 6);
-  static const Duration _httpTimeout = Duration(seconds: 3);
+  /// True after at least one valid license-protocol reply has arrived on the
+  /// current WebSocket. This is separate from telemetry: a LOCKED module can
+  /// keep the license socket alive without sending sensor frames.
+  bool _licenseProofOfLife = false;
+
+  /// Whether this WebSocket session has already produced telemetry. Keeping
+  /// this bit separate means a known ACTIVE session retains the exact original
+  /// telemetry/HTTP watchdog path even while its license handshake is still
+  /// settling.
+  bool _telemetrySeenOnSocket = false;
+
+  /// Last authorized reading for a newly authorized stream subscriber. This
+  /// is cleared on LOCKED/disconnect, so it cannot become a stale leak.
+  DeviceStatus? _lastTelemetryStatus;
+
+  /// Monotonic count of valid license replies on the current socket. It lets a
+  /// watchdog probe accept any valid license reply that raced with its own
+  /// request, not just the exact reply type it asked for.
+  int _licenseActivityGeneration = 0;
+
+  /// Latest authoritative status observed during this WebSocket session. A
+  /// session with telemetry keeps the normal telemetry/HTTP watchdog behavior;
+  /// a license reply is used as a probe only when no sensor frame has arrived.
+  LicenseDeviceStatus? _licenseDeviceStatus;
+
+  /// Last status known from the module, retained across the transport handoff
+  /// so a LOCKED module cannot become visible merely because its redacted CSV
+  /// fallback has no status field. ACTIVE is likewise retained only as the
+  /// fallback's authorization context; it never grants protected controls.
+  LicenseDeviceStatus? _lastKnownLicenseStatus;
+
+  /// Repeats the last license query that can safely act as a proof-of-life
+  /// probe. LICENSE_RESULT is not itself a repeatable request, so it falls
+  /// back to LICENSE_STATUS.
+  String? _lastLicenseCommand;
+
+  /// Prevents an overlapping watchdog probe from declaring a healthy socket
+  /// dead while the previous probe is still awaiting its reply.
+  bool _licenseWatchdogProbeInFlight = false;
+
+  /// An explicit license request is also proof that the socket is being used.
+  /// Do not let the inactivity timer close the transport at the exact moment
+  /// that request is waiting for its first reply (the short test timings make
+  /// that race easy to hit, and the production timings can hit it after a
+  /// cold Wi-Fi wake-up too).
+  int _licenseRequestsInFlight = 0;
 
   final StreamController<DeviceStatus> _statusController =
       StreamController<DeviceStatus>.broadcast();
 
   final StreamController<bool> _connectionController =
       StreamController<bool>.broadcast();
+
+  /// License-protocol replies (DEVICE_SERIAL / LICENSE_STATUS / LICENSE_RESULT)
+  /// answered by the module over the SAME WebSocket as telemetry — no second
+  /// connection is ever opened.
+  final StreamController<LicenseMessage> _licenseController =
+      StreamController<LicenseMessage>.broadcast();
+
+  /// Completes when the WebSocket channel has been created, so a license query
+  /// can wait for the transport before sending even when no sensor frame has
+  /// arrived yet.
+  Completer<void>? _transportReady;
 
   bool _connected = false;
   bool _usingHttpFallback = false;
@@ -95,8 +202,13 @@ class Esp8266Repository implements DeviceRepository {
   /// after [disconnect] already cancelled every timer.
   bool _stopped = true;
 
+  @override
   Stream<bool> get connectionStream =>
       _connectionController.stream;
+
+  @override
+  Stream<LicenseMessage> get licenseStream =>
+      _licenseController.stream;
 
 
   @override
@@ -114,6 +226,10 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+
+    // Mark the moment the transport will be available for license queries;
+    // command readiness must not depend on the first sensor reading.
+    _transportReady = Completer<void>();
 
     // Optional direct, app-scoped pairing (paired from Settings -> Device
     // connection): keeps the module reachable while 4G stays the phone's
@@ -136,9 +252,10 @@ class Esp8266Repository implements DeviceRepository {
     // announces itself as car_guard.local — resolve that once and follow it,
     // so a DHCP-assigned IP never needs to be typed by hand. Throttled: at
     // most one lookup per minute (WS reconnects call connect() repeatedly).
-    if (_lastMdnsLookup == null ||
-        DateTime.now().difference(_lastMdnsLookup!) >
-            const Duration(minutes: 1)) {
+    if (enableMdnsDiscovery &&
+        (_lastMdnsLookup == null ||
+            DateTime.now().difference(_lastMdnsLookup!) >
+                const Duration(minutes: 1))) {
       _lastMdnsLookup = DateTime.now();
 
       final discovered = await MdnsDiscoveryService().resolveModuleIp();
@@ -165,16 +282,31 @@ class Esp8266Repository implements DeviceRepository {
 
     try {
 
-      _channel = WebSocketChannel.connect(
+      final channel = _webSocketConnector(
         Uri.parse(
           "ws://$host:$wsPort",
         ),
       );
+      _channel = channel;
 
+      // From here on the socket can carry text frames, so a license command
+      // may be sent even before any telemetry arrives. Capture the channel
+      // locally as well: callbacks from an old socket must never affect a
+      // newer connection during reconnect/close races.
+      final ready = _transportReady;
+      if (ready != null && !ready.isCompleted) {
+        ready.complete();
+      }
 
-      _channelSubscription = _channel!.stream.listen(
+      _channelSubscription = channel.stream.listen(
 
         (message) {
+
+          // A queued callback from a cancelled socket must not feed data into
+          // a newer connection or revive a session that is being torn down.
+          if (_stopped || !identical(_channel, channel)) {
+            return;
+          }
 
           debugPrint(
             "WS DATA = $message",
@@ -193,20 +325,7 @@ class Esp8266Repository implements DeviceRepository {
           }
 
 
-          _connected = true;
-          _usingHttpFallback = false;
-          _pollFailureCount = 0;
-
-          if (_wsReconnectAttempts != 0) {
-            _wsReconnectAttempts = 0;
-          }
-
-          _wsReconnectTimer?.cancel();
-          _wsReconnectTimer = null;
-
-          _connectionController.add(true);
-
-          _resetWatchdog();
+          _markConnectionAlive();
 
         },
 
@@ -217,13 +336,20 @@ class Esp8266Repository implements DeviceRepository {
             "WS CLOSED",
           );
 
-          if (_stopped) {
+          if (_stopped || !identical(_channel, channel)) {
             return;
           }
 
           // The HTTP fallback owns dead-device detection from here on.
           _watchdogTimer?.cancel();
           _watchdogTimer = null;
+          _wsTimeoutTimer?.cancel();
+          _wsTimeoutTimer = null;
+
+          // The stream has ended even though the channel object is still
+          // reachable. Detach it before HTTP fallback can mark itself alive;
+          // otherwise a later license write could hit this closed sink.
+          _channel = null;
 
           _setDisconnected();
 
@@ -241,13 +367,20 @@ class Esp8266Repository implements DeviceRepository {
             "WS ERROR $error",
           );
 
-          if (_stopped) {
+          if (_stopped || !identical(_channel, channel)) {
             return;
           }
 
           // The HTTP fallback owns dead-device detection from here on.
           _watchdogTimer?.cancel();
           _watchdogTimer = null;
+          _wsTimeoutTimer?.cancel();
+          _wsTimeoutTimer = null;
+
+          // The stream has ended even though the channel object is still
+          // reachable. Detach it before HTTP fallback can mark itself alive;
+          // otherwise a later license write could hit this closed sink.
+          _channel = null;
 
           _setDisconnected();
 
@@ -265,7 +398,11 @@ class Esp8266Repository implements DeviceRepository {
 
       try {
 
-        _channel!.sink.add(
+        if (_stopped || !identical(_channel, channel)) {
+          return;
+        }
+
+        channel.sink.add(
           "hello",
         );
 
@@ -288,16 +425,22 @@ class Esp8266Repository implements DeviceRepository {
       _wsTimeoutTimer?.cancel();
 
       _wsTimeoutTimer = Timer(
-        const Duration(milliseconds: 1500),
+        webSocketInitialTimeout,
         () {
 
-          if (!_connected && !_stopped) {
+          if (!_connected &&
+              !_stopped &&
+              identical(_channel, channel)) {
 
             debugPrint(
               "WS TIMEOUT -> HTTP FALLBACK (1.5s)",
             );
 
-            _startHttpFallback(host);
+            // A channel object can exist even when the WebSocket handshake
+            // never produced a frame. Do not leave that stale channel in
+            // place: license commands would otherwise be written to it while
+            // /data keeps succeeding over HTTP.
+            unawaited(_recoverFromFailedWebSocket(host, channel));
 
           }
 
@@ -311,15 +454,45 @@ class Esp8266Repository implements DeviceRepository {
         "WS CONNECT FAILED $e",
       );
 
-      _setDisconnected();
+      await _closeSocket();
+      if (_stopped) {
+        return;
+      }
 
+      _setDisconnected();
       _startHttpFallback(host);
+      _scheduleWsReconnect();
 
     }
 
   }
 
 
+
+  /// Abandons a WebSocket that never produced a valid frame and moves the
+  /// repository to the same recovery path used by onDone/onError. Keeping the
+  /// failed channel around is especially harmful to activation: HTTP polling
+  /// proves that `/data` is reachable, but the license protocol exists only on
+  /// a healthy WebSocket.
+  Future<void> _recoverFromFailedWebSocket(
+    String host,
+    WebSocketChannel expectedChannel,
+  ) async {
+    if (_stopped ||
+        _connected ||
+        !identical(_channel, expectedChannel)) {
+      return;
+    }
+
+    await _closeSocket();
+    if (_stopped || _channel != null) {
+      return;
+    }
+
+    _setDisconnected();
+    _startHttpFallback(host);
+    _scheduleWsReconnect();
+  }
 
   void _startHttpFallback(
     String host,
@@ -336,6 +509,7 @@ class Esp8266Repository implements DeviceRepository {
 
 
     _usingHttpFallback = true;
+    final fallbackGeneration = ++_httpFallbackGeneration;
 
 
     _httpTimer?.cancel();
@@ -344,20 +518,32 @@ class Esp8266Repository implements DeviceRepository {
     // لما الموبايل لسه على شبكة الجهاز
     Future<void> doPoll() async {
       // A stuck request must not stack followers on top of each other.
-      if (_stopped || !_usingHttpFallback || _httpRequestInFlight) return;
+      if (_stopped ||
+          !_usingHttpFallback ||
+          fallbackGeneration != _httpFallbackGeneration ||
+          _httpRequestInFlight) {
+        return;
+      }
 
       _httpRequestInFlight = true;
 
       try {
         final response = await http
             .get(
-              Uri.parse("http://$host/data"),
+              Uri.parse(_httpUrl(host, '/data')),
             )
-            .timeout(_httpTimeout);
+            .timeout(httpTimeout);
 
         // A bare 200 is not proof of life on a foreign network (a router
         // page or captive portal can answer on the module IP): the body
-        // must parse as real device telemetry.
+        // must parse as real device telemetry. Also discard a late response
+        // from an obsolete fallback loop.
+        if (fallbackGeneration != _httpFallbackGeneration ||
+            _stopped ||
+            !_usingHttpFallback) {
+          return;
+        }
+
         if (response.statusCode == 200 &&
             _handleData(response.body)) {
           // نجاح فوري -> الغي مؤقت الـ WS وأعد الاتصال
@@ -366,9 +552,11 @@ class Esp8266Repository implements DeviceRepository {
           _wsReconnectAttempts = 0;
           _pollFailureCount = 0;
 
+          // Keep the original fallback ownership semantics: a successful
+          // HTTP poll leaves _usingHttpFallback true so the polling loop
+          // continues to provide readings until the WebSocket upgrades it.
           _connected = true;
           _connectionController.add(true);
-
           _resetWatchdog();
         } else {
           _registerPollFailure();
@@ -377,7 +565,9 @@ class Esp8266Repository implements DeviceRepository {
         // الخطأ لا يقطع الـ polling — سيُعاد في الدورة التالية
         _registerPollFailure();
       } finally {
-        _httpRequestInFlight = false;
+        if (fallbackGeneration == _httpFallbackGeneration) {
+          _httpRequestInFlight = false;
+        }
       }
     }
 
@@ -417,6 +607,7 @@ class Esp8266Repository implements DeviceRepository {
     final delays = [1, 1, 2, 3, 5];
     final idx = (_wsReconnectAttempts - 1).clamp(0, delays.length - 1);
     final delaySeconds = delays[idx];
+    final recoveryGeneration = _httpFallbackGeneration;
 
     debugPrint(
       "WS RECONNECT IN ${delaySeconds}s (attempt $_wsReconnectAttempts/$_maxWsReconnectAttempts)",
@@ -429,7 +620,9 @@ class Esp8266Repository implements DeviceRepository {
 
         _wsReconnectTimer = null;
 
-        if (_stopped || _connected) {
+        if (_stopped ||
+            _connected ||
+            recoveryGeneration != _httpFallbackGeneration) {
           return;
         }
 
@@ -453,9 +646,41 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  void _setDisconnected() {
+  /// Records a valid frame as connection activity. The caller has already
+  /// validated that the frame is either telemetry or a license-protocol reply;
+  /// both are proof that the existing WebSocket is usable.
+  void _markConnectionAlive() {
 
+    _connected = true;
+    // The initial-handshake timer is only for a socket that never produces a
+    // valid frame. Once status or telemetry arrives it must not wake later
+    // after an ordinary close and tear down the HTTP fallback underneath it.
+    _wsTimeoutTimer?.cancel();
+    _wsTimeoutTimer = null;
+    _usingHttpFallback = false;
+    _pollFailureCount = 0;
+
+    if (_wsReconnectAttempts != 0) {
+      _wsReconnectAttempts = 0;
+    }
+
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+
+    _connectionController.add(true);
+
+    _resetWatchdog();
+
+  }
+
+
+
+  void _setDisconnected() {
     _connected = false;
+    // A transport transition ends the current authorization session too.
+    // Never let a proof from the old socket authorize fallback or a later
+    // command after disconnect.
+    _clearLicenseConnectionHealth();
 
     _connectionController.add(false);
 
@@ -486,7 +711,7 @@ class Esp8266Repository implements DeviceRepository {
     _watchdogTimer?.cancel();
 
     _watchdogTimer = Timer(
-      _watchdogTimeout,
+      watchdogTimeout,
       _onWatchdogTimeout,
     );
 
@@ -494,10 +719,43 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// No data arrived for [_watchdogTimeout] while the link was believed to
+  /// No data arrived for [watchdogTimeout] while the link was believed to
   /// be up. A dropped network does not close the socket, so probe the module
-  /// once over plain HTTP before declaring the connection lost.
+  /// once before declaring the connection lost.
+  ///
+  /// If no sensor frame has arrived yet but a serial/result reply proved the
+  /// socket, repeat a license query on that same socket. A LOCKED status is a
+  /// terminal proof for a telemetry-silent device and is kept stable without
+  /// sending the same status command over and over. A stalled active/unknown
+  /// session still follows the existing close/fallback/reconnect path.
   Future<void> _onWatchdogTimeout() async {
+
+    if (_stopped) {
+      return;
+    }
+
+    // A caller may have just started DEVICE_SERIAL, LICENSE_STATUS, or
+    // LICENSE_ACTIVATE. Waiting for that authoritative reply is safer than
+    // treating the still-silent socket as dead and replacing it underneath
+    // the request.
+    if (_licenseRequestsInFlight > 0) {
+      _resetWatchdog();
+      return;
+    }
+
+    // LOCKED modules intentionally have no telemetry. Once the module has
+    // answered LICENSE_STATUS with LOCKED, repeatedly sending the same probe
+    // would turn a valid proof-of-life into a reconnect storm (and would
+    // write to a sink that may be closing). Keep the established WebSocket
+    // session; an actual close/error or a later explicit license action still
+    // drives recovery.
+    if (_licenseDeviceStatus == LicenseDeviceStatus.locked &&
+        !_telemetrySeenOnSocket) {
+      _resetWatchdog();
+      return;
+    }
+
+    final socketAtTimeout = _channel;
 
     try {
 
@@ -505,24 +763,71 @@ class Esp8266Repository implements DeviceRepository {
         "WATCHDOG TIMEOUT - PROBING MODULE",
       );
 
+      final licenseSession =
+          _licenseProofOfLife &&
+          !_telemetrySeenOnSocket &&
+          _licenseDeviceStatus != LicenseDeviceStatus.active &&
+          socketAtTimeout != null;
 
-      final alive = await _probeHttp();
+      if (licenseSession) {
+        if (_licenseWatchdogProbeInFlight) {
+          // The in-flight probe owns the health decision. Do not let a
+          // duplicate timer race it into a false reconnect.
+          _resetWatchdog();
+          return;
+        }
 
-
-      if (alive) {
-
-        // The module still answers over HTTP but the WebSocket went quiet:
-        // keep receiving through the fallback without dropping the session.
         debugPrint(
-          "MODULE STILL ALIVE VIA HTTP - USING FALLBACK",
+          "WATCHDOG TIMEOUT - PROBING LICENSE OVER WEBSOCKET",
         );
 
-        _resetWatchdog();
+        final alive = await _probeLicenseOverWebSocket(socketAtTimeout);
 
-        _startHttpFallback(_activeHost);
+        // A network transition or explicit disconnect may have replaced the
+        // socket while the asynchronous probe was waiting for its reply.
+        if (_stopped || _channel != socketAtTimeout) {
+          return;
+        }
 
-        return;
+        if (alive) {
+          debugPrint(
+            "MODULE STILL ALIVE VIA LICENSE WEBSOCKET",
+          );
 
+          // The response is handled by the normal WebSocket listener, which
+          // marks the connection alive and resets the watchdog. Keep this
+          // guard for unusual channel implementations that complete the
+          // request before the listener callback returns.
+          if (_watchdogTimer == null) {
+            _resetWatchdog();
+          }
+
+          return;
+        }
+      } else {
+        // ACTIVE devices deliberately retain the original telemetry/HTTP
+        // watchdog behavior. License state never changes their fallback path.
+        final alive = await _probeHttp();
+
+        if (_stopped || _channel != socketAtTimeout) {
+          return;
+        }
+
+        if (alive) {
+
+          // The module still answers over HTTP but the WebSocket went quiet:
+          // keep receiving through the fallback without dropping the session.
+          debugPrint(
+            "MODULE STILL ALIVE VIA HTTP - USING FALLBACK",
+          );
+
+          _resetWatchdog();
+
+          _startHttpFallback(_activeHost);
+
+          return;
+
+        }
       }
 
 
@@ -532,6 +837,13 @@ class Esp8266Repository implements DeviceRepository {
 
 
       await _closeSocket();
+
+      // Another recovery path may have installed a new channel while the
+      // close handshake was awaiting completion. Its lifecycle now owns the
+      // repository; do not let this stale watchdog callback tear it down.
+      if (_stopped || _channel != null) {
+        return;
+      }
 
       _setDisconnected();
 
@@ -554,6 +866,53 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Checks a license-proven WebSocket without creating another socket. The
+  /// last repeatable handshake request is used for serial-only sessions;
+  /// LICENSE_RESULT replies are followed by a LICENSE_STATUS probe.
+  Future<bool> _probeLicenseOverWebSocket(
+    WebSocketChannel socket,
+  ) async {
+
+    if (_stopped || _channel != socket || _licenseWatchdogProbeInFlight) {
+      return false;
+    }
+
+    _licenseWatchdogProbeInFlight = true;
+    final activityBeforeProbe = _licenseActivityGeneration;
+
+    try {
+      final response = _lastLicenseCommand == 'DEVICE_SERIAL'
+          ? await getDeviceSerial()
+          : await getLicenseStatus();
+
+      if (_stopped || _channel != socket) {
+        return false;
+      }
+
+      // The normal listener marks every valid license response as activity.
+      // Accept a response that raced with this probe even when it was a
+      // different license message type (for example LICENSE_RESULT).
+      final receivedLicenseActivity =
+          response != null ||
+          _licenseActivityGeneration != activityBeforeProbe;
+      if (!receivedLicenseActivity) {
+        return false;
+      }
+
+      // The WebSocket listener has already called _markConnectionAlive for
+      // this response. This explicit reset documents and guarantees the
+      // proof-of-life contract even if a channel delivers the request future
+      // before the listener's final callback work.
+      _resetWatchdog();
+      return true;
+    } finally {
+      _licenseWatchdogProbeInFlight = false;
+    }
+
+  }
+
+
+
   /// Single quick HTTP probe used by the watchdog and the network-change
   /// verification to confirm whether the module is truly reachable. Only a
   /// body that parses as real telemetry counts as alive.
@@ -563,11 +922,9 @@ class Esp8266Repository implements DeviceRepository {
 
       final response = await http
           .get(
-            Uri.parse(
-              "http://$_activeHost/data",
-            ),
+            Uri.parse(_httpUrl(_activeHost, '/data')),
           )
-          .timeout(_httpTimeout);
+          .timeout(httpTimeout);
 
       return response.statusCode == 200 &&
           _parseStatus(response.body) != null;
@@ -589,7 +946,11 @@ class Esp8266Repository implements DeviceRepository {
 
     _watchdogTimer?.cancel();
     _watchdogTimer = null;
+    _wsTimeoutTimer?.cancel();
+    _wsTimeoutTimer = null;
 
+    // Invalidate any in-flight fallback request before replacing the socket.
+    _httpFallbackGeneration++;
     _httpTimer?.cancel();
     _httpTimer = null;
     _httpRequestInFlight = false;
@@ -597,7 +958,14 @@ class Esp8266Repository implements DeviceRepository {
     _pollFailureCount = 0;
 
     _connected = false;
+    _clearLicenseConnectionHealth();
 
+    // Release any license query waiting for the transport to come up.
+    final ready = _transportReady;
+    if (ready != null && !ready.isCompleted) {
+      ready.complete();
+    }
+    _transportReady = null;
 
     final channel = _channel;
     _channel = null;
@@ -745,11 +1113,28 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// True only after a fresh ACTIVE license reply on this WebSocket session.
+  /// A cached Flutter state is never consulted here.
+  @override
+  bool get hasAuthoritativeActiveLicense =>
+      _licenseProofOfLife &&
+      _licenseDeviceStatus == LicenseDeviceStatus.active;
+
+  /// Returns whether a write/control endpoint may be used. Keeping this check
+  /// inside the transport prevents a protected control from being bypassed by
+  /// merely hiding its button in the UI.
+  bool _protectedCommandAllowed(String operation) {
+    if (hasAuthoritativeActiveLicense) return true;
+
+    debugPrint('PROTECTED COMMAND BLOCKED (license not ACTIVE): $operation');
+    return false;
+  }
+
   /// Sends a raw GET command to the connected module and reports whether it
   /// acknowledged the request.
   Future<bool> sendDeviceCommand(String endpoint) async {
 
-    if (_stopped) {
+    if (!_protectedCommandAllowed(endpoint) || _stopped) {
       return false;
     }
 
@@ -758,13 +1143,31 @@ class Esp8266Repository implements DeviceRepository {
 
       final response = await http
           .get(
-            Uri.parse("http://$_activeHost$endpoint"),
+            Uri.parse(_httpUrl(_activeHost, endpoint)),
           )
           .timeout(
             const Duration(seconds: 5),
           );
 
-      return response.statusCode == 200;
+      if (response.statusCode == 423) {
+        // The firmware uses 423 LOCKED for protected controls while the
+        // telemetry endpoint remains readable. Never treat that response as
+        // a transport failure or as a successful command.
+        debugPrint(
+          'DEVICE COMMAND LOCKED (423) $endpoint: ${response.body}',
+        );
+        return false;
+      }
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          'DEVICE COMMAND REJECTED (${response.statusCode}) $endpoint: '
+          '${response.body}',
+        );
+        return false;
+      }
+
+      return true;
 
     } catch (e) {
 
@@ -780,11 +1183,48 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  /// Reads one fresh telemetry frame after a fan command.
+  ///
+  /// The module's WebSocket broadcaster skips frames when temperature and
+  /// voltage are unchanged, so a fan-only state transition may otherwise not
+  /// reach the live status stream. This uses the existing `/data` telemetry
+  /// endpoint and [DeviceStatus.controlData.fanRunning] remains authoritative;
+  /// no local fan state is created.
+  Future<void> _refreshLiveStatus() async {
+    if (_stopped) return;
+
+    try {
+      final response = await http
+          .get(Uri.parse(_httpUrl(_activeHost, '/data')))
+          .timeout(httpTimeout);
+
+      if (response.statusCode == 200) {
+        _handleData(response.body);
+      }
+    } catch (e) {
+      debugPrint('LIVE STATUS REFRESH FAILED: $e');
+    }
+  }
+
+  Future<bool> _sendFanCommand(String endpoint) async {
+    final succeeded = await sendDeviceCommand(endpoint);
+    if (succeeded) {
+      await _refreshLiveStatus();
+    }
+    return succeeded;
+  }
+
   /// Silences the module buzzer (`/mute`).
   Future<bool> muteBuzzer() => sendDeviceCommand(DeviceEndpoints.mute);
 
   /// Runs the radiator fan test (`/testfan`).
   Future<bool> testFan() => sendDeviceCommand(DeviceEndpoints.testFan);
+
+  /// Enables the firmware's persistent manual radiator-fan override (`/fanon`).
+  Future<bool> fanOn() => _sendFanCommand(DeviceEndpoints.fanOn);
+
+  /// Cancels the manual radiator-fan override and turns it off (`/fanoff`).
+  Future<bool> fanOff() => _sendFanCommand(DeviceEndpoints.fanOff);
 
   /// Reboots the module (`/restart`).
   Future<bool> restartDevice() => sendDeviceCommand(DeviceEndpoints.restart);
@@ -795,13 +1235,19 @@ class Esp8266Repository implements DeviceRepository {
   /// Returns null when the device is unreachable or replies with an
   /// unexpected payload.
   Future<DeviceModuleSettings?> getDeviceSettings() async {
+    // Module-limit metadata remains available for the settings UI; the live
+    // temperature/voltage output is gated separately by the license status.
+    // Save/calibration/control methods below still use _protectedCommandAllowed().
+    if (_stopped) {
+      return null;
+    }
 
     try {
 
       final response = await http
           .get(
             Uri.parse(
-              "http://$_activeHost${DeviceEndpoints.getAllSettings}",
+              _httpUrl(_activeHost, DeviceEndpoints.getAllSettings),
             ),
           )
           .timeout(
@@ -810,6 +1256,9 @@ class Esp8266Repository implements DeviceRepository {
 
 
       if (response.statusCode != 200) {
+        debugPrint(
+          'DEVICE READ REJECTED (${response.statusCode}): ${response.body}',
+        );
         return null;
       }
 
@@ -888,10 +1337,14 @@ class Esp8266Repository implements DeviceRepository {
   /// ('firmware'). The module flashes and reboots on success.
   Future<bool> updateFirmware(String filePath) async {
 
+    if (!_protectedCommandAllowed(DeviceEndpoints.otaUpdate)) {
+      return false;
+    }
+
     try {
 
       final uri = Uri.parse(
-        "http://$_activeHost${DeviceEndpoints.otaUpdate}",
+        _httpUrl(_activeHost, DeviceEndpoints.otaUpdate),
       );
 
       final request = http.MultipartRequest("POST", uri)
@@ -920,13 +1373,17 @@ class Esp8266Repository implements DeviceRepository {
   /// Reads the Wi-Fi credentials stored on the module
   /// (`/getwifisettings`).
   Future<({String ssid, String password})?> getWifiSettings() async {
+    if (_stopped ||
+        !_protectedCommandAllowed(DeviceEndpoints.getWifiSettings)) {
+      return null;
+    }
 
     try {
 
       final response = await http
           .get(
             Uri.parse(
-              "http://$_activeHost${DeviceEndpoints.getWifiSettings}",
+              _httpUrl(_activeHost, DeviceEndpoints.getWifiSettings),
             ),
           )
           .timeout(
@@ -935,6 +1392,9 @@ class Esp8266Repository implements DeviceRepository {
 
 
       if (response.statusCode != 200) {
+        debugPrint(
+          'DEVICE READ REJECTED (${response.statusCode}): ${response.body}',
+        );
         return null;
       }
 
@@ -969,13 +1429,16 @@ class Esp8266Repository implements DeviceRepository {
   /// so the caller can refresh the calibration field, or null on failure.
   Future<double?> calibrateVoltage(double realVolt) async {
 
+    if (!_protectedCommandAllowed(DeviceEndpoints.calibrateVoltage)) {
+      return null;
+    }
+
     try {
 
       final response = await http
           .get(
             Uri.parse(
-              "http://$_activeHost${DeviceEndpoints.calibrateVoltage}"
-              "?realVolt=$realVolt",
+              '${_httpUrl(_activeHost, DeviceEndpoints.calibrateVoltage)}?realVolt=$realVolt',
             ),
           )
           .timeout(
@@ -1074,19 +1537,44 @@ class Esp8266Repository implements DeviceRepository {
 
 
   Future<bool> _getExpectsOk(String pathAndQuery) async {
+    if (_stopped || !_protectedCommandAllowed(pathAndQuery)) {
+      return false;
+    }
 
     try {
 
       final response = await http
           .get(
-            Uri.parse("http://$_activeHost$pathAndQuery"),
+            Uri.parse(_httpUrl(_activeHost, pathAndQuery)),
           )
           .timeout(
             const Duration(seconds: 8),
           );
 
-      return response.statusCode == 200 &&
-          response.body.trim().toUpperCase() == "OK";
+      final body = response.body.trim();
+      if (response.statusCode == 423) {
+        debugPrint(
+          'DEVICE REQUEST LOCKED (423) $pathAndQuery: $body',
+        );
+        return false;
+      }
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          'DEVICE REQUEST REJECTED (${response.statusCode}) '
+          '$pathAndQuery: $body',
+        );
+        return false;
+      }
+
+      if (body.toUpperCase() != "OK") {
+        debugPrint(
+          'DEVICE REQUEST UNEXPECTED RESPONSE $pathAndQuery: $body',
+        );
+        return false;
+      }
+
+      return true;
 
     } catch (e) {
 
@@ -1118,6 +1606,14 @@ class Esp8266Repository implements DeviceRepository {
 
         final json =
             jsonDecode(data);
+
+        // Current firmware keeps /data available for license diagnostics but
+        // marks locked/expired responses explicitly. Never reinterpret the
+        // redacted zero placeholders as a live reading.
+        final licenseStatus = json["licenseStatus"];
+        if (licenseStatus is String && licenseStatus != 'ACTIVE') {
+          return null;
+        }
 
         // Coolant may arrive as 1/0, "1"/"0" or true/false depending on the
         // firmware revision; when the key is absent we optimistically assume
@@ -1338,12 +1834,89 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Handles an incoming payload from any transport: emits valid telemetry
-  /// and reports whether parsing succeeded. Invalid data never counts as
-  /// proof that the module is alive.
+  /// Remembers the license proof carried by a valid response. A known ACTIVE
+  /// status deliberately leaves the original telemetry watchdog in charge;
+  /// A session without telemetry can use its existing license exchange as the
+  /// watchdog probe instead.
+  void _recordLicenseActivity(LicenseMessage message) {
+
+    _licenseProofOfLife = true;
+    _licenseActivityGeneration++;
+
+    if (message is LicenseStatusMessage) {
+      _licenseDeviceStatus = message.status;
+      _lastKnownLicenseStatus = message.status;
+    }
+
+  }
+
+
+
+  void _invalidateLicenseAuthorization() {
+    _licenseProofOfLife = false;
+    _licenseDeviceStatus = null;
+    _lastTelemetryStatus = null;
+    _statusController.add(DeviceStatus.disconnected());
+  }
+
+  void _clearLicenseConnectionHealth() {
+
+    if (_licenseDeviceStatus != null) {
+      _lastKnownLicenseStatus = _licenseDeviceStatus;
+    }
+
+    _licenseProofOfLife = false;
+    _telemetrySeenOnSocket = false;
+    _lastTelemetryStatus = null;
+    _licenseActivityGeneration = 0;
+    _licenseDeviceStatus = null;
+    _lastLicenseCommand = null;
+    _licenseWatchdogProbeInFlight = false;
+
+  }
+
+
+
+  /// Handles an incoming payload from any transport: parses valid telemetry
+  /// and reports whether parsing succeeded. Locked/expired firmware responses
+  /// are redacted and never enter the live-reading stream. Invalid data never
+  /// counts as proof that the module is alive.
+  ///
+  /// License-protocol replies ride the same channel and are routed to
+  /// [licenseStream] instead of telemetry. A valid license reply is also proof
+  /// of life for sessions that have not produced a sensor frame yet.
   bool _handleData(
     String data,
   ) {
+
+    final license = parseLicenseMessage(data);
+
+    if (license != null) {
+
+      _recordLicenseActivity(license);
+
+      if (license is LicenseStatusMessage &&
+          license.status != LicenseDeviceStatus.active) {
+        // Clear the last real sample as soon as the module reports LOCKED or
+        // EXPIRED (firmware represents both as LOCKED). License replies still
+        // remain available on this same WebSocket.
+        _telemetrySeenOnSocket = false;
+        _lastTelemetryStatus = null;
+        _statusController.add(DeviceStatus.disconnected());
+      }
+
+      if (!_licenseController.isClosed) {
+        _licenseController.add(license);
+      }
+
+      return true;
+
+    }
+
+    // Once the module has explicitly reported LOCKED, do not promote any
+    // sensor frame from that session. An ACTIVE JSON /data response remains
+    // usable during the existing HTTP fallback path; the UI provider still
+    // requires a fresh ACTIVE license proof before exposing that stream.
 
     final status = _parseStatus(data);
 
@@ -1358,11 +1931,21 @@ class Esp8266Repository implements DeviceRepository {
 
     }
 
+    final telemetryIsLocked =
+        _licenseDeviceStatus == LicenseDeviceStatus.locked ||
+        (_licenseDeviceStatus == null &&
+            _lastKnownLicenseStatus == LicenseDeviceStatus.locked);
+    if (telemetryIsLocked) {
+      debugPrint("TELEMETRY BLOCKED — LICENSE_REQUIRED");
+      return false;
+    }
 
-    _statusController.add(
-      status,
-    );
 
+    _telemetrySeenOnSocket = true;
+    if (_licenseDeviceStatus == LicenseDeviceStatus.active) {
+      _lastTelemetryStatus = status;
+    }
+    _statusController.add(status);
 
     return true;
 
@@ -1385,6 +1968,10 @@ class Esp8266Repository implements DeviceRepository {
 
     _watchdogTimer = null;
 
+    // Any response from the previous fallback request is stale once an
+    // explicit disconnect starts.
+    _httpFallbackGeneration++;
+
     await _channelSubscription?.cancel();
 
     _channelSubscription = null;
@@ -1403,13 +1990,28 @@ class Esp8266Repository implements DeviceRepository {
 
     _wsReconnectAttempts = 0;
 
-    await _channel?.sink.close();
+    try {
+      await _channel?.sink.close().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {},
+      );
+    } catch (_) {
+      // The socket may already be gone.
+    }
 
 
     _channel = null;
 
+    // Release any license query waiting for the transport to come up.
+    final ready = _transportReady;
+    if (ready != null && !ready.isCompleted) {
+      ready.complete();
+    }
+    _transportReady = null;
+
 
     _connected = false;
+    _clearLicenseConnectionHealth();
 
     _usingHttpFallback = false;
 
@@ -1447,64 +2049,81 @@ class Esp8266Repository implements DeviceRepository {
   Future<void> sendJson(
     Map<String, dynamic> payload,
   ) async {
+    final command = payload['cmd'];
+    final isLicenseCommand = command == 'DEVICE_SERIAL' ||
+        command == 'LICENSE_STATUS' ||
+        command == 'LICENSE_ACTIVATE';
 
+    if (isLicenseCommand) {
+      // License traffic is deliberately WebSocket-only. It must never fall
+      // through to the generic HTTP telemetry endpoint, and it is the one
+      // unauthenticated command family needed to establish authorization.
+      final channel = _channel;
+      if (_stopped || channel == null) {
+        throw StateError('No WebSocket transport for license command');
+      }
 
-    if (_channel != null) {
-
-
-      _channel!.sink.add(
-        jsonEncode(payload),
-      );
-
-
+      // Capture the channel before writing. A close/reconnect can replace the
+      // repository field between the health check and sink.add; never write
+      // through a stale field, and let the request layer turn a closed sink
+      // into a normal failed probe instead of an unhandled async error.
+      if (!identical(_channel, channel)) {
+        throw StateError('WebSocket transport was replaced');
+      }
+      channel.sink.add(jsonEncode(payload));
       return;
-
     }
 
-
+    // Any other raw JSON write is a protected control. Public callers cannot
+    // bypass the endpoint-specific guards by using this lower-level method.
+    if (!_protectedCommandAllowed('raw JSON') || _stopped) return;
 
     try {
-
+      final channel = _channel;
+      if (channel != null && identical(_channel, channel)) {
+        channel.sink.add(jsonEncode(payload));
+        return;
+      }
 
       await http.post(
-
-        Uri.parse(
-          "http://$_activeHost/data",
-        ),
-
-
-        headers: const {
-
-          "Content-Type":
-              "application/json",
-
-        },
-
-
-        body:
-            jsonEncode(payload),
-
+        Uri.parse(_httpUrl(_activeHost, '/data')),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
       );
-
-
     } catch (e) {
-
-
-      debugPrint(
-        "HTTP SEND ERROR $e",
-      );
-
-
+      debugPrint("HTTP SEND ERROR $e");
     }
-
   }
 
 
 
 
   @override
-  Stream<DeviceStatus> get liveUpdates =>
-      _statusController.stream;
+  Stream<DeviceStatus> get liveUpdates {
+    // Replay only the last authorized frame to a new subscriber. The cache is
+    // cleared whenever the license/transport becomes invalid, so activation
+    // can resume immediately without retaining locked readings.
+    late StreamController<DeviceStatus> replayController;
+    StreamSubscription<DeviceStatus>? subscription;
+    replayController = StreamController<DeviceStatus>(
+      sync: true,
+      onListen: () {
+        subscription = _statusController.stream.listen(
+          replayController.add,
+          onError: (Object error, StackTrace stack) {
+            replayController.addError(error, stack);
+          },
+          onDone: replayController.close,
+        );
+        final cached = _lastTelemetryStatus;
+        if (cached != null) replayController.add(cached);
+      },
+      onCancel: () async {
+        await subscription?.cancel();
+      },
+    );
+    return replayController.stream;
+  }
 
 
 
@@ -1517,6 +2136,142 @@ class Esp8266Repository implements DeviceRepository {
     );
 
   }
+
+  // ------------------------------------------------------------------
+  // License protocol (same WebSocket as telemetry — no second connection).
+  // ------------------------------------------------------------------
+
+  /// Waits (up to [timeout]) until the WebSocket channel exists so the license
+  /// command can be sent over the socket rather than the HTTP fallback (the
+  /// module only answers license commands on the WebSocket).
+  Future<void> _waitForTransport({
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    final ready = _transportReady;
+    if (ready == null) return;
+
+    // If the channel already exists the completer is (or will be) completed.
+    await ready.future.timeout(timeout, onTimeout: () {});
+  }
+
+  /// Ensures a license request never uses the stale channel left behind when
+  /// HTTP fallback is already serving telemetry. The firmware exposes license
+  /// commands only on WebSocket, so a healthy `/data` response is not enough.
+  Future<void> _ensureLicenseTransport() async {
+    if (_channel != null && !_usingHttpFallback && !_stopped) {
+      return;
+    }
+
+    // The initial WebSocket may legitimately have no telemetry yet (a LOCKED
+    // module can answer the license command first). The stale-channel case is
+    // handled by _recoverFromFailedWebSocket(), which switches the repository
+    // into HTTP fallback before this method is called.
+
+    // The reconnect timer may be waiting, but an explicit license action
+    // should not make the user wait for its backoff. Cancel that timer and
+    // establish a fresh WebSocket now.
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+
+    if (_channel != null || _usingHttpFallback) {
+      await _closeSocket();
+    }
+
+    if (_stopped || _channel == null) {
+      await connect(host: _activeHost, port: _activePort);
+    }
+
+    await _waitForTransport();
+  }
+
+  /// Sends a license command and resolves the first matching reply of type
+  /// [T], or null on timeout / transport failure.
+  Future<T?> _requestLicense<T extends LicenseMessage>(
+    Map<String, dynamic> payload,
+    bool Function(T) matcher, {
+    Duration? timeout,
+  }) async {
+    final command = payload['cmd'];
+    if (command is String) {
+      _lastLicenseCommand = command;
+    }
+
+    _licenseRequestsInFlight++;
+    final completer = Completer<T?>();
+    late final StreamSubscription<LicenseMessage> sub;
+
+    sub = _licenseController.stream.listen((message) {
+      if (message is T && matcher(message)) {
+        if (!completer.isCompleted) completer.complete(message);
+      }
+    });
+
+    try {
+      await _waitForTransport();
+      await _ensureLicenseTransport();
+      if (_channel == null || _stopped || _usingHttpFallback) {
+        debugPrint("LICENSE REQUEST SKIPPED — no healthy WebSocket transport");
+        return null;
+      }
+
+      await sendJson(payload);
+      return await completer.future.timeout(
+        timeout ?? licenseRequestTimeout,
+        onTimeout: () => null,
+      );
+    } catch (_) {
+      // Socket already gone — treat as no answer rather than surfacing a
+      // transport exception to the license UI.
+      return null;
+    } finally {
+      await sub.cancel();
+      if (_licenseRequestsInFlight > 0) {
+        _licenseRequestsInFlight--;
+      }
+    }
+  }
+
+  /// { "cmd":"DEVICE_SERIAL" } -> { "type":"DEVICE_SERIAL", ... }.
+  @override
+  Future<DeviceSerialMessage?> getDeviceSerial() =>
+      _requestLicense<DeviceSerialMessage>(
+        {'cmd': 'DEVICE_SERIAL'},
+        (_) => true,
+      );
+
+  /// { "cmd":"LICENSE_STATUS","currentTime":<UTC epoch> } ->
+  /// { "type":"LICENSE_STATUS", ... }.
+  @override
+  Future<LicenseStatusMessage?> getLicenseStatus() async {
+    final status = await _requestLicense<LicenseStatusMessage>(
+      {
+        'cmd': 'LICENSE_STATUS',
+        'currentTime': _phoneEpochSeconds(),
+      },
+      (_) => true,
+    );
+
+    // A failed authoritative status query must not leave an earlier ACTIVE
+    // proof authorizing protected commands or fallback consumers.
+    if (status == null) {
+      _invalidateLicenseAuthorization();
+    }
+
+    return status;
+  }
+
+  /// { "cmd":"LICENSE_ACTIVATE","code":...,"activationTime":<UTC epoch> }
+  /// -> { "type":"LICENSE_RESULT", ... }.
+  @override
+  Future<LicenseResultMessage?> activateLicense(String code) =>
+      _requestLicense<LicenseResultMessage>(
+        {
+          'cmd': 'LICENSE_ACTIVATE',
+          'code': code,
+          'activationTime': _phoneEpochSeconds(),
+        },
+        (_) => true,
+      );
 
 
   /// If the user enabled direct pairing in Settings, asks Android for an

@@ -15,9 +15,13 @@ import 'device_status_provider.dart';
 /// module reports. Actual alerting evaluates the module limits directly —
 /// see [AlertEvaluator].
 final effectiveSettingsProvider = Provider<AppSettings>((ref) {
-  final local = ref.watch(settingsProvider).value ?? const AppSettings();
-
-  final limits = ref.watch(deviceStatusProvider).value?.moduleLimits;
+  final settings = ref.watch(settingsProvider).value;
+  final local = settings ?? const AppSettings();
+  // Module limits are metadata used by settings/redline UI; unlike the live
+  // temperature and voltage values, they do not expose a current reading.
+  final limits = settings != null
+      ? ref.watch(deviceStatusProvider).value?.moduleLimits
+      : null;
 
   return mergeModuleLimits(local, limits);
 });

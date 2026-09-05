@@ -26,7 +26,11 @@ class EmptyView extends StatelessWidget {
               Icon(icon, size: 48),
               const SizedBox(height: AppSpacing.md),
             ],
-            Text(message, textAlign: TextAlign.center),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              softWrap: true,
+            ),
           ],
         ),
       ),

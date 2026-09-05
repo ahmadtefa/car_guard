@@ -13,9 +13,11 @@ import '../../../core/services/device_models.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/providers/alarm_provider.dart';
 import '../../../core/providers/device_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import '../../../core/providers/driving_mode_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
 import '../../analysis/widgets/analysis_entry_card.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/readings_history_provider.dart';
@@ -26,15 +28,15 @@ import '../widgets/gauge_area.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/system_status_card.dart';
-import '../widgets/trip_cards.dart';
 
 /// Full-screen dashboard.
 ///
 /// Layout rules (design pass 3):
 /// - The gauges live at the very top of the screen — nothing sits above
 ///   them except the floating control bar.
-/// - The floating bar (language, connection state, style, settings) shows
-///   on launch, auto-hides after 5 seconds and reappears on any touch.
+/// - The floating bar (language, connection state, style, settings, manual
+///   fan control) shows on launch, auto-hides after 5 seconds and reappears
+///   on any touch.
 /// - The small connection icon in the bar is the only connection status
 ///   indicator (green = connected, red = disconnected).
 class DashboardPage extends ConsumerStatefulWidget {
@@ -48,6 +50,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   static const Duration _hideAfter = Duration(seconds: 5);
 
   bool _barVisible = true;
+  bool _fanCommandInFlight = false;
   Timer? _hideTimer;
 
   @override
@@ -86,6 +89,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Future<void> _toggleAlarmSound() async {
     final local = ref.read(settingsProvider).value ?? const AppSettings();
+    if (!local.demoModeEnabled &&
+        !ref.read(licenseAuthorizationProvider)) {
+      return;
+    }
 
     final next = !local.alarmSoundEnabled;
 
@@ -106,6 +113,66 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Future<void> _toggleDrivingMode() async {
     final isEnabled = ref.read(drivingModeProvider);
     await ref.read(drivingModeProvider.notifier).setEnabled(!isEnabled);
+  }
+
+  Future<void> _setManualFan({required bool turnOn}) async {
+    final local = ref.read(settingsProvider).value ?? const AppSettings();
+    if (local.demoModeEnabled || !ref.read(licenseAuthorizationProvider)) {
+      return;
+    }
+
+    final l = ref.read(l10nProvider);
+    var commandTurnOn = turnOn;
+
+    if (turnOn) {
+      final selectedAction = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l.manualFanOnConfirmTitle),
+          content: Text(l.manualFanOnConfirmBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop<bool>(null),
+              child: Text(l.cancel),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l.manualFanForceStop),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l.manualFanOn),
+            ),
+          ],
+        ),
+      );
+
+      if (selectedAction == null || !mounted) return;
+      commandTurnOn = selectedAction;
+    }
+
+    setState(() => _fanCommandInFlight = true);
+
+    final succeeded = commandTurnOn
+        ? await ref.read(esp8266RepositoryProvider).fanOn()
+        : await ref.read(esp8266RepositoryProvider).fanOff();
+
+    if (!mounted) return;
+
+    setState(() => _fanCommandInFlight = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            succeeded
+                ? (commandTurnOn
+                    ? l.manualFanOnSuccess
+                    : l.manualFanOffSuccess)
+                : l.manualFanCommandFailed,
+          ),
+        ),
+      );
   }
 
   void _showModuleInfo() {
@@ -191,7 +258,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     required String tooltip,
     required IconData icon,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Tooltip(
       message: tooltip,
@@ -213,6 +280,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget _buildFloatingBar({
     required bool connected,
     required bool demoEnabled,
+    required bool fanRunning,
+    required bool fanControlEnabled,
     required AppL10n l,
     required String languageName,
   }) {
@@ -237,8 +306,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               color: AppColors.neonCyan.withAlpha((255 * 0.25).round()),
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               IconButton(
                 tooltip: l.language,
@@ -319,6 +389,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 },
               ),
               IconButton(
+                tooltip: fanRunning ? l.manualFanForceStop : l.manualFanOn,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.air_rounded,
+                  color: fanRunning ? AppColors.neonGreen : null,
+                ),
+                onPressed: fanControlEnabled && !_fanCommandInFlight
+                    ? () => _setManualFan(turnOn: !fanRunning)
+                    : null,
+              ),
+              IconButton(
                 tooltip: l.dashboardStyle,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.palette_outlined),
@@ -337,10 +418,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final l = ref.watch(l10nProvider);
 
-    final local = ref.watch(settingsProvider).value ?? const AppSettings();
+    final settingsState = ref.watch(settingsProvider);
+    final local = settingsState.value ?? const AppSettings();
+    final moduleLicensed =
+        settingsState.value != null &&
+        !local.demoModeEnabled &&
+        ref.watch(licenseAuthorizationProvider);
     final settings = ref.watch(effectiveSettingsProvider);
 
     final connected = state.connectionStatus == 'Connected';
+    final liveStatus = ref.watch(deviceStatusProvider).value;
+    final fanRunning = liveStatus?.controlData.fanRunning ?? false;
 
     return Scaffold(
       body: Listener(
@@ -369,6 +457,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     Center(
                       child: Text(
                         '${l.lastUpdated}: ${state.lastUpdated}',
+                        softWrap: true,
+                        textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(
                               color: Theme.of(
@@ -388,11 +478,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                     const SizedBox(height: AppSpacing.md),
 
-                    // GPS speed + trip distance, side by side.
-                    const TripCards(),
-
-                    const SizedBox(height: AppSpacing.md),
-
                     // زر صفحة التنبيهات والتحليل.
                     const AnalysisEntryCard(),
 
@@ -403,8 +488,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     Builder(
                       builder: (context) {
                         final isDrivingMode = ref.watch(drivingModeProvider);
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        return Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: AppSpacing.lg,
+                          runSpacing: AppSpacing.md,
                           children: [
                             _roundIconButton(
                               tooltip: local.alarmSoundEnabled
@@ -416,9 +503,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               color: local.alarmSoundEnabled
                                   ? AppColors.neonAmber
                                   : AppColors.textSecondary,
-                              onTap: _toggleAlarmSound,
+                              onTap: local.demoModeEnabled || moduleLicensed
+                                  ? _toggleAlarmSound
+                                  : null,
                             ),
-                            const SizedBox(width: AppSpacing.lg),
                             _roundIconButton(
                               tooltip: switch (local.themeModeName) {
                                 'light' => l.light,
@@ -445,7 +533,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                     );
                               },
                             ),
-                            const SizedBox(width: AppSpacing.lg),
                             // زرار وضع القيادة - إبقاء الشاشة مضاءة
                             _roundIconButton(
                               tooltip: isDrivingMode
@@ -459,7 +546,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   : AppColors.textSecondary,
                               onTap: _toggleDrivingMode,
                             ),
-                            const SizedBox(width: AppSpacing.lg),
                             _roundIconButton(
                               tooltip: l.settings,
                               icon: Icons.settings_outlined,
@@ -487,6 +573,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 child: _buildFloatingBar(
                   connected: connected,
                   demoEnabled: local.demoModeEnabled,
+                  fanRunning: fanRunning,
+                  fanControlEnabled: moduleLicensed && connected,
                   l: l,
                   languageName: local.languageName,
                 ),
@@ -534,13 +622,23 @@ class _ModuleInfoSheetState extends ConsumerState<_ModuleInfoSheet> {
 
   Widget _row(IconData icon, String label, String value) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 20, color: AppColors.neonCyan),
         const SizedBox(width: AppSpacing.md),
-        Expanded(child: Text(label)),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                value,
+                softWrap: true,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -559,7 +657,13 @@ class _ModuleInfoSheetState extends ConsumerState<_ModuleInfoSheet> {
             children: [
               const Icon(Icons.memory_rounded, color: AppColors.neonCyan),
               const SizedBox(width: AppSpacing.md),
-              Text(l.moduleInfo, style: Theme.of(context).textTheme.titleLarge),
+              Expanded(
+                child: Text(
+                  l.moduleInfo,
+                  softWrap: true,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -634,9 +738,12 @@ class _DataSheet extends ConsumerWidget {
               children: [
                 const Icon(Icons.insights_rounded, color: AppColors.neonCyan),
                 const SizedBox(width: AppSpacing.md),
-                Text(
-                  l.readingsAndCharts,
-                  style: Theme.of(context).textTheme.titleLarge,
+                Expanded(
+                  child: Text(
+                    l.readingsAndCharts,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
               ],
             ),

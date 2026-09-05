@@ -91,6 +91,8 @@ float tempOffset = 0.0;
 // EEPROM
 // =========================================================
 #define EEPROM_SIZE      512
+#include "license.h"
+
 // [STA+mDNS] bumped: the Settings struct now ends with the optional
 // station (hotspot) credentials; old stores reset once to defaults.
 #define EEPROM_SIGNATURE 0xBEAF0008
@@ -115,6 +117,10 @@ struct Settings {
   char     staPASS[32];
 };
 
+// Keep the established EEPROM partition: settings at 0, license at 256.
+static_assert(sizeof(Settings) <= LICENSE_EEPROM_OFFSET,
+              "Settings overlap the reserved license EEPROM area");
+
 Settings settings;
 
 // =========================================================
@@ -130,6 +136,10 @@ void maybeStartStaAndMdns() {
   if (settings.staSSID[0] == 0) return;
 
   WiFi.mode(WIFI_AP_STA);
+  // Let the ESP8266 station manager retry without reissuing WiFi.begin()
+  // from loop(). In AP+STA mode, repeatedly restarting the STA connection
+  // can disturb the shared radio/channel and drop AP clients.
+  WiFi.setAutoReconnect(true);
   WiFi.begin(settings.staSSID, settings.staPASS);
 }
 
@@ -164,8 +174,9 @@ float filteredVolt = 12.0;
 // FAN
 // =========================================================
 const float FAN_HYSTERESIS = 5.0;
-bool  fanState      = false;
-bool  fanTestActive = false;
+bool  fanState          = false;
+bool  fanTestActive     = false;
+bool  manualFanOverride = false;
 unsigned long fanTestStopAt = 0;
 
 // =========================================================
@@ -228,6 +239,10 @@ void ledBlink(int times, int delayTime) {
 
 // نغمة بدء التشغيل — 3 نبضات صاعدة
 void playStartupSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   for (int i = 0; i < 3; i++) {
     digitalWrite(BUZZER, HIGH);
     delay(100 + i * 60);   // 100 / 160 / 220 ms
@@ -238,6 +253,10 @@ void playStartupSound() {
 
 // نغمة حفظ الإعدادات — نبضتان سريعتان
 void playSaveSuccessSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(100);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(200);
@@ -246,6 +265,10 @@ void playSaveSuccessSound() {
 
 // نغمة اتصال عميل — نبضتان ثم واحدة طويلة
 void playConnectSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(100);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(100);
@@ -256,6 +279,10 @@ void playConnectSound() {
 
 // نغمة قطع الاتصال — طويلة ثم قصيرة
 void playDisconnectSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(320);
   digitalWrite(BUZZER, LOW);  delay(80);
   digitalWrite(BUZZER, HIGH); delay(100);
@@ -264,6 +291,10 @@ void playDisconnectSound() {
 
 // نغمة تأكيد (mute / test fan)
 void playConfirmSound() {
+  if (!license_is_active()) {
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
   digitalWrite(BUZZER, HIGH); delay(80);
   digitalWrite(BUZZER, LOW);  delay(60);
   digitalWrite(BUZZER, HIGH); delay(80);
@@ -340,6 +371,15 @@ void loadSettings() {
 // FAN
 // =========================================================
 void fanOn() {
+  // Defense in depth: every path to the relay is safe even if a new caller
+  // forgets to apply the endpoint-level license check.
+  if (!license_is_active()) {
+    digitalWrite(RELAY_PIN, LOW);
+    fanState = false;
+    fanTestActive = false;
+    manualFanOverride = false;
+    return;
+  }
   digitalWrite(RELAY_PIN, HIGH);
   fanState = true;
   Serial.println("🌀 FAN ON");
@@ -352,6 +392,16 @@ void fanOff() {
 }
 
 void updateFanControl() {
+  if (!license_is_active()) {
+    manualFanOverride = false;
+    fanTestActive = false;
+    fanOff();
+    return;
+  }
+  if (manualFanOverride) {
+    if (!fanState) fanOn();
+    return;
+  }
   if (fanTestActive) {
     if (millis() >= fanTestStopAt) {
       fanTestActive = false;
@@ -413,6 +463,15 @@ void updateSensors() {
 // ALARM  ——  نغمة واحدة عالية متقطعة بشكل واضح
 // =========================================================
 void handleAlarm() {
+  // LOCKED is deliberately silent: licensing is not a vehicle alarm.
+  if (!license_is_active()) {
+    alarmActive = false;
+    buzzState = false;
+    buzzMuted = false;
+    digitalWrite(BUZZER, LOW);
+    return;
+  }
+
   bool tempDanger  = filteredTemp >= MAX_TEMP;
   bool voltOutRange = (filteredVolt < MIN_VOLT || filteredVolt > MAX_VOLT);
   bool voltAlarmActive = false;
@@ -489,6 +548,16 @@ void updateLedStatus() {
 // WEBSOCKET BROADCAST
 // =========================================================
 void broadcastWsData() {
+  // Telemetry is an output gate only: sensor acquisition and the existing
+  // filters keep running, but a locked/expired license never receives a
+  // temperature or voltage frame. Reset the change detector so the first
+  // frame after re-activation is sent immediately.
+  if (!license_is_active()) {
+    lastBroadcastTemp = -999;
+    lastBroadcastVolt = -999;
+    return;
+  }
+
   if (webSocket.connectedClients() == 0) return;
 
   if (abs(filteredTemp - lastBroadcastTemp) < 0.5 &&
@@ -503,14 +572,15 @@ void broadcastWsData() {
   // temp,volt,fanState,?,maxTemp,fanOnTemp,minVolt,maxVolt,offset,alarm,muted
   String payload = String(filteredTemp, 1) + "," +
                    String(filteredVolt, 2) + "," +
-                   String((fanState || fanTestActive) ? 1 : 0) + ",0," +
+                   String((license_is_active() &&
+                           (fanState || fanTestActive)) ? 1 : 0) + ",0," +
                    String(MAX_TEMP, 1) + "," +
                    String(FAN_ON_TEMP, 1) + "," +
                    String(MIN_VOLT, 1) + "," +
                    String(MAX_VOLT, 1) + "," +
                    String(tempOffset, 2) + "," +
-                   String(alarmActive ? 1 : 0) + "," +
-                   String(buzzMuted ? 1 : 0);
+                   String((license_is_active() && alarmActive) ? 1 : 0) + "," +
+                   String((license_is_active() && buzzMuted) ? 1 : 0);
 
   webSocket.broadcastTXT(payload);
 }
@@ -518,12 +588,43 @@ void broadcastWsData() {
 // =========================================================
 // WEBSOCKET EVENTS
 // =========================================================
+void sendLicenseWsReply(uint8_t clientId, const char* json) {
+  String response;
+  String serial = getChipId();
+  if (license_handle_ws_command(json, serial.c_str(), response)) {
+    webSocket.sendTXT(clientId, response);
+
+    // A successful status/activation reply may be the transition from
+    // LOCKED to ACTIVE. Push the first real telemetry frame immediately;
+    // broadcastWsData still applies the same license gate and CSV format.
+    if (license_is_active() &&
+        (response.indexOf("\"type\":\"LICENSE_STATUS\"") >= 0 ||
+         response.indexOf("\"type\":\"LICENSE_RESULT\"") >= 0)) {
+      lastBroadcastTemp = -999;
+      lastBroadcastVolt = -999;
+      broadcastWsData();
+    }
+  }
+}
+
 void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED:
       Serial.printf("🔌 WS CLIENT #%u CONNECTED\n", clientId);
+      sendLicenseWsReply(clientId, "{\"cmd\":\"DEVICE_SERIAL\"}");
+      sendLicenseWsReply(clientId, "{\"cmd\":\"LICENSE_STATUS\"}");
       broadcastWsData();
       break;
+    case WStype_TEXT: {
+      // The license code is at most 133 characters; reject oversized frames
+      // before copying so an arbitrary WebSocket client cannot exhaust RAM.
+      char message[256];
+      if (payload == NULL || length == 0 || length >= sizeof(message)) return;
+      memcpy(message, payload, length);
+      message[length] = '\0';
+      sendLicenseWsReply(clientId, message);
+      break;
+    }
     case WStype_DISCONNECTED:
       Serial.printf("🔌 WS CLIENT #%u DISCONNECTED\n", clientId);
       break;
@@ -574,18 +675,32 @@ void handleData() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
 
+  // This is deliberately an output gate, not a sensor gate. Keep the
+  // established sensor acquisition/calibration and JSON field names intact,
+  // but never put the real readings in /data while LOCKED/expired.
+  const bool licenseActive = license_is_active();
+  const float exposedTemp = licenseActive ? filteredTemp : 0.0f;
+  const float exposedVolt = licenseActive ? filteredVolt : 0.0f;
+
   // [APP SYNC] alarm + muted mirror the buzzer state on the module.
   String json = "{";
-  json += "\"temp\":"     + String(filteredTemp, 1) + ",";
-  json += "\"volt\":"     + String(filteredVolt, 2) + ",";
+  json += "\"temp\":"     + String(exposedTemp, 1) + ",";
+  json += "\"volt\":"     + String(exposedVolt, 2) + ",";
   json += "\"maxTemp\":"  + String(MAX_TEMP)         + ",";
   json += "\"fanOnTemp\":" + String(FAN_ON_TEMP)     + ",";
   json += "\"minVolt\":"  + String(MIN_VOLT)         + ",";
   json += "\"maxVolt\":"  + String(MAX_VOLT)         + ",";
   json += "\"offset\":"   + String(tempOffset, 2)   + ",";
-  json += "\"fanState\":" + String((fanState || fanTestActive) ? 1 : 0) + ",";
-  json += "\"alarm\":"    + String(alarmActive ? 1 : 0) + ",";
-  json += "\"muted\":"    + String(buzzMuted ? 1 : 0) + ",";
+  json += "\"fanState\":" + String((licenseActive &&
+                                      (fanState || fanTestActive)) ? 1 : 0) + ",";
+  json += "\"alarm\":"    + String((licenseActive && alarmActive) ? 1 : 0) + ",";
+  json += "\"muted\":"    + String((licenseActive && buzzMuted) ? 1 : 0) + ",";
+  json += "\"licenseStatus\":\"" + String(licenseActive ? "ACTIVE" : "LOCKED") + "\",";
+  json += "\"licenseType\":\"" +
+          String(license_has_record()
+                     ? (license_get_type() == LICENSE_PERMANENT ? "PERMANENT" : "TEMPORARY")
+                     : "NONE") + "\",";
+  json += "\"licenseMessage\":\"" + String(license_get_status_message()) + "\",";
   // [STA+mDNS] let the app show/route around the joined-network state.
   json += "\"staUp\":"    + String((WiFi.status() == WL_CONNECTED) ? 1 : 0) + ",";
   json += "\"staIp\":\""  + String(WiFi.localIP().toString()) + "\",";
@@ -764,6 +879,22 @@ void handleSaveAdvancedSettings() {
 void handleTestFan() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    fanTestActive = false;
+    manualFanOverride = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  // A manual override is already continuous; do not replace it with a timed
+  // test or let /testfan create a second fan-control mode.
+  if (manualFanOverride) {
+    fanOn();
+    playConfirmSound();
+    server.send(200, "text/plain", "OK");
+    return;
+  }
 
   fanTestActive = true;
   fanTestStopAt = millis() + 5000;
@@ -772,9 +903,51 @@ void handleTestFan() {
   server.send(200, "text/plain", "OK");
 }
 
+void handleFanOn() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    manualFanOverride = false;
+    fanTestActive = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  manualFanOverride = true;
+  fanTestActive = false;
+  fanOn();
+  playConfirmSound();
+  server.send(200, "text/plain", "OK");
+}
+
+void handleFanOff() {
+  sendCORS();
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    manualFanOverride = false;
+    fanTestActive = false;
+    fanOff();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
+
+  manualFanOverride = false;
+  fanTestActive = false;
+  fanOff();
+  playConfirmSound();
+  server.send(200, "text/plain", "OK");
+}
+
 void handleMute() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    buzzMuted = false;
+    stopAlarmSound();
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
   buzzMuted = true;
   stopAlarmSound();
@@ -794,6 +967,10 @@ void handleRestart() {
 void handleCalibrateVoltage() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (!license_is_active()) {
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
   if (!server.hasArg("realVolt")) {
     server.send(400, "text/plain", "Missing realVolt");
@@ -836,14 +1013,31 @@ void handleRoot() {
   html += ".status{display:inline-block;padding:4px 12px;border-radius:15px;font-size:12px;margin-top:5px;}";
   html += ".online{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid #00ff88;}";
   html += ".offline{background:rgba(255,34,68,0.15);color:#ff2244;border:1px solid #ff2244;}";
+  html += ".license-banner{margin:12px 0;padding:10px;border-radius:10px;background:rgba(255,184,0,0.12);color:#ffcc33;border:1px solid #ffcc33;font-size:13px;}";
   html += ".btn{display:inline-block;margin:5px;padding:8px 20px;background:rgba(0,212,255,0.1);border:1px solid #00d4ff;border-radius:10px;color:#00d4ff;text-decoration:none;font-size:12px;}";
   html += ".footer{font-size:10px;color:#4a6070;margin-top:20px;}";
   html += "</style></head><body>";
+  const bool licenseActive = license_is_active();
   html += "<div class='card'>";
   html += "<h1>🚗 CarGuard System</h1>";
-  html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
-  html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
-  html += "<div class='data'>🌀 Fan: <span>"  + String(fanState ? "ON" : "OFF") + "</span></div>";
+  if (licenseActive) {
+    html += "<div class='data'>🔐 License: <span>ACTIVE</span></div>";
+  } else {
+    html += "<div class='license-banner'>🔒 LICENSE REQUIRED<br/><small>";
+    html += license_get_status_message();
+    html += "</small></div>";
+  }
+  if (licenseActive) {
+    html += "<div class='data'>🌡️ Temp: <span>" + String(filteredTemp, 1) + " °C</span></div>";
+    html += "<div class='data'>⚡ Volt: <span>" + String(filteredVolt, 2) + " V</span></div>";
+  } else {
+    // Keep the existing cards/layout, but never render sensor values while
+    // the device is locked or a temporary license has expired.
+    html += "<div class='data'>🌡️ Temp: <span>LICENSE_REQUIRED</span></div>";
+    html += "<div class='data'>⚡ Volt: <span>LICENSE_REQUIRED</span></div>";
+  }
+  html += "<div class='data'>🌀 Fan: <span>"  +
+          String((licenseActive && fanState) ? "ON" : "OFF") + "</span></div>";
   html += "<div class='data'>📱 Clients: <span>" + String(WiFi.softAPgetStationNum()) + "</span></div>";
   html += "<div style='margin:15px 0;'>";
   html += "<span class='status " + String(WiFi.softAPgetStationNum() > 0 ? "online" : "offline") + "'>";
@@ -886,13 +1080,22 @@ void setup() {
   pinMode(BUZZER,    OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
 
+  // Load the license before any startup/connection sound. The license area
+  // is independent from Settings and is never cleared during boot.
+  license_init();
+  license_load();
+
   digitalWrite(BUZZER, LOW);   // تأكد الـ buzzer مطفي في البداية
   fanOff();
   ledOn();
   delay(500);
   ledOff();
 
-  playStartupSound();
+  if (license_is_active()) {
+    playStartupSound();
+  } else {
+    digitalWrite(BUZZER, LOW);
+  }
 
   sensors.begin();
   sensors.setWaitForConversion(false);
@@ -911,6 +1114,8 @@ void setup() {
   // link: discovery works identically in both topologies.
   advertiseMdns();
 
+  // OTA does not erase EEPROM and therefore preserves the license record at
+  // LICENSE_EEPROM_OFFSET across firmware updates.
   httpUpdater.setup(&server, "/update");
 
   webSocket.begin();
@@ -920,6 +1125,8 @@ void setup() {
   server.on("/data",                handleData);
   server.on("/mute",                handleMute);
   server.on("/testfan",             handleTestFan);
+  server.on("/fanon",               handleFanOn);
+  server.on("/fanoff",              handleFanOff);
   server.on("/restart",             handleRestart);
   server.on("/savewifi",            handleSaveWiFiSettings);
   server.on("/joinwifi",            handleJoinWiFi);
@@ -972,17 +1179,9 @@ void loop() {
     MDNS.update();
   }
 
-  // [STA+mDNS] if the hotspot link drops, quietly re-attempt the join.
-  if (settings.staSSID[0] != 0) {
-    static unsigned long lastStaCheck = 0;
-    if (millis() - lastStaCheck > 15000) {
-      lastStaCheck = millis();
-      if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("📡 STA lost — retrying join...");
-        WiFi.begin(settings.staSSID, settings.staPASS);
-      }
-    }
-  }
+  // [STA+mDNS] STA reconnects are handled by the ESP8266 WiFi manager.
+  // Do not reissue WiFi.begin() from loop(): AP+STA shares one radio and
+  // restarting the STA association can interrupt AP clients.
 
   updateSensors();
   handleAlarm();

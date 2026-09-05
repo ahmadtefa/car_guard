@@ -12,6 +12,7 @@ import '../../../core/services/notification_service.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
 import '../../dashboard/providers/trip_provider.dart';
 import '../../dashboard/providers/voltage_delta_provider.dart';
+import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
 import '../services/analysis_engine.dart';
@@ -120,8 +121,13 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   static const double _tempJumpC = 0.5;
   static const double _voltJumpV = 0.2;
 
-  final SmartAlertTracker _tracker = SmartAlertTracker();
+  SmartAlertTracker _tracker = SmartAlertTracker();
 
+  bool _analysisAccessAllowed = false;
+  int _accessGeneration = 0;
+  int _protectedPersistenceGeneration = 0;
+  Future<void>? _purgeProtectedPersistence;
+  bool _purgedForCurrentLock = false;
   bool _everConnected = false;
 
   DateTime _lastPassAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -152,28 +158,71 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
 
   @override
   AnalysisState build() {
-    ref.listen(deviceStatusProvider, (previous, next) {
-      next.whenData(_handleStatus);
-    });
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final demoEnabled = ref.watch(
+      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
+    );
+    final license = ref.watch(licenseProvider);
+    final authorized = license.canUseProtectedControls;
+    // Analysis consumes real sensor data, so clear it while the module is
+    // LOCKED/expired. Demo mode remains local and license-independent.
+    final allowed = settingsReady && (demoEnabled || authorized);
+    if (settingsReady && !demoEnabled && license.isLocked) {
+      if (!_purgedForCurrentLock) {
+        _purgedForCurrentLock = true;
+        _purgeProtectedPersistence = _purgeStoredData();
+      }
+    } else if (authorized) {
+      _purgedForCurrentLock = false;
+    }
+    final generation = ++_accessGeneration;
+    _analysisAccessAllowed = allowed;
+
+    if (!allowed) {
+      _resetProtectedRuntime();
+      // Do not expose stale values while persisted settings are still loading.
+      return _emptyState(loaded: true);
+    }
+
+    ref.listen(
+      deviceStatusProvider,
+      (previous, next) {
+        if (generation != _accessGeneration) return;
+        next.whenData(_handleStatus);
+      },
+      fireImmediately: true,
+    );
 
     // GPS moves on its own stream; keep the trip summary and the
     // connection-lost-while-driving rule fed between module readings.
-    ref.listen(tripProvider, (previous, next) {
-      _handleTrip(next);
-    });
+    ref.listen(
+      tripProvider,
+      (previous, next) {
+        if (generation != _accessGeneration) return;
+        _handleTrip(next);
+      },
+      fireImmediately: true,
+    );
 
     // Fire and forget: the persisted baseline + history land shortly after
-    // and flip `loaded` once they are part of the state.
-    unawaited(_loadPersisted());
+    // and flip `loaded` once they are part of the state. The generation guard
+    // prevents a stale load from repopulating analysis after access is lost.
+    unawaited(_loadPersisted(generation));
 
-    return const AnalysisState(
+    return _emptyState();
+  }
+
+  AnalysisState _emptyState({bool loaded = false}) {
+    return AnalysisState(
       condition: VehicleCondition.normal,
-      activeAlerts: [],
-      stats: SessionStats(),
-      baseline: BaselineStats(),
-      predictions: [],
-      history: [],
-      trip: TripSummary(
+      activeAlerts: const [],
+      stats: const SessionStats(),
+      baseline: const BaselineStats(),
+      predictions: const [],
+      history: const [],
+      trip: const TripSummary(
         available: false,
         distanceKm: 0,
         avgSpeedKmh: 0,
@@ -182,17 +231,60 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
       ),
       tempSlopePerMin: null,
       voltageDelta90s: null,
-      loaded: false,
+      loaded: loaded,
     );
+  }
+
+  void _resetProtectedRuntime() {
+    _tracker = SmartAlertTracker();
+    _everConnected = false;
+    _lastPassAt = DateTime.fromMillisecondsSinceEpoch(0);
+    _lastPassConnected = false;
+    _lastPassTemp = -1000;
+    _lastPassVolt = -1000;
+    _lastPassFan = false;
+    _lastPassCoolant = true;
+    _speedSum = 0;
+    _speedSamples = 0;
+    _maxSpeed = 0;
+    _tripStart = null;
+    _lastSpeedKmh = 0;
+    _lastHasFix = false;
+    _connectedBaselineMinutes = 0;
+    _baselineSampleCount = 0;
+    _fanOnSince = null;
+    _wasOverLimit = false;
+    _voltageAbnormalLatched = false;
+    _lastNotified.clear();
+    _baselineDirty = false;
   }
 
   // ------------------------------------------------------------------
   // Persistence
   // ------------------------------------------------------------------
 
-  Future<void> _loadPersisted() async {
+  Future<void> _purgeStoredData() async {
+    ++_protectedPersistenceGeneration;
     try {
       final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        prefs.remove(_baselineKey),
+        prefs.remove(_historyKey),
+      ]);
+    } catch (_) {}
+    // The generation is intentionally retained: any write that started before
+    // LOCKED must not recreate the purged temperature/voltage history.
+  }
+
+  Future<void> _loadPersisted(int generation) async {
+    final purge = _purgeProtectedPersistence;
+    if (purge != null) await purge;
+    if (!_analysisAccessAllowed || generation != _accessGeneration) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!_analysisAccessAllowed || generation != _accessGeneration) return;
 
       final baselineRaw = prefs.getString(_baselineKey);
       final historyRaw = prefs.getString(_historyKey);
@@ -222,6 +314,12 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
       merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       if (merged.length > _maxHistory) merged.length = _maxHistory;
 
+      if (!_analysisAccessAllowed ||
+          generation != _accessGeneration ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
+
       state = state.copyWith(
         baseline: baseline,
         history: merged,
@@ -230,20 +328,36 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
 
       await _persistBaseline();
     } catch (_) {
-      state = state.copyWith(loaded: true);
+      if (_analysisAccessAllowed && generation == _accessGeneration) {
+        state = state.copyWith(loaded: true);
+      }
     }
   }
 
   Future<void> _persistBaseline() async {
+    if (!_analysisAccessAllowed) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
+
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!_analysisAccessAllowed ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
       await prefs.setString(_baselineKey, jsonEncode(state.baseline.toJson()));
     } catch (_) {}
   }
 
   Future<void> _persistHistory() async {
+    if (!_analysisAccessAllowed) return;
+    final persistenceGeneration = _protectedPersistenceGeneration;
+
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!_analysisAccessAllowed ||
+          persistenceGeneration != _protectedPersistenceGeneration) {
+        return;
+      }
       await prefs.setString(
         _historyKey,
         AlertHistoryEntry.encodeList(state.history),
@@ -262,6 +376,8 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   // ------------------------------------------------------------------
 
   void _handleTrip(TripState trip) {
+    if (!_analysisAccessAllowed) return;
+
     _lastSpeedKmh = trip.speedKmh;
     _lastHasFix = trip.hasFix;
 
@@ -276,6 +392,8 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   }
 
   void _handleStatus(DeviceStatus? status) {
+    if (!_analysisAccessAllowed) return;
+
     if (status != null && status.connected) {
       _everConnected = true;
       _accumulateSession(status);
@@ -286,6 +404,8 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   /// Runs the full analysis pass when the interval passed OR the readings
   /// clearly changed — never on every raw tick.
   void _maybeRunPass(DeviceStatus? status) {
+    if (!_analysisAccessAllowed) return;
+
     final now = DateTime.now();
     final connected = status?.connected ?? false;
 
@@ -578,6 +698,8 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
   }
 
   Future<void> _maybeNotify(AnalysisAlert alert) async {
+    if (!_analysisAccessAllowed) return;
+
     final settings = ref.read(settingsProvider).value ?? const AppSettings();
     if (!settings.alertsEnabled) return;
 

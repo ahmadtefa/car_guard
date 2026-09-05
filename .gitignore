@@ -46,3 +46,10 @@ app.*.map.json
 
 # Android build artifacts
 android/build/
+
+# CarGuard license issuer secrets: keep private material outside the repository.
+# Public-key source is embedded separately in firmware/car_guard/license_pubkey.cpp.
+*.pem
+*.key
+/firmware/car_guard/keys/
+/tools/license-generator/.test-keys/

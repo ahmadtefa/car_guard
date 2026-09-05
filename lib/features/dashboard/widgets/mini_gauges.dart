@@ -459,9 +459,15 @@ class _VoltBarPainter extends CustomPainter {
 enum AlignmentBucket { left, center, right }
 
 /// Center-zero differential gauge: positive fills right (green), negative
-/// fills left (red).
+/// fills left (red). The selected dashboard style changes its visual theme
+/// without changing that signed behavior.
 class DeltaGauge extends StatelessWidget {
-  const DeltaGauge({super.key, required this.delta, this.scale = 1.5});
+  const DeltaGauge({
+    super.key,
+    required this.delta,
+    this.scale = 1.5,
+    this.styleName = 'cards',
+  });
 
   /// The signed difference to display; null renders an empty track.
   final double? delta;
@@ -469,20 +475,63 @@ class DeltaGauge extends StatelessWidget {
   /// Full-scale magnitude (both directions).
   final double scale;
 
+  /// The persisted dashboard style selected for the primary gauges.
+  final String styleName;
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: const Size(double.infinity, 34),
-      painter: _DeltaPainter(delta: delta, scale: scale),
+      painter: _DeltaPainter(
+        delta: delta,
+        scale: scale,
+        styleName: styleName,
+      ),
     );
   }
 }
 
 class _DeltaPainter extends CustomPainter {
-  _DeltaPainter({required this.delta, required this.scale});
+  _DeltaPainter({
+    required this.delta,
+    required this.scale,
+    required this.styleName,
+  });
 
   final double? delta;
   final double scale;
+  final String styleName;
+
+  Color _styleAccent() {
+    switch (styleName) {
+      case 'racing':
+        return AppColors.neonMagenta;
+      case 'sporty':
+        return AppColors.neonRed;
+      case 'segments':
+        return AppColors.neonCyan;
+      case 'sweeper':
+        return AppColors.neonAmber;
+      case 'ring':
+        return AppColors.neonMagenta;
+      case 'led':
+        return AppColors.neonGreen;
+      case 'needle':
+        return AppColors.neonAmber;
+      case 'orb':
+      case 'combo':
+        return AppColors.neonCyan;
+      default:
+        return AppColors.neonCyan;
+    }
+  }
+
+  bool get _segmentedStyle => styleName == 'segments' || styleName == 'led';
+
+  bool get _gradientStyle =>
+      styleName == 'racing' || styleName == 'sweeper' || styleName == 'combo';
+
+  bool get _outlinedStyle => styleName == 'ring' || styleName == 'orb';
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -490,10 +539,17 @@ class _DeltaPainter extends CustomPainter {
 
     if (w < 40) return;
 
-    final barTop = 8.0;
-    final barHeight = 12.0;
+    final value = delta;
+    final accent = _styleAccent();
     final center = w / 2;
 
+    if (_segmentedStyle) {
+      _paintSegments(canvas, size, value, accent);
+      return;
+    }
+
+    final barTop = 8.0;
+    final barHeight = 12.0;
     final track = RRect.fromRectAndRadius(
       Rect.fromLTWH(0, barTop, w, barHeight),
       const Radius.circular(6),
@@ -501,19 +557,32 @@ class _DeltaPainter extends CustomPainter {
 
     canvas.drawRRect(
       track,
-      Paint()..color = Colors.white.withAlpha((255 * 0.06).round()),
+      Paint()
+        ..color = styleName == 'cards'
+            ? Colors.white.withAlpha((255 * 0.06).round())
+            : accent.withAlpha((255 * 0.12).round()),
     );
+
+    if (_outlinedStyle) {
+      canvas.drawRRect(
+        track,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = accent.withAlpha((255 * 0.45).round()),
+      );
+    }
 
     // Center zero line.
     canvas.drawLine(
       Offset(center, barTop - 4),
       Offset(center, barTop + barHeight + 4),
       Paint()
-        ..strokeWidth = 2
-        ..color = Colors.white.withAlpha((255 * 0.55).round()),
+        ..strokeWidth = styleName == 'sporty' || styleName == 'needle' ? 3 : 2
+        ..color = styleName == 'cards'
+            ? Colors.white.withAlpha((255 * 0.55).round())
+            : accent.withAlpha((255 * 0.8).round()),
     );
-
-    final value = delta;
 
     if (value != null && value.abs() > 0.005) {
       final fraction = (value / scale).clamp(-1.0, 1.0);
@@ -530,16 +599,25 @@ class _DeltaPainter extends CustomPainter {
         fillRect,
         const Radius.circular(6),
       );
+      final fillPaint = Paint()..color = color;
+
+      if (_gradientStyle) {
+        fillPaint.shader = LinearGradient(
+          begin: value > 0 ? Alignment.centerLeft : Alignment.centerRight,
+          end: value > 0 ? Alignment.centerRight : Alignment.centerLeft,
+          colors: [color.withAlpha((255 * 0.55).round()), color],
+        ).createShader(fillRect);
+      }
 
       canvas.drawRRect(
         rrect.inflate(2.5),
         Paint()..color = color.withAlpha((255 * 0.18).round()),
       );
-      canvas.drawRRect(rrect, Paint()..color = color);
+      canvas.drawRRect(rrect, fillPaint);
 
       canvas.drawCircle(
         Offset(center + fillWidth, barTop + barHeight / 2),
-        6,
+        styleName == 'orb' ? 7 : 6,
         Paint()..color = Colors.white,
       );
     }
@@ -550,7 +628,9 @@ class _DeltaPainter extends CustomPainter {
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: Colors.white.withAlpha((255 * 0.4).round()),
+            color: styleName == 'cards'
+                ? Colors.white.withAlpha((255 * 0.4).round())
+                : accent.withAlpha((255 * 0.65).round()),
             fontSize: 9,
           ),
         ),
@@ -567,8 +647,76 @@ class _DeltaPainter extends CustomPainter {
     label('+$scale', w, true);
   }
 
+  void _paintSegments(
+    Canvas canvas,
+    Size size,
+    double? value,
+    Color accent,
+  ) {
+    const segmentCount = 12;
+    const gap = 2.0;
+    const barTop = 8.0;
+    const barHeight = 10.0;
+    final segmentWidth = (size.width - gap * (segmentCount - 1)) / segmentCount;
+    final fraction = value == null ? 0.0 : (value / scale).clamp(-1.0, 1.0);
+    final activeCount = (fraction.abs() * segmentCount / 2).round();
+
+    for (var index = 0; index < segmentCount; index++) {
+      final isRight = index >= segmentCount / 2;
+      final distanceFromCenter = isRight
+          ? index - segmentCount / 2
+          : segmentCount / 2 - index - 1;
+      final active = value != null &&
+          distanceFromCenter < activeCount &&
+          ((fraction > 0 && isRight) || (fraction < 0 && !isRight));
+      final left = index * (segmentWidth + gap);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, barTop, segmentWidth, barHeight),
+        const Radius.circular(3),
+      );
+
+      canvas.drawRRect(
+        rect,
+        Paint()
+          ..color = active
+              ? (fraction > 0 ? AppColors.neonGreen : AppColors.neonRed)
+              : accent.withAlpha((255 * 0.18).round()),
+      );
+    }
+
+    final center = size.width / 2;
+    canvas.drawLine(
+      Offset(center, barTop - 4),
+      Offset(center, barTop + barHeight + 4),
+      Paint()
+        ..strokeWidth = 2
+        ..color = accent.withAlpha((255 * 0.8).round()),
+    );
+
+    void label(String text, double x, bool alignRight) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: accent.withAlpha((255 * 0.65).round()),
+            fontSize: 9,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final dx = alignRight ? x - tp.width : x - tp.width / 2;
+      tp.paint(canvas, Offset(dx, barTop + barHeight + 4));
+    }
+
+    label('-$scale', 0, false);
+    label('0', center, false);
+    label('+$scale', size.width, true);
+  }
+
   @override
   bool shouldRepaint(_DeltaPainter oldDelegate) {
-    return oldDelegate.delta != delta;
+    return oldDelegate.delta != delta ||
+        oldDelegate.scale != scale ||
+        oldDelegate.styleName != styleName;
   }
 }

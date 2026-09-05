@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/background_service.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../services/gps_trip_filter.dart';
 
 /// Live trip data collected from the phone GPS.
@@ -75,10 +76,31 @@ class TripNotifier extends Notifier<TripState> {
 
   bool _backgroundServiceStarted = false;
 
-  /// The saved odometer is loaded only once per session — later [start]
-  /// calls (permission re-grant, manual restart) must not rewind the live
-  /// counter to whatever happens to be on disk.
+  /// The saved odometer is loaded only once per settings session — later
+  /// [start] calls (permission re-grant, manual restart) must not rewind the
+  /// live counter to whatever happens to be on disk.
   bool _restored = false;
+
+  /// True once persisted settings are ready. GPS/trip state is read-only and
+  /// does not grant or bypass any protected module command.
+  bool _dataAccessAllowed = false;
+
+  /// Invalidates microtasks and async GPS/restore operations from an older
+  /// provider build. A settings change can rebuild the notifier while an
+  /// earlier permission or preferences call is still awaiting.
+  int _lifecycleGeneration = 0;
+
+  /// Invalidates an older GPS start when a service-status callback or another
+  /// caller requests a restart before the previous permission flow completes.
+  int _startGeneration = 0;
+
+  /// Set before any dispose cleanup so callbacks and async continuations do
+  /// not touch [state] or [ref] after Riverpod has torn the provider down.
+  bool _disposed = false;
+
+  /// The service instance is cached while the notifier is alive, allowing
+  /// disposal to stop it without reading [ref] after the dispose callback.
+  BackgroundConnectionService? _backgroundService;
 
   /// Last time the values were written to SharedPreferences — the disk is
   /// not hit more than once every two seconds for unchanged distances.
@@ -86,19 +108,92 @@ class TripNotifier extends Notifier<TripState> {
 
   @override
   TripState build() {
-    _watchLocationService();
+    final generation = ++_lifecycleGeneration;
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    // GPS/trip cards are read-only telemetry and are not a hardware control.
+    // Keep them available for an unlicensed module just like temperature and
+    // voltage readings.
+    final allowed = settingsReady;
+    final wasAllowed = _dataAccessAllowed;
+    _dataAccessAllowed = allowed;
+
+    if (!allowed && wasAllowed) {
+      _disableTracking();
+    } else if (allowed && !wasAllowed) {
+      _watchLocationService();
+    }
+
     ref.onDispose(() {
+      _disposed = true;
+      _dataAccessAllowed = false;
+      _lifecycleGeneration++;
+      _startGeneration++;
+
       _sub?.cancel();
+      _sub = null;
       _gpsWatchdog?.cancel();
+      _gpsWatchdog = null;
       _serviceStatusSub?.cancel();
+      _serviceStatusSub = null;
+      _filter.reset();
+      _restored = false;
+      _backgroundServiceStarted = false;
+      _stopBackgroundService();
     });
-    // Fire and forget: restore the saved odometer first, then the GPS
-    // stream populates the state asynchronously.
+
+    // Fire and forget: restore the saved odometer only after access is
+    // allowed, then let the GPS stream populate the state asynchronously.
     Future<void>.microtask(() async {
-      await _restoreDistance();
-      await start();
+      if (!_isActive(generation)) return;
+      await _restoreDistance(generation);
+      if (!_isActive(generation)) return;
+      await start(generation: generation);
     });
-    return const TripState();
+
+    return allowed ? const TripState() : _neutralState;
+  }
+
+  bool _isActive([int? generation]) {
+    return !_disposed &&
+        _dataAccessAllowed &&
+        (generation == null || generation == _lifecycleGeneration);
+  }
+
+  bool _isStartActive(int lifecycleGeneration, int startGeneration) {
+    return _isActive(lifecycleGeneration) &&
+        startGeneration == _startGeneration;
+  }
+
+  static const TripState _neutralState = TripState(
+    available: false,
+    hasFix: false,
+  );
+
+  /// Stops the phone-side feed and removes its last values whenever persisted
+  /// settings become unavailable. This prevents consumers from retaining a
+  /// stale GPS reading across a provider reset.
+  void _disableTracking() {
+    _startGeneration++;
+    _sub?.cancel();
+    _sub = null;
+    _gpsWatchdog?.cancel();
+    _gpsWatchdog = null;
+    _serviceStatusSub?.cancel();
+    _serviceStatusSub = null;
+    _filter.reset();
+    _restored = false;
+    _backgroundServiceStarted = false;
+    _stopBackgroundService();
+  }
+
+  void _stopBackgroundService() {
+    final service = _backgroundService;
+    _backgroundService = null;
+    if (service != null) {
+      unawaited(service.stop());
+    }
   }
 
   /// Subscribes once to location-service toggles, so enabling GPS after
@@ -113,6 +208,7 @@ class TripNotifier extends Notifier<TripState> {
       _serviceStatusSub = Geolocator.getServiceStatusStream().listen(
         _onServiceStatus,
         onError: (Object error) {
+          if (!_isActive()) return;
           debugPrint('GPS SERVICE STATUS UNAVAILABLE: $error');
         },
       );
@@ -122,25 +218,32 @@ class TripNotifier extends Notifier<TripState> {
   }
 
   void _onServiceStatus(ServiceStatus status) {
+    if (!_isActive()) return;
+
     if (status == ServiceStatus.enabled) {
-      // Safe to call repeatedly: the old stream is replaced.
-      unawaited(start());
+      // Safe to call repeatedly: the old stream is replaced. Capture the
+      // current generation so a later rebuild cancels this start operation.
+      unawaited(start(generation: _lifecycleGeneration));
     } else {
       _gpsWatchdog?.cancel();
-      state = state.copyWith(available: false, hasFix: false);
+      if (_isActive()) {
+        state = state.copyWith(available: false, hasFix: false);
+      }
     }
   }
 
   /// Brings back the distance saved by [_persist], so closing and reopening
   /// the app never wipes the odometer — only [resetTrip] zeroes it.
-  Future<void> _restoreDistance() async {
-    if (_restored) {
+  Future<void> _restoreDistance([int? generation]) async {
+    final operationGeneration = generation ?? _lifecycleGeneration;
+    if (!_isActive(operationGeneration) || _restored) {
       return;
     }
     _restored = true;
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!_isActive(operationGeneration)) return;
       final saved = prefs.getDouble('trip_distance_km');
 
       if (saved != null && saved > 0 && state.distanceKm == 0) {
@@ -154,7 +257,11 @@ class TripNotifier extends Notifier<TripState> {
   /// (Re)starts the GPS stream. Safe to call repeatedly. Never throws:
   /// platforms without a location plugin (tests, desktop) simply report
   /// the tracker as unavailable.
-  Future<void> start() async {
+  Future<void> start({int? generation}) async {
+    final operationGeneration = generation ?? _lifecycleGeneration;
+    if (!_isActive(operationGeneration)) return;
+    final startGeneration = ++_startGeneration;
+
     _sub?.cancel();
     _sub = null;
     _gpsWatchdog?.cancel();
@@ -165,15 +272,18 @@ class TripNotifier extends Notifier<TripState> {
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!_isStartActive(operationGeneration, startGeneration)) return;
       if (!serviceEnabled) {
         state = state.copyWith(available: false, hasFix: false);
         return;
       }
 
       var permission = await Geolocator.checkPermission();
+      if (!_isStartActive(operationGeneration, startGeneration)) return;
 
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+        if (!_isStartActive(operationGeneration, startGeneration)) return;
       }
 
       if (permission == LocationPermission.denied ||
@@ -188,29 +298,48 @@ class TripNotifier extends Notifier<TripState> {
       );
     } catch (error) {
       debugPrint('TRIP TRACKER UNAVAILABLE: $error');
-      state = state.copyWith(available: false, hasFix: false);
+      if (_isStartActive(operationGeneration, startGeneration)) {
+        state = state.copyWith(available: false, hasFix: false);
+      }
       return;
     }
+
+    if (!_isStartActive(operationGeneration, startGeneration)) return;
 
     state = state.copyWith(available: true, denied: false);
 
     // Keep fixes flowing while the app is in the background: run the keep
     // alive foreground service, which also acquires the location-capable
     // service type as soon as the permission is granted.
-    _ensureBackgroundService();
+    _ensureBackgroundService(operationGeneration, startGeneration);
+    if (!_isStartActive(operationGeneration, startGeneration)) return;
 
-    _sub = Geolocator.getPositionStream(locationSettings: settings).listen(
-      _onFix,
-      onError: (_) {
-        _gpsWatchdog?.cancel();
-        state = state.copyWith(hasFix: false);
-      },
-    );
+    try {
+      _sub = Geolocator.getPositionStream(locationSettings: settings).listen(
+        (position) => _onFix(
+          position,
+          operationGeneration,
+          startGeneration,
+        ),
+        onError: (_) {
+          if (!_isStartActive(operationGeneration, startGeneration)) return;
+          _gpsWatchdog?.cancel();
+          state = state.copyWith(hasFix: false);
+        },
+      );
 
-    _armGpsWatchdog();
+      _armGpsWatchdog(operationGeneration, startGeneration);
+    } catch (error) {
+      debugPrint('TRIP STREAM UNAVAILABLE: $error');
+      if (_isStartActive(operationGeneration, startGeneration)) {
+        state = state.copyWith(available: false, hasFix: false);
+      }
+    }
   }
 
-  void _onFix(Position position) {
+  void _onFix(Position position, int lifecycleGeneration, int startGeneration) {
+    if (!_isStartActive(lifecycleGeneration, startGeneration)) return;
+
     final reading = _filter.addFix(position);
 
     if (reading == null) {
@@ -226,35 +355,73 @@ class TripNotifier extends Notifier<TripState> {
       hasFix: true,
     );
 
-    _armGpsWatchdog();
+    _armGpsWatchdog(lifecycleGeneration, startGeneration);
 
-    unawaited(_persist(distanceChanged: reading.stepKm > 0));
+    unawaited(
+      _persist(
+        distanceChanged: reading.stepKm > 0,
+        generation: lifecycleGeneration,
+      ),
+    );
   }
 
   /// Rearms the stale-feed watchdog on every accepted fix. When GPS goes
   /// silent (tunnel, signal loss, a throttled stream) the cards switch to
   /// "no fix" instead of clinging to a frozen speed — the odometer value
   /// itself is never touched.
-  void _armGpsWatchdog() {
+  void _armGpsWatchdog(int lifecycleGeneration, int startGeneration) {
+    if (!_isStartActive(lifecycleGeneration, startGeneration)) return;
+
     _gpsWatchdog?.cancel();
     _gpsWatchdog = Timer(_gpsSilenceTimeout, () {
-      state = state.copyWith(hasFix: false);
+      if (_isStartActive(lifecycleGeneration, startGeneration)) {
+        state = state.copyWith(hasFix: false);
+      }
     });
   }
 
   /// Zeroes the trip distance; speed keeps streaming.
   void resetTrip() {
+    if (!_isActive()) return;
+
     _filter.reset();
     state = state.copyWith(distanceKm: 0);
-    unawaited(_persist(distanceChanged: true));
+    unawaited(
+      _persist(
+        distanceChanged: true,
+        generation: _lifecycleGeneration,
+      ),
+    );
   }
 
-  void _ensureBackgroundService() {
+  void _ensureBackgroundService(
+    int lifecycleGeneration,
+    int startGeneration,
+  ) {
+    if (!_isStartActive(lifecycleGeneration, startGeneration)) return;
     if (_backgroundServiceStarted) {
       return;
     }
+
+    final service = ref.read(backgroundConnectionServiceProvider);
+    if (!_isStartActive(lifecycleGeneration, startGeneration)) return;
+
     _backgroundServiceStarted = true;
-    unawaited(ref.read(backgroundConnectionServiceProvider).start());
+    _backgroundService = service;
+    unawaited(_startBackgroundService(service));
+  }
+
+  Future<void> _startBackgroundService(
+    BackgroundConnectionService service,
+  ) async {
+    try {
+      await service.start();
+      if (_disposed || !_dataAccessAllowed) {
+        await service.stop();
+      }
+    } catch (error) {
+      debugPrint('BACKGROUND SERVICE START FAILED: $error');
+    }
   }
 
   /// Persists the values under the shared keys (`speed_kmh`,
@@ -262,7 +429,13 @@ class TripNotifier extends Notifier<TripState> {
   /// waiting for the app UI — and so [_restoreDistance] brings the odometer
   /// back after the app is closed and reopened. Writes are throttled
   /// unless the distance moved.
-  Future<void> _persist({bool distanceChanged = false}) async {
+  Future<void> _persist({
+    bool distanceChanged = false,
+    int? generation,
+  }) async {
+    final operationGeneration = generation ?? _lifecycleGeneration;
+    if (!_isActive(operationGeneration)) return;
+
     final now = DateTime.now();
     final due = distanceChanged ||
         now.difference(_lastPersist) >= const Duration(seconds: 2);
@@ -274,8 +447,15 @@ class TripNotifier extends Notifier<TripState> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('speed_kmh', state.speedKmh);
-      await prefs.setDouble('trip_distance_km', state.distanceKm);
+      if (!_isActive(operationGeneration)) return;
+
+      // Snapshot both values before the first write. The second write is an
+      // async gap too, so it must not read [state] after that gap.
+      final speedKmh = state.speedKmh;
+      final distanceKm = state.distanceKm;
+      await prefs.setDouble('speed_kmh', speedKmh);
+      if (!_isActive(operationGeneration)) return;
+      await prefs.setDouble('trip_distance_km', distanceKm);
     } catch (_) {
       // A failed write must never break live readings; the next accepted
       // fix simply tries again.

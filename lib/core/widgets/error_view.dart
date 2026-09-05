@@ -31,7 +31,11 @@ class ErrorView extends StatelessWidget {
           children: [
             Icon(AppIcons.error, size: 48, color: AppColors.primary),
             const SizedBox(height: AppSpacing.md),
-            Text(message, textAlign: TextAlign.center),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              softWrap: true,
+            ),
             if (onRetry != null) ...[
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(

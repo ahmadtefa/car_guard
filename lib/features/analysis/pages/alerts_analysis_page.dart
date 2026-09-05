@@ -4,11 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
+import '../../../core/models/license_models.dart';
 import '../../../core/models/reading_sample.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/widgets/section_title.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
+import '../../license/pages/license_page.dart' as license_page;
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
 import '../providers/analysis_provider.dart';
 import '../services/analysis_engine.dart';
@@ -26,8 +30,22 @@ class AlertsAnalysisPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     final analysis = ref.watch(analysisProvider);
-    final status = ref.watch(deviceStatusProvider).value;
+    final rawStatus = ref.watch(deviceStatusProvider).value;
     final history = ref.watch(readingsHistoryProvider);
+    final settings = ref.watch(settingsProvider).value;
+    final license = ref.watch(licenseProvider);
+    // Analysis and live readings are real-module data. Hide both the current
+    // sample and cached history while the authoritative license is not ACTIVE;
+    // demo mode remains independent of the module license.
+    final dataAccessAllowed =
+        settings != null &&
+        (settings.demoModeEnabled || license.canUseProtectedControls);
+    final status = dataAccessAllowed ? rawStatus : null;
+    final showLicenseNotice =
+        settings == null || !license.canUseProtectedControls;
+    final noticeStatus = settings == null
+        ? LicenseCheckStatus.checking
+        : license.checkStatus;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,6 +54,10 @@ class AlertsAnalysisPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
+          if (showLicenseNotice)
+            _LicenseAnalysisNotice(status: noticeStatus, l: l),
+          if (showLicenseNotice) const SizedBox(height: AppSpacing.md),
+
           // 1) Overall condition banner.
           _ConditionBanner(condition: analysis.condition, l: l),
           const SizedBox(height: AppSpacing.md),
@@ -167,6 +189,110 @@ class _ClearHistoryButton extends StatelessWidget {
 // Condition banner
 // =====================================================================
 
+class _LicenseAnalysisNotice extends ConsumerWidget {
+  const _LicenseAnalysisNotice({required this.status, required this.l});
+
+  final LicenseCheckStatus status;
+  final AppL10n l;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (title, body, icon, color) = switch (status) {
+      LicenseCheckStatus.checking => (
+          l.licenseChecking,
+          l.licenseCheckingInfo,
+          Icons.sync_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.expired => (
+          l.licenseExpired,
+          l.licenseExpiredInfo,
+          Icons.event_busy_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.invalid => (
+          l.licenseInvalid,
+          l.licenseInvalidInfo,
+          Icons.gpp_bad_outlined,
+          AppColors.danger,
+        ),
+      LicenseCheckStatus.noLicense => (
+          l.licenseNoLicense,
+          l.licenseNoLicenseInfo,
+          Icons.lock_outline_rounded,
+          AppColors.neonAmber,
+        ),
+      LicenseCheckStatus.error => (
+          l.licenseNetworkUnavailable,
+          l.licenseNetworkUnavailableInfo,
+          Icons.cloud_off_rounded,
+          AppColors.danger,
+        ),
+      LicenseCheckStatus.licensed => (
+          l.licenseTitle,
+          l.licenseTitle,
+          Icons.verified_outlined,
+          AppColors.neonGreen,
+        ),
+    };
+
+    final retryable =
+        status == LicenseCheckStatus.checking ||
+        status == LicenseCheckStatus.error;
+
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: AppSpacing.padding,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    softWrap: true,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(body, softWrap: true),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      onPressed: retryable
+                          ? () => ref
+                              .read(licenseProvider.notifier)
+                              .retryCheck()
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const license_page.LicensePage(),
+                                ),
+                              );
+                            },
+                      icon: Icon(
+                        retryable
+                            ? Icons.refresh_rounded
+                            : Icons.vpn_key_outlined,
+                      ),
+                      label: Text(retryable ? l.retry : l.openLicense),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ConditionBanner extends StatelessWidget {
   const _ConditionBanner({required this.condition, required this.l});
 
@@ -273,13 +399,15 @@ class _CurrentAlertCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Expanded(
-                        child: Text(
-                          kindTitle(alert.kind, l),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                      Text(
+                        kindTitle(alert.kind, l),
+                        softWrap: true,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
                       SeverityChip(severity: alert.severity, l: l),
                     ],
@@ -394,7 +522,10 @@ class _StatsGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+        final columns = constraints.maxWidth >= 420 ? 2 : 1;
+        final width = (constraints.maxWidth -
+                AppSpacing.sm * (columns - 1)) /
+            columns;
         return Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -434,18 +565,16 @@ class _StatTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
+                    softWrap: true,
                     style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     value,
+                    softWrap: true,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -710,11 +839,13 @@ class _HistoryCard extends StatelessWidget {
                 children: [
                   Text(
                     kindTitle(entry.kind, l),
+                    softWrap: true,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     formatDateTime(entry.timestamp, l.isAr),
+                    softWrap: true,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color:
                               Theme.of(context).colorScheme.onSurfaceVariant,
@@ -724,44 +855,46 @@ class _HistoryCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       readings,
+                      softWrap: true,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SeverityChip(severity: entry.severity, l: l),
+                      if (entry.occurrences > 1)
+                        Text(
+                          l.occurrencesLabel(entry.occurrences),
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (entry.escalated)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            l.escalatedTag,
+                            softWrap: true,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.danger),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                SeverityChip(severity: entry.severity, l: l),
-                if (entry.occurrences > 1) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    l.occurrencesLabel(entry.occurrences),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                if (entry.escalated) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      l.escalatedTag,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.danger),
-                    ),
-                  ),
-                ],
-              ],
             ),
           ],
         ),
@@ -812,7 +945,10 @@ class _TripStatsCard extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.sm) / 2;
+        final columns = constraints.maxWidth >= 420 ? 2 : 1;
+        final width = (constraints.maxWidth -
+                AppSpacing.sm * (columns - 1)) /
+            columns;
         return Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
@@ -870,9 +1006,12 @@ class _SparklineCard extends StatelessWidget {
               children: [
                 const _LegendDot(color: AppColors.danger),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  l.engineTempLabel,
-                  style: Theme.of(context).textTheme.bodySmall,
+                Expanded(
+                  child: Text(
+                    l.engineTempLabel,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),
@@ -892,9 +1031,12 @@ class _SparklineCard extends StatelessWidget {
               children: [
                 const _LegendDot(color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  l.batteryVoltLabel,
-                  style: Theme.of(context).textTheme.bodySmall,
+                Expanded(
+                  child: Text(
+                    l.batteryVoltLabel,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),

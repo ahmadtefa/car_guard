@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/providers/effective_settings_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Full-screen HUD showing one giant live reading; tap anywhere to close.
 ///
@@ -18,7 +19,12 @@ class FullscreenHudPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final device = ref.watch(deviceStatusProvider).value;
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final device = settingsReady
+        ? ref.watch(deviceStatusProvider).value
+        : null;
     final settings = ref.watch(effectiveSettingsProvider);
     final l = ref.watch(l10nProvider);
 
@@ -63,22 +69,27 @@ class FullscreenHudPage extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                valueText,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 84,
-                  fontWeight: FontWeight.w900,
-                  color: color,
-                  letterSpacing: 2,
-                  shadows: [
-                    Shadow(color: color.withAlpha(120), blurRadius: 60),
-                  ],
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  valueText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 84,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(color: color.withAlpha(120), blurRadius: 60),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
                 labelText,
+                textAlign: TextAlign.center,
+                softWrap: true,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,

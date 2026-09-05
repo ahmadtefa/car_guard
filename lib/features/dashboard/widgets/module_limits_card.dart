@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
+import '../../settings/providers/settings_provider.dart';
 import 'base_dashboard_card.dart';
 
 /// Shows the alarm limits currently configured on the module itself,
@@ -16,10 +17,20 @@ class ModuleLimitsCard extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(label, softWrap: true),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Flexible(
+            child: Text(
+              value,
+              softWrap: true,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
@@ -29,8 +40,12 @@ class ModuleLimitsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
 
-    final ModuleLimits? limits =
-        ref.watch(deviceStatusProvider).value?.moduleLimits;
+    final settingsReady = ref.watch(
+      settingsProvider.select((value) => value.value != null),
+    );
+    final ModuleLimits? limits = settingsReady
+        ? ref.watch(deviceStatusProvider).value?.moduleLimits
+        : null;
 
     if (limits == null || limits.isEmpty) {
       return BaseDashboardCard(

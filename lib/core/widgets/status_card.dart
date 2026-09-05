@@ -46,9 +46,17 @@ class StatusCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.labelMedium),
+                  Text(
+                    title,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
                   const SizedBox(height: AppSpacing.xs),
-                  Text(value, style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    value,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ],
               ),
             ),

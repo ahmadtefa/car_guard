@@ -9,6 +9,8 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../core/widgets/section_title.dart';
+import '../../license/providers/license_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 
 /// Password-protected OTA firmware update for the module.
 ///
@@ -154,6 +156,12 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
   @override
   Widget build(BuildContext context) {
     final l = ref.watch(l10nProvider);
+    final settingsState = ref.watch(settingsProvider);
+    final demoEnabled = settingsState.value?.demoModeEnabled ?? false;
+    final moduleLicensed =
+        settingsState.value != null &&
+        !demoEnabled &&
+        ref.watch(licenseAuthorizationProvider);
 
     if (!_unlocked) {
       return Scaffold(
@@ -168,6 +176,14 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
         child: ListView(
           padding: AppSpacing.padding,
           children: [
+            if (!moduleLicensed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Text(
+                  l.licenseControlsUnavailable,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             SectionTitle(title: l.otaUpdate, subtitle: l.otaInfo),
 
             Card(
@@ -183,7 +199,7 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
                         Expanded(
                           child: Text(
                             _fileName ?? l.noFileSelected,
-                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: _fileName == null
@@ -196,7 +212,8 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     SecondaryButton(
-                      onPressed: _uploading ? null : _pickFile,
+                      onPressed:
+                          !_uploading && moduleLicensed ? _pickFile : null,
                       child: Text(l.selectFirmware),
                     ),
                   ],
@@ -213,7 +230,7 @@ class _OtaUpdatePageState extends ConsumerState<OtaUpdatePage> {
               )
             else
               PrimaryButton(
-                onPressed: _fileName == null ? null : _upload,
+                onPressed: _fileName == null || !moduleLicensed ? null : _upload,
                 child: Text(l.uploadAndFlash),
               ),
 

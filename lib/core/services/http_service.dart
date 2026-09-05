@@ -3,6 +3,29 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+/// Details returned by the ESP8266 when an HTTP request is rejected.
+///
+/// In particular, firmware uses 423 with a plain-text `LICENSE_REQUIRED`
+/// body for protected controls. Keeping both fields avoids collapsing a
+/// useful device response into a generic transport exception.
+class HttpServiceException implements Exception {
+  const HttpServiceException({
+    required this.method,
+    required this.statusCode,
+    required this.body,
+  });
+
+  final String method;
+  final int statusCode;
+  final String body;
+
+  bool get isLocked => statusCode == 423;
+
+  @override
+  String toString() =>
+      'HTTP $method failed ($statusCode): ${body.trim()}';
+}
+
 /// Abstract contract for HTTP infrastructure operations.
 abstract class HttpService {
   Future<Map<String, dynamic>> getJson(
@@ -44,8 +67,10 @@ class HttpServiceImpl implements HttpService {
         );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'HTTP GET failed (${response.statusCode})',
+      throw HttpServiceException(
+        method: 'GET',
+        statusCode: response.statusCode,
+        body: response.body,
       );
     }
 
@@ -78,8 +103,10 @@ class HttpServiceImpl implements HttpService {
         );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'HTTP POST failed (${response.statusCode})',
+      throw HttpServiceException(
+        method: 'POST',
+        statusCode: response.statusCode,
+        body: response.body,
       );
     }
 

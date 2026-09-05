@@ -10,7 +10,11 @@ import '../providers/trip_provider.dart';
 /// Two side-by-side cards fed by the phone GPS: current vehicle speed
 /// (km/h) and the resettable trip distance (km).
 class TripCards extends ConsumerWidget {
-  const TripCards({super.key});
+  const TripCards({super.key, this.showControls = true});
+
+  /// Fullscreen keeps the two readings but omits the reset action and status
+  /// copy so all four primary metrics fit on one screen.
+  final bool showControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,27 +53,29 @@ class TripCards extends ConsumerWidget {
           ],
         ),
 
-        const SizedBox(height: AppSpacing.md),
+        if (showControls) ...[
+          const SizedBox(height: AppSpacing.md),
 
-        SecondaryButton(
-          onPressed: trip.distanceKm > 0
-              ? () => _confirmReset(context, ref, trip.distanceKm)
-              : null,
-          child: Text(l.resetTrip),
-        ),
-
-        // Friendly heads-up instead of silently dead cards.
-        if (trip.denied || !trip.available)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Text(
-              trip.denied ? l.locationDenied : l.gpsOff,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.warning,
-                  ),
-            ),
+          SecondaryButton(
+            onPressed: trip.distanceKm > 0
+                ? () => _confirmReset(context, ref, trip.distanceKm)
+                : null,
+            child: Text(l.resetTrip),
           ),
+
+          // Friendly heads-up instead of silently dead cards.
+          if (trip.denied || !trip.available)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Text(
+                trip.denied ? l.locationDenied : l.gpsOff,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.warning,
+                    ),
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -140,8 +146,8 @@ class _TripCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
+                    softWrap: true,
                     style: Theme.of(context).textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
