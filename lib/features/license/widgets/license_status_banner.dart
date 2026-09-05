@@ -80,47 +80,48 @@ class LicenseStatusBanner extends ConsumerWidget {
             const SizedBox(width: AppSpacing.sm),
             Flexible(
               fit: FlexFit.loose,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisSize: CrossAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    softWrap: true,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w800,
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      softWrap: true,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(body, softWrap: true),
-                  const SizedBox(height: AppSpacing.sm),
-                  Align(
-                    widthFactor: 1.0,
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: retryable
-                        ? TextButton.icon(
-                            onPressed: () => ref
-                                .read(licenseProvider.notifier)
-                                .retryCheck(),
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: Text(l.retry),
-                          )
-                        : TextButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      const license_page.LicensePage(),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.vpn_key_outlined),
-                            label: Text(l.openLicense),
-                          ),
-                  ),
-                ],
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(body, softWrap: true),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      widthFactor: 1.0,
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: retryable
+                          ? TextButton.icon(
+                              onPressed: () => ref
+                                  .read(licenseProvider.notifier)
+                                  .retryCheck(),
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: Text(l.retry),
+                            )
+                          : TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const license_page.LicensePage(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.vpn_key_outlined),
+                              label: Text(l.openLicense),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
