@@ -122,8 +122,8 @@ class BackgroundMonitorHandler extends TaskHandler {
           .timeout(const Duration(seconds: 4));
 
       // The ESP8266 remains the authority for the background isolate too:
-      // locked/expired modules must reject /data (for example with 403). Do
-      // not use a cached Flutter license flag here.
+      // accept only a successful response carrying real telemetry. A license
+      // protocol object or any HTTP error is never reinterpreted as a reading.
       if (response.statusCode != 200) return null;
 
       final body = response.body.trim();

@@ -6,7 +6,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/background_service.dart';
-import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../services/gps_trip_filter.dart';
 
@@ -77,14 +76,13 @@ class TripNotifier extends Notifier<TripState> {
 
   bool _backgroundServiceStarted = false;
 
-  /// The saved odometer is loaded only once per authorized session — later
+  /// The saved odometer is loaded only once per settings session — later
   /// [start] calls (permission re-grant, manual restart) must not rewind the
   /// live counter to whatever happens to be on disk.
   bool _restored = false;
 
-  /// Real GPS/trip data is also treated as protected app data. Demo mode is
-  /// allowed to use the existing phone-side trip feature; a normal device
-  /// needs a fresh ACTIVE report from the ESP8266.
+  /// True once persisted settings are ready. GPS/trip state is read-only and
+  /// does not grant or bypass any protected module command.
   bool _dataAccessAllowed = false;
 
   /// Last time the values were written to SharedPreferences — the disk is
@@ -96,11 +94,10 @@ class TripNotifier extends Notifier<TripState> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    final demoEnabled = ref.watch(
-      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
-    );
-    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-    final allowed = settingsReady && (demoEnabled || licenseAuthorized);
+    // GPS/trip cards are read-only telemetry and are not a hardware control.
+    // Keep them available for an unlicensed module just like temperature and
+    // voltage readings.
+    final allowed = settingsReady;
     final wasAllowed = _dataAccessAllowed;
     _dataAccessAllowed = allowed;
 
@@ -132,9 +129,9 @@ class TripNotifier extends Notifier<TripState> {
     hasFix: false,
   );
 
-  /// Stops the phone-side feed and removes its last values whenever the
-  /// license/settings gate closes. This prevents analysis and alerts from
-  /// retaining a previously authorized GPS reading.
+  /// Stops the phone-side feed and removes its last values whenever persisted
+  /// settings become unavailable. This prevents consumers from retaining a
+  /// stale GPS reading across a provider reset.
   void _disableTracking() {
     _sub?.cancel();
     _sub = null;

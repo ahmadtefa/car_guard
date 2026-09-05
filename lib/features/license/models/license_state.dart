@@ -45,7 +45,7 @@ class LicenseState {
   /// Absolute UTC epoch of expiry (0 = permanent / none).
   final int expires;
 
-  /// The UI and protected-data state. It is intentionally not folded into
+  /// The UI and protected-control state. It is intentionally not folded into
   /// [status], because firmware `LOCKED` covers no-license, expired and other
   /// invalid states.
   final LicenseCheckStatus checkStatus;
@@ -71,9 +71,15 @@ class LicenseState {
   bool get hasError => checkStatus == LicenseCheckStatus.error;
 
   /// True only after the ESP8266 reports ACTIVE on the current session.
-  bool get canUseRealData =>
+  /// This gate protects fan, buzzer and other module-control commands; it is
+  /// not a gate for read-only telemetry.
+  bool get canUseProtectedControls =>
       status == LicenseDeviceStatus.active &&
       checkStatus == LicenseCheckStatus.licensed;
+
+  /// Backward-compatible name for callers that still consume the license
+  /// state. It now describes protected controls, never the read-only stream.
+  bool get canUseRealData => canUseProtectedControls;
 
   bool get isActivating => activationState == LicenseActivationState.loading;
 

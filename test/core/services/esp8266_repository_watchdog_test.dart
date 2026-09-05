@@ -18,10 +18,14 @@ class _ModuleServer {
     this.replyToActivation = false,
     this.licenseStatus = 'LOCKED',
     this.licenseType = 'NONE',
+    this.licenseExpires = 0,
     this.sendInitialTelemetry = false,
     this.sendPeriodicTelemetry = false,
+    this.closeAfterInitialTelemetry = false,
     this.httpDataStatus = 403,
     this.httpDataBody = 'DEVICE LOCKED',
+    this.controlStatus = 200,
+    this.controlBody = 'OK',
   });
 
   final bool replyToSerial;
@@ -29,16 +33,20 @@ class _ModuleServer {
   final bool replyToActivation;
   final String licenseStatus;
   final String licenseType;
-  final int licenseExpires = 0;
+  final int licenseExpires;
   final bool sendInitialTelemetry;
   final bool sendPeriodicTelemetry;
+  final bool closeAfterInitialTelemetry;
   final int httpDataStatus;
   final String httpDataBody;
+  final int controlStatus;
+  final String controlBody;
 
   late HttpServer _server;
   final Set<WebSocket> _sockets = <WebSocket>{};
   final Map<WebSocket, Timer> _telemetryTimers = <WebSocket, Timer>{};
   final List<String> receivedCommands = <String>[];
+  final List<String> receivedActivationCodes = <String>[];
   var websocketConnectionCount = 0;
   var httpDataRequestCount = 0;
   var _closing = false;
@@ -68,6 +76,10 @@ class _ModuleServer {
       response.statusCode = 200;
       response.headers.contentType = ContentType.json;
       response.write('{}');
+    } else if (request.uri.path == '/mute') {
+      response.statusCode = controlStatus;
+      response.headers.contentType = ContentType.text;
+      response.write(controlBody);
     } else {
       response.statusCode = 404;
     }
@@ -90,6 +102,13 @@ class _ModuleServer {
 
     if (sendInitialTelemetry) {
       socket.add(_activeTelemetry);
+      if (closeAfterInitialTelemetry) {
+        unawaited(Future<void>.delayed(const Duration(milliseconds: 20), () async {
+          if (_sockets.contains(socket)) {
+            await socket.close();
+          }
+        }));
+      }
     }
 
     if (sendPeriodicTelemetry) {
@@ -123,6 +142,9 @@ class _ModuleServer {
     final command = payload['cmd'];
     if (command is! String) return;
     receivedCommands.add(command);
+    if (command == 'LICENSE_ACTIVATE' && payload['code'] is String) {
+      receivedActivationCodes.add(payload['code'] as String);
+    }
 
     switch (command) {
       case 'DEVICE_SERIAL':
@@ -291,7 +313,7 @@ void main() {
   );
 
   test(
-    'D. telemetry is withheld while the authoritative status is LOCKED',
+    'D. read-only telemetry remains available while the status is LOCKED',
     () async {
       final server = _ModuleServer(
         replyToStatus: true,
@@ -309,13 +331,9 @@ void main() {
         final status = await repository.getLicenseStatus();
 
         expect(status?.status.name, 'locked');
-        // connect() emits the intentional initial disconnected transition
-        // before opening the socket. Ignore that neutral event; this assertion
-        // is about real telemetry after the LOCKED reply.
-        readings.clear();
         await Future<void>.delayed(const Duration(milliseconds: 60));
 
-        expect(readings, isEmpty);
+        expect(readings, isNotEmpty);
         expect(repository.hasAuthoritativeActiveLicense, isFalse);
       } finally {
         await subscription.cancel();
@@ -326,7 +344,7 @@ void main() {
   );
 
   test(
-    'E. telemetry starts only after an authoritative ACTIVE status',
+    'E. ACTIVE status still authorizes controls while telemetry streams',
     () async {
       final server = _ModuleServer(
         replyToStatus: true,
@@ -385,7 +403,32 @@ void main() {
     },
   );
 
-  test('G. a stalled WebSocket still follows the reconnect path', () async {
+  test('G. protected controls preserve firmware HTTP 423 responses', () async {
+    final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
+      controlStatus: 423,
+      controlBody: 'LICENSE_REQUIRED',
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      final status = await repository.getLicenseStatus();
+
+      expect(status?.status.name, 'active');
+      // The repository must not turn a protected-command response into a
+      // transport success, and it must keep the firmware response in logs.
+      expect(await repository.muteBuzzer(), isFalse);
+    } finally {
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('H. a stalled WebSocket still follows the reconnect path', () async {
     final server = _ModuleServer(
       sendInitialTelemetry: true,
       httpDataStatus: 403,
@@ -408,11 +451,42 @@ void main() {
     }
   });
 
-  test('H. active HTTP fallback still accepts real telemetry', () async {
+  test(
+    'H. license activation upgrades HTTP fallback to a healthy WebSocket',
+    () async {
+      final server = _ModuleServer(
+        replyToActivation: true,
+        httpDataStatus: 200,
+        httpDataBody: _activeTelemetry,
+      );
+      await server.start();
+      final repository = _repositoryFor(server);
+
+      try {
+        await repository.connect(host: server.host, port: server.port);
+        await _waitUntil(
+          () => server.httpDataRequestCount > 0,
+          timeout: const Duration(seconds: 2),
+        );
+
+        const activationCode = ' EXACT-CODE-01 ';
+        final result = await repository.activateLicense(activationCode);
+
+        expect(result?.ok, isTrue);
+        expect(server.websocketConnectionCount, greaterThanOrEqualTo(2));
+        expect(server.receivedCommands, contains('LICENSE_ACTIVATE'));
+        expect(server.receivedActivationCodes, contains(activationCode));
+      } finally {
+        await repository.disconnect();
+        await server.close();
+      }
+    },
+  );
+
+  test('I. active HTTP fallback still accepts real telemetry', () async {
     final server = _ModuleServer(
-      replyToStatus: true,
-      licenseStatus: 'ACTIVE',
-      licenseType: 'PERMANENT',
+      sendInitialTelemetry: true,
+      closeAfterInitialTelemetry: true,
       httpDataStatus: 200,
       httpDataBody: _activeTelemetry,
     );
@@ -421,27 +495,14 @@ void main() {
 
     try {
       await repository.connect(host: server.host, port: server.port);
-      final status = await repository.getLicenseStatus();
-      expect(status?.status.name, 'active');
+      await _waitUntil(
+        () => server.httpDataRequestCount > 0,
+        timeout: const Duration(seconds: 2),
+      );
 
-      final readings = <dynamic>[];
-      final subscription = repository.liveUpdates.listen(readings.add);
-      try {
-        // With an ACTIVE proof and a quiet WebSocket, the existing watchdog
-        // path may use HTTP as the transport without bypassing the license
-        // boundary.
-        await _waitUntil(
-          () => server.httpDataRequestCount > 0 && readings.isNotEmpty,
-          timeout: const Duration(seconds: 2),
-        );
-
-        expect(server.httpDataRequestCount, greaterThan(0));
-        expect(readings, isNotEmpty);
-        expect(await repository.isConnected(), isTrue);
-        expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
-      } finally {
-        await subscription.cancel();
-      }
+      expect(server.httpDataRequestCount, greaterThan(0));
+      expect(await repository.isConnected(), isTrue);
+      expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
     } finally {
       await repository.disconnect();
       await server.close();

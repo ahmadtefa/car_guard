@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/device_status_provider.dart';
-import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 
@@ -20,12 +19,9 @@ class DashboardNotifier extends Notifier<DashboardState> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    final demoEnabled = ref.watch(
-      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
-    );
-    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-    final dataAccessAllowed =
-        settingsReady && (demoEnabled || licenseAuthorized);
+    // The dashboard is read-only telemetry and remains visible while the
+    // module is LOCKED. Protected controls use the separate license gate.
+    final dataAccessAllowed = settingsReady;
     _dataAccessAllowed = dataAccessAllowed;
 
     if (!dataAccessAllowed) {
@@ -76,7 +72,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
           );
         },
       );
-    });
+    }, fireImmediately: true);
 
     return const DashboardState();
   }

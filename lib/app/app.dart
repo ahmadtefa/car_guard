@@ -8,7 +8,6 @@ import '../core/providers/widget_updater_provider.dart';
 import '../core/services/background_monitor.dart';
 import '../core/theme/app_theme.dart';
 import '../features/analysis/providers/analysis_provider.dart';
-import '../features/license/providers/license_provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 import 'router.dart';
 
@@ -26,18 +25,16 @@ class CarGuardApp extends ConsumerWidget {
     // المحلية للحالات الخطرة) من غير ما يعيد بناء الواجهة مع كل تحديث.
     ref.listen(analysisProvider, (_, _) {});
 
-    // The background isolate must not keep processing real HTTP telemetry
-    // after the current ESP8266 authorization is lost. It is restarted only
-    // after a fresh ACTIVE report; the handler still relies on the module's
-    // own HTTP response for final authority.
+    // Background monitoring consumes the same read-only telemetry as the
+    // foreground dashboard. It must not be disabled merely because the
+    // module is LOCKED; protected hardware controls remain separately gated
+    // in the repository and firmware.
     void syncBackgroundMonitor() {
       final settings = ref.read(settingsProvider).value;
-      final licenseAuthorized = ref.read(licenseAuthorizationProvider);
       final canMonitor =
           settings != null &&
           !settings.demoModeEnabled &&
-          settings.backgroundMonitoringEnabled &&
-          licenseAuthorized;
+          settings.backgroundMonitoringEnabled;
 
       if (canMonitor) {
         // Convert the bool result to Future<void> for unawaited(); the
@@ -48,11 +45,10 @@ class CarGuardApp extends ConsumerWidget {
       }
     }
 
-    ref.listen(licenseAuthorizationProvider, (_, _) => syncBackgroundMonitor());
     ref.listen(settingsProvider, (_, _) => syncBackgroundMonitor());
     // `ref.listen` starts on the next provider change in Riverpod 3. Run the
-    // initial synchronization explicitly so a previously loaded setting or
-    // license proof is handled on the first build as well.
+    // initial synchronization explicitly so persisted settings are honored
+    // on the first build as well.
     syncBackgroundMonitor();
 
     final router = ref.watch(appRouterProvider);

@@ -34,11 +34,14 @@ class AlertsAnalysisPage extends ConsumerWidget {
     final history = ref.watch(readingsHistoryProvider);
     final settings = ref.watch(settingsProvider).value;
     final license = ref.watch(licenseProvider);
-    final dataAccessAllowed =
-        settings != null &&
-        (settings.demoModeEnabled || license.canUseRealData);
+    // Analysis and live readings are read-only. Keep rendering them while the
+    // module is LOCKED; the license notice explains that only protected
+    // controls remain unavailable.
+    final dataAccessAllowed = settings != null;
     final status = dataAccessAllowed ? rawStatus : null;
-    final noticeStatus = settings == null && license.canUseRealData
+    final showLicenseNotice =
+        settings == null || !license.canUseProtectedControls;
+    final noticeStatus = settings == null
         ? LicenseCheckStatus.checking
         : license.checkStatus;
 
@@ -49,9 +52,9 @@ class AlertsAnalysisPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
-          if (!dataAccessAllowed)
+          if (showLicenseNotice)
             _LicenseAnalysisNotice(status: noticeStatus, l: l),
-          if (!dataAccessAllowed) const SizedBox(height: AppSpacing.md),
+          if (showLicenseNotice) const SizedBox(height: AppSpacing.md),
 
           // 1) Overall condition banner.
           _ConditionBanner(condition: analysis.condition, l: l),

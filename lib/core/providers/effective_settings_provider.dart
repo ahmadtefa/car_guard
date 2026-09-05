@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/license/providers/license_provider.dart';
 import '../../features/settings/providers/settings_provider.dart';
 import '../models/app_settings.dart';
 import '../services/device_models.dart';
@@ -18,12 +17,9 @@ import 'device_status_provider.dart';
 final effectiveSettingsProvider = Provider<AppSettings>((ref) {
   final settings = ref.watch(settingsProvider).value;
   final local = settings ?? const AppSettings();
-  final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-  final dataAccessAllowed =
-      settings != null &&
-      (settings.demoModeEnabled || licenseAuthorized);
-
-  final limits = dataAccessAllowed
+  // Module limits are read-only telemetry and remain useful before
+  // activation, just like the temperature and voltage readings.
+  final limits = settings != null
       ? ref.watch(deviceStatusProvider).value?.moduleLimits
       : null;
 

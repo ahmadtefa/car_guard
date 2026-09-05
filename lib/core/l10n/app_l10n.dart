@@ -625,22 +625,22 @@ class AppL10n {
   String get licenseTitle => isAr ? 'الترخيص' : 'License';
   String get licenseChecking => isAr ? 'جاري فحص الترخيص...' : 'Checking license…';
   String get licenseCheckingInfo => isAr
-      ? 'الواجهة مفتوحة، لكن القراءات الحقيقية ستظل متوقفة حتى يؤكد الجهاز الترخيص.'
-      : 'The app is open, but real readings stay disabled until the module confirms the license.';
+      ? 'الواجهة مفتوحة، لكن أوامر التحكم ستظل مقفولة حتى يؤكد الجهاز الترخيص.'
+      : 'The app is open, but protected controls stay disabled until the module confirms the license.';
   String get licenseNetworkUnavailable => isAr
       ? 'تعذر الوصول للجهاز للتحقق من الترخيص.'
       : 'The module could not be reached to verify the license.';
   String get licenseNetworkUnavailableInfo => isAr
-      ? 'لن يتم عرض أي قراءة حقيقية. تأكد من الشبكة ثم أعد المحاولة.'
-      : 'No real readings are shown. Check the network and try again.';
+      ? 'القراءات تظل متاحة عند وصولها؛ تأكد من الشبكة للتحقق من أوامر التحكم.'
+      : 'Readings remain available when the module is reachable; check the network to verify protected controls.';
   String get licenseNoLicense => isAr ? 'لا يوجد ترخيص' : 'No license';
   String get licenseNoLicenseInfo => isAr
-      ? 'الجهاز لم يبلّغ عن ترخيص صالح. فعّل كود الترخيص لفتح القراءات.'
-      : 'The module reported no valid license. Activate a license code to unlock readings.';
+      ? 'الجهاز لم يبلّغ عن ترخيص صالح. فعّل كود الترخيص لفتح أوامر المروحة والجرس.'
+      : 'The module reported no valid license. Activate a license code to unlock fan and buzzer controls.';
   String get licenseExpired => isAr ? 'انتهى الترخيص' : 'License expired';
   String get licenseExpiredInfo => isAr
-      ? 'انتهت مدة الترخيص على الجهاز. جدّد الترخيص لعودة القراءات.'
-      : 'The license term reported by the module has ended. Renew it to restore readings.';
+      ? 'انتهت مدة الترخيص على الجهاز. جدّد الترخيص لفتح أوامر التحكم.'
+      : 'The license term reported by the module has ended. Renew it to restore protected controls.';
   String get licenseInvalid => isAr ? 'الترخيص غير صالح' : 'Invalid license';
   String get licenseInvalidInfo => isAr
       ? 'الجهاز لم يؤكد ترخيصاً صالحاً. استخدم كوداً صحيحاً أو تواصل مع الدعم.'
@@ -654,8 +654,8 @@ class AppL10n {
       : 'Module controls stay disabled until the ESP8266 confirms a valid license.';
   String get licenseLocked => isAr ? 'الجهاز مقفل' : 'Device locked';
   String get licenseLockedInfo => isAr
-      ? 'هذا الجهاز غير مفتوح مؤخراً. أدخل كود الترخيص لتفعيله وعرض قراءات العربية.'
-      : 'This device is locked. Enter a license code to activate it and view vehicle readings.';
+      ? 'هذا الجهاز مقفل للتحكم. أدخل كود الترخيص لتفعيل أوامر المروحة والجرس.'
+      : 'This device is locked for control. Enter a license code to activate fan and buzzer commands.';
   String get activationCodeLabel => isAr ? 'كود التفعيل' : 'Activation code';
   String get activationCodeHint => isAr
       ? 'أدخل كود الترخيص (Base32)'

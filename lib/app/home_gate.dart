@@ -13,9 +13,9 @@ import '../features/settings/providers/settings_provider.dart';
 /// Entry shell for the home route.
 ///
 /// The shell never blocks on the license query. It opens the dashboard for a
-/// normal device immediately, while the device-status provider independently
-/// supplies only a neutral state until the ESP8266 authoritatively reports
-/// ACTIVE. Demo mode continues to use the simulator and bypasses licensing.
+/// normal device immediately; read-only telemetry remains visible while the
+/// ESP8266 is LOCKED, while the banner and protected controls reflect the
+/// authoritative license state. Demo mode continues to use the simulator.
 class HomeGate extends ConsumerWidget {
   const HomeGate({super.key});
 
@@ -29,14 +29,14 @@ class HomeGate extends ConsumerWidget {
     }
 
     final license = ref.watch(licenseProvider);
-    final status = settings == null && license.canUseRealData
+    final status = settings == null && license.canUseProtectedControls
         ? LicenseCheckStatus.checking
         : license.checkStatus;
 
     return Stack(
       children: [
         const DashboardPage(),
-        if (settings == null || !license.canUseRealData)
+        if (settings == null || !license.canUseProtectedControls)
           Positioned(
             left: AppSpacing.md,
             right: AppSpacing.md,
@@ -52,8 +52,8 @@ class HomeGate extends ConsumerWidget {
 }
 
 /// Small, non-blocking status surface over the normal dashboard. It makes the
-/// reason for neutral readings explicit without turning license checking into
-/// a startup loading screen.
+/// protected-control state explicit without turning license checking into a
+/// startup loading screen or hiding read-only telemetry.
 class _LicenseStatusBanner extends ConsumerWidget {
   const _LicenseStatusBanner({required this.status});
 

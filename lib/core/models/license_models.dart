@@ -35,12 +35,12 @@ enum LicenseDeviceStatus {
   locked,
 }
 
-/// Application-level availability of protected device data.
+/// Application-level availability of protected device controls.
 ///
 /// This is deliberately separate from [LicenseDeviceStatus]. The firmware
-/// protocol uses `LOCKED` for more than one reason, while the UI and data gate
-/// must not confuse "still checking" or "network unavailable" with an expired
-/// license.
+/// protocol uses `LOCKED` for more than one reason, while the UI and control
+/// gate must not confuse "still checking" or "network unavailable" with an
+/// expired license. Read-only telemetry does not use this gate.
 enum LicenseCheckStatus {
   /// No fresh authoritative status has been received yet.
   checking,

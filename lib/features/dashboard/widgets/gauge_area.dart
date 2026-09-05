@@ -6,7 +6,6 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
-import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import 'battery_voltage_card.dart';
@@ -29,13 +28,7 @@ Widget buildGaugeArea(
   final settingsReady = ref.watch(
     settingsProvider.select((value) => value.value != null),
   );
-  final demoEnabled = ref.watch(
-    settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
-  );
-  final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-  final dataAccessAllowed =
-      settingsReady && (demoEnabled || licenseAuthorized);
-  final device = dataAccessAllowed
+  final device = settingsReady
       ? ref.watch(deviceStatusProvider).value
       : null;
 
@@ -53,8 +46,8 @@ Widget buildGaugeArea(
           voltage > settings.maxBatteryVoltage);
 
   // Every non-card gauge renders a numeric double. Do not feed it a synthetic
-  // zero while the source is disconnected or license-gated; render explicit
-  // placeholders instead so a real value can never look like a current zero.
+  // zero while the source is disconnected; render explicit placeholders
+  // instead so a real value can never look like a current zero.
   if (!connected) {
     return _UnavailableGaugeArea(l: l);
   }

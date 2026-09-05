@@ -36,9 +36,12 @@ class _LicensePageState extends ConsumerState<LicensePage> {
   }
 
   Future<void> _activate() async {
-    final code = _codeController.text.trim();
+    // Validate blank input without rewriting the code. The Base32 payload is
+    // signed data; the exact text entered by the user is what must cross the
+    // JSON/WebSocket boundary and reach the firmware decoder.
+    final code = _codeController.text;
     final l = ref.read(l10nProvider);
-    if (code.isEmpty) {
+    if (code.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l.failureCodeEmpty)),
       );
@@ -61,7 +64,7 @@ class _LicensePageState extends ConsumerState<LicensePage> {
       // HomeGate is already showing the dashboard underneath this page. Once
       // the ESP8266 has confirmed ACTIVE, return to that shell when this page
       // was opened from the status banner.
-      if (state.canUseRealData && Navigator.of(context).canPop()) {
+      if (state.canUseProtectedControls && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
     }

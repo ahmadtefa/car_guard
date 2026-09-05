@@ -18,12 +18,12 @@ final licenseProvider = NotifierProvider<LicenseNotifier, LicenseState>(
   LicenseNotifier.new,
 );
 
-/// Narrow dependency used by data/control gates. It changes only when the
+/// Narrow dependency used by protected-control gates. It changes only when the
 /// authoritative ACTIVE proof changes, so a periodic status refresh does not
-/// reset analysis/history/trip state or restart listeners unnecessarily.
+/// rebuild read-only telemetry consumers unnecessarily.
 final licenseAuthorizationProvider = Provider<bool>((ref) {
   return ref.watch(
-    licenseProvider.select((state) => state.canUseRealData),
+    licenseProvider.select((state) => state.canUseProtectedControls),
   );
 });
 
@@ -200,9 +200,9 @@ class LicenseNotifier extends Notifier<LicenseState> {
 
   /// Activates a license code on the module. On success the module becomes
   /// active and [LicenseNotifier] immediately refreshes its status, so the
-  /// data gate can switch to the dashboard. On failure the device stays
-  /// locked and a mapped, non-cryptographic failure reason is exposed for the
-  /// UI.
+  /// protected-control gate can open. Read-only telemetry remains available
+  /// before activation. On failure the device stays locked and a mapped,
+  /// non-cryptographic failure reason is exposed for the UI.
   Future<void> activateLicense(String code) async {
     state = state.copyWith(
       activationState: LicenseActivationState.loading,
@@ -246,8 +246,8 @@ class LicenseNotifier extends Notifier<LicenseState> {
       );
 
       // The module now holds an active license; re-read the authoritative
-      // LICENSE_STATUS so the data gate can switch to real readings. This is
-      // intentionally not a local/cache-based grant.
+      // LICENSE_STATUS before opening protected controls. This is intentionally
+      // not a local/cache-based grant.
       final status = await _readStatus(preserveActivation: true);
       if (status == null) {
         state = state.copyWith(

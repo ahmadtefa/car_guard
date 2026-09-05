@@ -56,11 +56,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _toggleBackground(bool value) async {
     final l = ref.read(l10nProvider);
 
-    if (value && !ref.read(licenseAuthorizationProvider)) {
-      _showError(l.licenseControlsUnavailable);
-      return;
-    }
-
     if (value) {
       debugPrint('BG TOGGLE: initializing notifications…');
 

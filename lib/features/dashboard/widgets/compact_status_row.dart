@@ -6,7 +6,6 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/widgets/spinning_icon.dart';
-import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 
 /// Single compact row replacing the old fan and alternator cards:
@@ -21,13 +20,7 @@ class FanAlternatorRow extends ConsumerWidget {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    final demoEnabled = ref.watch(
-      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
-    );
-    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-    final dataAccessAllowed =
-        settingsReady && (demoEnabled || licenseAuthorized);
-    final device = dataAccessAllowed
+    final device = settingsReady
         ? ref.watch(deviceStatusProvider).value
         : null;
 

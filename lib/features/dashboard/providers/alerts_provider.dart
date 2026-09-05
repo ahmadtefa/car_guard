@@ -47,6 +47,7 @@ class AlertsNotifier extends Notifier<AlertsState> {
 
   bool _everConnected = false;
   bool _dataAccessAllowed = false;
+  bool _controlsAuthorized = false;
   int _accessGeneration = 0;
 
   @override
@@ -57,43 +58,72 @@ class AlertsNotifier extends Notifier<AlertsState> {
     final demoEnabled = ref.watch(
       settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
     );
-    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
     final generation = ++_accessGeneration;
-    _dataAccessAllowed =
-        settingsReady && (demoEnabled || licenseAuthorized);
+    final initiallyAuthorized = ref.read(licenseAuthorizationProvider);
+
+    // Alert evaluation is read-only telemetry and remains available while the
+    // module is LOCKED. The separate control gate below prevents an
+    // unlicensed session from driving the in-app siren.
+    _dataAccessAllowed = settingsReady;
+    _controlsAuthorized = demoEnabled || initiallyAuthorized;
+
+    ref.listen(
+      licenseAuthorizationProvider,
+      (previous, authorized) {
+        if (generation != _accessGeneration) return;
+        _controlsAuthorized = demoEnabled || authorized;
+        if (!_controlsAuthorized) {
+          unawaited(ref.read(alarmServiceProvider).stop());
+        }
+      },
+      fireImmediately: true,
+    );
 
     _activeAlertIds.clear();
     _everConnected = false;
 
     if (!_dataAccessAllowed) {
-      // Keep the route/shell available, but do not expose or retain live
-      // alerts while the ESP8266 has not authorized data. Also stop any local
-      // alarm left over from the previous authorized session.
+      // Settings are still loading, so there is no trustworthy source to
+      // evaluate yet. Stop any local alarm left over from an old session.
       unawaited(ref.read(alarmServiceProvider).stop());
       return const AlertsState();
     }
 
-    ref.listen(deviceStatusProvider, (previous, next) {
-      if (generation != _accessGeneration) return;
-      next.whenData((status) => _handleStatus(status, generation: generation));
-    });
+    if (!_controlsAuthorized) {
+      // A locked module may still report alerts/readings; only local audible
+      // control is disabled until the module reports ACTIVE.
+      unawaited(ref.read(alarmServiceProvider).stop());
+    }
+
+    ref.listen(
+      deviceStatusProvider,
+      (previous, next) {
+        if (generation != _accessGeneration) return;
+        next.whenData((status) => _handleStatus(status, generation: generation));
+      },
+      fireImmediately: true,
+    );
 
     // GPS speed ticks come on their own stream — re-evaluate immediately on
     // every fix against the latest module status so speeding never waits
     // for (or depends on) module traffic.
-    ref.listen(tripProvider, (previous, next) {
-      if (generation != _accessGeneration || !_dataAccessAllowed) return;
+    ref.listen(
+      tripProvider,
+      (previous, next) {
+        if (generation != _accessGeneration || !_dataAccessAllowed) return;
 
-      if (previous?.hasFix == next.hasFix &&
-          previous?.speedKmh == next.speedKmh) {
-        return;
-      }
+        if (previous?.hasFix == next.hasFix &&
+            previous?.speedKmh == next.speedKmh) {
+          return;
+        }
 
-      final status = ref.read(deviceStatusProvider).value;
-      if (status != null) {
-        unawaited(_handleStatus(status, generation: generation));
-      }
-    });
+        final status = ref.read(deviceStatusProvider).value;
+        if (status != null) {
+          unawaited(_handleStatus(status, generation: generation));
+        }
+      },
+      fireImmediately: true,
+    );
 
     return const AlertsState();
   }
@@ -188,7 +218,13 @@ class AlertsNotifier extends Notifier<AlertsState> {
     AppSettings local, {
     required int generation,
   }) async {
-    if (!_dataAccessAllowed || generation != _accessGeneration) return;
+    if (!_dataAccessAllowed ||
+        !_controlsAuthorized ||
+        generation != _accessGeneration) {
+      final alarm = ref.read(alarmServiceProvider);
+      if (alarm.isPlaying) await alarm.stop();
+      return;
+    }
 
     final alarm = ref.read(alarmServiceProvider);
 

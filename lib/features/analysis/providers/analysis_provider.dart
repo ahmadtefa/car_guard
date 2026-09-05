@@ -12,7 +12,6 @@ import '../../../core/services/notification_service.dart';
 import '../../dashboard/providers/readings_history_provider.dart';
 import '../../dashboard/providers/trip_provider.dart';
 import '../../dashboard/providers/voltage_delta_provider.dart';
-import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/analysis_models.dart';
 import '../services/analysis_engine.dart';
@@ -158,32 +157,38 @@ class AnalysisNotifier extends Notifier<AnalysisState> {
     final settingsReady = ref.watch(
       settingsProvider.select((value) => value.value != null),
     );
-    final demoEnabled = ref.watch(
-      settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
-    );
-    final licenseAuthorized = ref.watch(licenseAuthorizationProvider);
-    final allowed = settingsReady && (demoEnabled || licenseAuthorized);
+    // Analysis is a read-only consumer of the live stream. Keep it running
+    // while the module is LOCKED; only hardware writes and control actions
+    // use the authoritative license gate.
+    final allowed = settingsReady;
     final generation = ++_accessGeneration;
     _analysisAccessAllowed = allowed;
 
     if (!allowed) {
       _resetProtectedRuntime();
-      // Analysis is deliberately available as a route, but it contains no
-      // cached/live vehicle analysis until Demo or a fresh ACTIVE report.
+      // Do not expose stale values while persisted settings are still loading.
       return _emptyState(loaded: true);
     }
 
-    ref.listen(deviceStatusProvider, (previous, next) {
-      if (generation != _accessGeneration) return;
-      next.whenData(_handleStatus);
-    });
+    ref.listen(
+      deviceStatusProvider,
+      (previous, next) {
+        if (generation != _accessGeneration) return;
+        next.whenData(_handleStatus);
+      },
+      fireImmediately: true,
+    );
 
     // GPS moves on its own stream; keep the trip summary and the
     // connection-lost-while-driving rule fed between module readings.
-    ref.listen(tripProvider, (previous, next) {
-      if (generation != _accessGeneration) return;
-      _handleTrip(next);
-    });
+    ref.listen(
+      tripProvider,
+      (previous, next) {
+        if (generation != _accessGeneration) return;
+        _handleTrip(next);
+      },
+      fireImmediately: true,
+    );
 
     // Fire and forget: the persisted baseline + history land shortly after
     // and flip `loaded` once they are part of the state. The generation guard
