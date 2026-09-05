@@ -418,7 +418,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final settings = ref.watch(effectiveSettingsProvider);
 
     final connected = state.connectionStatus == 'Connected';
-    final liveStatus = ref.watch(deviceStatusProvider).valueOrNull;
+    final liveStatus = ref.watch(deviceStatusProvider).value;
     final fanRunning = liveStatus?.controlData.fanRunning ?? false;
 
     return Scaffold(
