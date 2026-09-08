@@ -200,6 +200,10 @@ bool alarmActive   = false;
 // =========================================================
 float lastBroadcastTemp = -999;
 float lastBroadcastVolt = -999;
+// WebSocket callbacks only mark this flag. The first authorized telemetry
+// frame is sent from loop(), outside the incoming-frame callback, so the
+// ESP8266 WebSockets library is never re-entered by broadcastTXT().
+bool licenseTelemetryPending = false;
 
 // =========================================================
 // HELPER FUNCTIONS
@@ -595,14 +599,15 @@ void sendLicenseWsReply(uint8_t clientId, const char* json) {
     webSocket.sendTXT(clientId, response);
 
     // A successful status/activation reply may be the transition from
-    // LOCKED to ACTIVE. Push the first real telemetry frame immediately;
-    // broadcastWsData still applies the same license gate and CSV format.
+    // LOCKED to ACTIVE. Defer the first telemetry frame to loop(): calling
+    // broadcastTXT() re-entrantly from the incoming WebSocket callback can
+    // corrupt the ESP8266 WebSockets client iteration and trigger a reset.
     if (license_is_active() &&
         (response.indexOf("\"type\":\"LICENSE_STATUS\"") >= 0 ||
          response.indexOf("\"type\":\"LICENSE_RESULT\"") >= 0)) {
       lastBroadcastTemp = -999;
       lastBroadcastVolt = -999;
-      broadcastWsData();
+      licenseTelemetryPending = true;
     }
   }
 }
@@ -613,7 +618,8 @@ void onWsEvent(uint8_t clientId, WStype_t type, uint8_t* payload, size_t length)
       Serial.printf("🔌 WS CLIENT #%u CONNECTED\n", clientId);
       sendLicenseWsReply(clientId, "{\"cmd\":\"DEVICE_SERIAL\"}");
       sendLicenseWsReply(clientId, "{\"cmd\":\"LICENSE_STATUS\"}");
-      broadcastWsData();
+      // An active status sets licenseTelemetryPending; loop() will send the
+      // frame after this connection callback returns.
       break;
     case WStype_TEXT: {
       // The license code is at most 133 characters; reject oversized frames
@@ -1172,6 +1178,11 @@ void loop() {
   dnsServer.processNextRequest();
   server.handleClient();
   webSocket.loop();
+
+  if (licenseTelemetryPending) {
+    licenseTelemetryPending = false;
+    broadcastWsData();
+  }
 
   // [STA+mDNS] mandatory pump — the responder only serves queries while
   // update() is being called from loop().

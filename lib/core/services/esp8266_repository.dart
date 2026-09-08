@@ -145,6 +145,12 @@ class Esp8266Repository implements DeviceRepository {
   /// cold Wi-Fi wake-up too).
   int _licenseRequestsInFlight = 0;
 
+  /// License replies have no wire-level request id. Serialize commands so a
+  /// status refresh cannot consume an activation result's neighboring reply,
+  /// and so reconnect/close handling cannot replace the socket halfway through
+  /// another license request.
+  Future<void> _licenseRequestTail = Future<void>.value();
+
   final StreamController<DeviceStatus> _statusController =
       StreamController<DeviceStatus>.broadcast();
 
@@ -2182,9 +2188,35 @@ class Esp8266Repository implements DeviceRepository {
     await _waitForTransport();
   }
 
-  /// Sends a license command and resolves the first matching reply of type
-  /// [T], or null on timeout / transport failure.
+  /// Queues a license command behind the previous one. The firmware protocol
+  /// has no request id, so matching by message type is safe only when there is
+  /// one outstanding command at a time.
   Future<T?> _requestLicense<T extends LicenseMessage>(
+    Map<String, dynamic> payload,
+    bool Function(T) matcher, {
+    Duration? timeout,
+  }) {
+    final request = _licenseRequestTail.then<T?>(
+      (_) => _performLicenseRequest<T>(
+        payload,
+        matcher,
+        timeout: timeout,
+      ),
+    );
+
+    // Keep the queue alive after an unexpected future error. The request
+    // itself still exposes that error to its caller, while later status or
+    // activation commands are not permanently blocked behind it.
+    _licenseRequestTail = request.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return request;
+  }
+
+  /// Sends one already-serialized license command and resolves the first
+  /// matching reply of type [T], or null on timeout / transport failure.
+  Future<T?> _performLicenseRequest<T extends LicenseMessage>(
     Map<String, dynamic> payload,
     bool Function(T) matcher, {
     Duration? timeout,

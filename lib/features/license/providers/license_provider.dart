@@ -30,6 +30,7 @@ final licenseAuthorizationProvider = Provider<bool>((ref) {
 class LicenseNotifier extends Notifier<LicenseState> {
   DeviceRepository _repo = _emptyRepo();
   bool _refreshing = false;
+  bool _activationInFlight = false;
   bool _connectionKnownUp = false;
 
   /// Retried queries: a LOCKED module broadcasts no telemetry, so the socket
@@ -118,7 +119,7 @@ class LicenseNotifier extends Notifier<LicenseState> {
 
   /// Queries the module for its serial and current license status.
   Future<void> _refresh() async {
-    if (_refreshing) return;
+    if (_refreshing || _activationInFlight) return;
     _refreshing = true;
 
     // Checking is a visible status, never a route-level loading gate.
@@ -204,67 +205,77 @@ class LicenseNotifier extends Notifier<LicenseState> {
   /// the real module stays disconnected in Flutter. On failure the device
   /// stays locked and a mapped, non-cryptographic failure reason is exposed.
   Future<void> activateLicense(String code) async {
-    state = state.copyWith(
-      activationState: LicenseActivationState.loading,
-      clearFailure: true,
-      checkStatus: LicenseCheckStatus.checking,
-      clearCheckError: true,
-    );
+    // The activation protocol has no request id and a replacement must not be
+    // interleaved with a background status refresh. Ignore a second tap while
+    // the first activation is waiting for the authoritative result.
+    if (_activationInFlight) return;
+    _activationInFlight = true;
 
-    final LicenseResultMessage? result;
     try {
-      result = await _repo.activateLicense(code);
-    } catch (_) {
       state = state.copyWith(
-        activationState: LicenseActivationState.failure,
-        checkStatus: LicenseCheckStatus.error,
-        checkError: 'NO_RESPONSE',
-        failureReason: LicenseFailureReason.unknown,
-        activationReason: 'NO_RESPONSE',
-      );
-      return;
-    }
-
-    if (result == null) {
-      state = state.copyWith(
-        activationState: LicenseActivationState.failure,
-        checkStatus: LicenseCheckStatus.error,
-        checkError: 'NO_RESPONSE',
-        failureReason: LicenseFailureReason.unknown,
-        activationReason: 'NO_RESPONSE',
-      );
-      return;
-    }
-
-    if (result.ok) {
-      state = state.copyWith(
-        activationState: LicenseActivationState.success,
-        checkStatus: LicenseCheckStatus.checking,
+        activationState: LicenseActivationState.loading,
         clearFailure: true,
+        checkStatus: LicenseCheckStatus.checking,
         clearCheckError: true,
-        activationReason: result.reason,
       );
 
-      // The module now holds an active license; re-read the authoritative
-      // LICENSE_STATUS before reopening protected controls and real telemetry.
-      // This is intentionally not a local/cache-based grant.
-      final status = await _readStatus(preserveActivation: true);
-      if (status == null) {
+      final LicenseResultMessage? result;
+      try {
+        result = await _repo.activateLicense(code);
+      } catch (_) {
         state = state.copyWith(
+          activationState: LicenseActivationState.failure,
           checkStatus: LicenseCheckStatus.error,
           checkError: 'NO_RESPONSE',
+          failureReason: LicenseFailureReason.unknown,
+          activationReason: 'NO_RESPONSE',
         );
-      } else if (_connectionKnownUp) {
-        _scheduleStatusRefresh();
+        return;
       }
-    } else {
-      final reason = licenseFailureReasonFromFirmware(result.reason);
-      state = state.copyWith(
-        activationState: LicenseActivationState.failure,
-        checkStatus: licenseCheckStatusForFailure(reason),
-        failureReason: reason,
-        activationReason: result.reason,
-      );
+
+      if (result == null) {
+        state = state.copyWith(
+          activationState: LicenseActivationState.failure,
+          checkStatus: LicenseCheckStatus.error,
+          checkError: 'NO_RESPONSE',
+          failureReason: LicenseFailureReason.unknown,
+          activationReason: 'NO_RESPONSE',
+        );
+        return;
+      }
+
+      if (result.ok) {
+        state = state.copyWith(
+          activationState: LicenseActivationState.success,
+          checkStatus: LicenseCheckStatus.checking,
+          clearFailure: true,
+          clearCheckError: true,
+          activationReason: result.reason,
+        );
+
+        // The module now holds an active license; re-read the authoritative
+        // LICENSE_STATUS before reopening protected controls and real telemetry.
+        // This is intentionally not a local/cache-based grant.
+        final status = await _readStatus(preserveActivation: true);
+        if (status == null) {
+          state = state.copyWith(
+            checkStatus: LicenseCheckStatus.error,
+            checkError: 'NO_RESPONSE',
+          );
+        } else if (_connectionKnownUp) {
+          _scheduleStatusRefresh();
+        }
+      } else {
+        final reason = licenseFailureReasonFromFirmware(result.reason);
+        state = state.copyWith(
+          activationState: LicenseActivationState.failure,
+          checkStatus: licenseCheckStatusForFailure(reason),
+          failureReason: reason,
+          activationReason: result.reason,
+        );
+      }
+    } finally {
+      _activationInFlight = false;
     }
   }
 }

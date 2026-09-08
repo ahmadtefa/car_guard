@@ -74,6 +74,9 @@ public final class LicenseProtocolSelfTest {
                 LicenseProtocol.LICENSE_TEMPORARY, 0));
         expectProtocolError("temporary months = 121", () -> LicenseProtocol.validateMonths(
                 LicenseProtocol.LICENSE_TEMPORARY, 121));
+        expectProtocolError("pre-epoch creation date", () -> LicenseProtocol.buildPayload(
+                "KCG_005B6EAC", LicenseProtocol.LICENSE_TEMPORARY,
+                LocalDate.of(1969, 12, 31), 1));
 
         String testPointFingerprint = LicenseProtocol.firmwarePointFingerprint(testKey.getPublic());
         String testSpkiFingerprint = LicenseProtocol.subjectPublicKeyInfoFingerprint(testKey.getPublic());

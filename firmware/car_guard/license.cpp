@@ -320,7 +320,8 @@ static bool record_matches_device() {
 // ---------------------------------------------------------
 enum TransitionState { ST_LOCKED = 0, ST_TEMP_ACTIVE = 1, ST_PERM_ACTIVE = 2 };
 
-static TransitionState current_transition_state(uint32_t now) {
+static TransitionState current_transition_state(uint32_t now,
+                                                bool persistExpiration) {
   if (!record_matches_device()) return ST_LOCKED;
   if (_licenseRecord.status != LICENSE_ACTIVE) return ST_LOCKED;
   if (_licenseRecord.type == LICENSE_PERMANENT) return ST_PERM_ACTIVE;
@@ -330,14 +331,19 @@ static TransitionState current_transition_state(uint32_t now) {
     return ST_LOCKED;
   }
   if (now >= _licenseRecord.expirationEpoch) {
-    mark_temporary_expired();
+    // Activation checks use false so an expired-record replacement can commit
+    // the new LicenseRecord and cleared clock flag as one EEPROM transaction.
+    if (persistExpiration) mark_temporary_expired();
     return ST_LOCKED;
   }
   return ST_TEMP_ACTIVE;
 }
 
 static bool transition_allowed(uint8_t newType, uint32_t now) {
-  TransitionState st = current_transition_state(now);
+  // Do not persist the old record's expiration marker before a replacement
+  // activation. license_persist_activation() writes the replacement state
+  // atomically; status/output paths still persist expiration normally.
+  TransitionState st = current_transition_state(now, false);
   switch (st) {
     case ST_LOCKED:
       // LOCKED -> TEMPORARY / PERMANENT both allowed.
@@ -376,6 +382,52 @@ static bool license_persist(const LicenseRecord& rec) {
     memcpy(&_licenseRecord, &toSave, sizeof(LicenseRecord));
   }
   return ok;
+}
+
+// Activation replaces two related records: the license itself and the phone
+// clock state that makes its expiration trustworthy. Commit both records in a
+// single EEPROM transaction so a renewal cannot leave the old license paired
+// with a cleared temporaryExpired flag (or the reverse) if the flash commit
+// fails. The existing offsets and struct layouts are intentionally unchanged.
+static bool license_persist_activation(const LicenseRecord& rec,
+                                       uint32_t acceptedPhoneTime) {
+  if (!valid_phone_epoch(acceptedPhoneTime)) return false;
+
+  LicenseRecord licenseToSave = rec;
+  licenseToSave.magic = LICENSE_EEPROM_MAGIC;
+  licenseToSave.version = LICENSE_EEPROM_VERSION;
+  licenseToSave.checksum = compute_checksum(licenseToSave);
+
+  LicenseClockRecord clockToSave;
+  memset(&clockToSave, 0, sizeof(clockToSave));
+  clockToSave.magic = LICENSE_CLOCK_EEPROM_MAGIC;
+  clockToSave.version = LICENSE_CLOCK_EEPROM_VERSION;
+  clockToSave.clockRollback = _clockRollbackDetected ? 1 : 0;
+  clockToSave.temporaryExpired = 0;
+  clockToSave.lastPhoneTime = acceptedPhoneTime;
+  clockToSave.checksum = compute_clock_checksum(clockToSave);
+
+  const uint32_t runningTime = current_phone_epoch();
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.put(LICENSE_EEPROM_OFFSET, licenseToSave);
+  EEPROM.put(LICENSE_CLOCK_EEPROM_OFFSET, clockToSave);
+  const bool ok = EEPROM.commit();
+  EEPROM.end();
+  if (!ok) return false;
+
+  memcpy(&_licenseRecord, &licenseToSave, sizeof(LicenseRecord));
+  _clockRecordValid = true;
+  _lastPhoneTime = acceptedPhoneTime;
+  _lastPersistedPhoneTime = acceptedPhoneTime;
+  _clockRollbackPersisted = _clockRollbackDetected;
+  _temporaryExpired = false;
+  _temporaryExpiredPersisted = false;
+  if (!_phoneTimeAvailable || acceptedPhoneTime > runningTime) {
+    _phoneTimeEpoch = acceptedPhoneTime;
+    _phoneTimeMillis = millis();
+    _phoneTimeAvailable = true;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------
@@ -607,20 +659,11 @@ bool license_attempt_activate(const String& base32code, uint32_t activationEpoch
   rec.expirationEpoch = expiration;
   memcpy(rec.replayHash, replay, sizeof(rec.replayHash));
 
-  // Persist the accepted phone time before the license record. This guarantees
-  // a reboot cannot compare a future activation against an older clock value.
-  const PhoneTimeResult timeResult =
-      accept_phone_time(activationEpoch, true, true);
-  if (timeResult == PHONE_TIME_ROLLBACK) {
-    strcpy(last_activation_reason, "CLOCK_ROLLBACK");
-    return false;
-  }
-  if (timeResult != PHONE_TIME_ACCEPTED) {
-    strcpy(last_activation_reason, "CLOCK_PERSIST_FAILED");
-    return false;
-  }
-
-  if (!license_persist(rec)) {
+  // Commit the replacement license and the trusted phone-clock transition
+  // together. This keeps a failed renewal from leaving EEPROM in a mixed
+  // old-license/new-clock state and avoids a second EEPROM.begin/commit cycle
+  // inside the WebSocket callback.
+  if (!license_persist_activation(rec, activationEpoch)) {
     strcpy(last_activation_reason, "EEPROM_COMMIT_FAILED");
     return false;
   }

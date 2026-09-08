@@ -17,14 +17,17 @@ class FakeDeviceRepository implements DeviceRepository {
     DeviceSerialMessage? serialMessage,
     required this.statusMessage,
     this.resultMessage,
+    this.activationDelay = Duration.zero,
   }) : serialMessage =
             serialMessage ?? const DeviceSerialMessage(serial: 'KCG_1234ABCD');
 
   DeviceSerialMessage serialMessage;
   LicenseStatusMessage statusMessage;
   LicenseResultMessage? resultMessage;
+  final Duration activationDelay;
 
   bool activated = false;
+  int activationCalls = 0;
   String? lastCode;
 
   final StreamController<LicenseMessage> _license =
@@ -52,8 +55,12 @@ class FakeDeviceRepository implements DeviceRepository {
 
   @override
   Future<LicenseResultMessage?> activateLicense(String code) async {
+    activationCalls++;
     activated = true;
     lastCode = code;
+    if (activationDelay > Duration.zero) {
+      await Future<void>.delayed(activationDelay);
+    }
     return resultMessage;
   }
 
@@ -112,6 +119,39 @@ void main() {
     expect(state.status, LicenseDeviceStatus.active);
     expect(state.checkStatus, LicenseCheckStatus.licensed);
     expect(state.canUseRealData, isTrue);
+  });
+
+  test('K2. duplicate activation taps are serialized to one request', () async {
+    final fake = FakeDeviceRepository(
+      statusMessage: const LicenseStatusMessage(
+        status: LicenseDeviceStatus.active,
+        licenseType: LicenseType.permanent,
+        expires: 0,
+      ),
+      resultMessage: const LicenseResultMessage(
+        ok: true,
+        status: 'OK',
+        reason: 'OK',
+        expires: 0,
+      ),
+      activationDelay: const Duration(milliseconds: 40),
+    );
+
+    final container = ProviderContainer(
+      overrides: [deviceRepositoryProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(licenseProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final first = notifier.activateLicense('FIRST-CODE');
+    final second = notifier.activateLicense('SECOND-CODE');
+    await Future.wait<void>([first, second]);
+
+    expect(fake.activationCalls, 1);
+    expect(fake.lastCode, 'FIRST-CODE');
+    expect(container.read(licenseProvider).canUseRealData, isTrue);
   });
 
   test('L. activation failure keeps the device locked', () async {

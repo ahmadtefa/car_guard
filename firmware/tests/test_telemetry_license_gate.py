@@ -123,11 +123,15 @@ class TelemetryLicenseGateTest(unittest.TestCase):
         self.assertIn("91.2", model.html_reading())
         self.assertIn("13.40", model.html_reading())
 
-    def test_successful_activation_forces_first_telemetry_frame(self):
+    def test_successful_activation_defers_first_telemetry_frame(self):
         reply = section(INO, "void sendLicenseWsReply(", "void onWsEvent(")
+        loop = section(INO, "void loop()", "\n}")
         self.assertIn("LICENSE_RESULT", reply)
         self.assertIn("lastBroadcastTemp = -999", reply)
-        self.assertIn("broadcastWsData();", reply)
+        self.assertIn("licenseTelemetryPending = true", reply)
+        self.assertNotIn("broadcastWsData();", reply)
+        self.assertIn("if (licenseTelemetryPending)", loop)
+        self.assertIn("broadcastWsData();", loop)
 
     def test_reboot_expired_license_stays_locked(self):
         self.assertIn("load_phone_clock();", LICENSE_CPP)

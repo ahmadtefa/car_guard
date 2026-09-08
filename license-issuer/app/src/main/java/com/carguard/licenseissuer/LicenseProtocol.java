@@ -179,6 +179,12 @@ public final class LicenseProtocol {
         if (creationDate == null) {
             throw new ProtocolException("Creation date is required");
         }
+        // The firmware rejects pre-epoch payload dates, and the protocol stores
+        // the year in exactly two bytes. Reject values that cannot be represented
+        // byte-for-byte instead of silently truncating them during generation.
+        if (creationDate.getYear() < 1970 || creationDate.getYear() > 0xFFFF) {
+            throw new ProtocolException("Creation year must be in 1970..65535");
+        }
 
         byte[] payload = new byte[PAYLOAD_LENGTH];
         payload[0] = (byte) VERSION;
@@ -212,6 +218,9 @@ public final class LicenseProtocol {
         int month = payload[16] & 0xff;
         int day = payload[17] & 0xff;
         int months = payload[18] & 0xff;
+        if (year < 1970) {
+            throw new ProtocolException("Invalid creation date");
+        }
         LocalDate date;
         try {
             date = LocalDate.of(year, month, day);

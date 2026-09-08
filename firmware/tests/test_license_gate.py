@@ -69,14 +69,13 @@ class LicenseGateStaticTest(unittest.TestCase):
             "currentTime",
             "accept_phone_time",
             "load_phone_clock",
-            "CLOCK_PERSIST_FAILED",
+            "license_persist_activation",
             "license_compute_replay_hash",
             "ALREADY_USED",
             "transition_allowed",
             "CANNOT_REPLACE_PERMANENT",
             "EXISTING_TEMP_ACTIVE",
             "newType == LICENSE_PERMANENT",
-            "license_persist(rec)",
         ):
             self.assertIn(token, LICENSE_CPP, token)
         self.assertIn("newType == LICENSE_PERMANENT) return true", LICENSE_CPP)
@@ -84,6 +83,14 @@ class LicenseGateStaticTest(unittest.TestCase):
         self.assertIn("return false; // reason already set", LICENSE_CPP)
         self.assertIn('"INVALID_TIMESTAMP"', LICENSE_CPP)
         self.assertIn("const uint32_t now = activationEpoch", LICENSE_CPP)
+        activation = section(
+            LICENSE_CPP,
+            "bool license_attempt_activate(",
+            "// =========================================================\n// License commands",
+        )
+        self.assertNotIn("accept_phone_time(activationEpoch", activation)
+        self.assertIn("license_persist_activation(rec, activationEpoch)", activation)
+        self.assertNotIn("license_persist(rec)", activation)
         self.assertNotIn("license_wait_ntp_time", LICENSE_CPP)
         self.assertNotIn("NTP_UNAVAILABLE", LICENSE_CPP)
         self.assertNotIn("configTime(", LICENSE_CPP)
@@ -95,6 +102,7 @@ class LicenseGateStaticTest(unittest.TestCase):
         self.assertIn("accept_phone_time(currentTime, false, false)", status_handler)
         self.assertIn("br_ecdsa_vrfy_raw_get_default", HELPERS_CPP)
         self.assertIn("sig_len != LICENSE_SIGNATURE_LEN", HELPERS_CPP)
+        self.assertIn("out->year < 1970", HELPERS_CPP)
 
     def test_locked_gate_and_silent_buzzer(self):
         fan_control = section(INO, "void updateFanControl()", "// =========================================================\n// VOLTAGE")

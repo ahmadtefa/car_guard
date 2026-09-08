@@ -123,6 +123,10 @@ bool license_parse_payload(const uint8_t* payload, size_t len, LicensePayload* o
   // Basic validations
   if (out->version != 0x01) return false;                    // unsupported protocol version
   if (!(out->type == 0x00 || out->type == 0x01)) return false;
+  // Keep the two-byte date field aligned with the firmware's minimum trusted
+  // Unix epoch. The activation clock remains the source for expiration, but a
+  // signed code must not carry an impossible pre-epoch creation year.
+  if (out->year < 1970) return false;
   if (out->month < 1 || out->month > 12) return false;
   if (out->day < 1 || out->day > 31) return false;
   if (out->type == LICENSE_PERMANENT && out->months != 0) return false;  // permanent must have months=0
