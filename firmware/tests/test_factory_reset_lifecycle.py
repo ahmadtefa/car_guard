@@ -232,6 +232,11 @@ class FactoryResetLifecycleTest(unittest.TestCase):
     def test_firmware_transaction_and_safe_restart_contract(self):
         reset = section(INO, "bool persistFactoryReset()", "void handleFactoryReset()")
         self.assertEqual(reset.count("EEPROM.commit()"), 1)
+        self.assertNotIn("!EEPROM.begin", INO)
+        self.assertIn(
+            "EEPROM.begin(EEPROM_SIZE);\n  EEPROM.put(0, factorySettings)",
+            reset,
+        )
         self.assertIn("EEPROM.put(0, factorySettings)", reset)
         self.assertIn("EEPROM.put(LICENSE_EEPROM_OFFSET, clearedLicense)", reset)
         self.assertIn(

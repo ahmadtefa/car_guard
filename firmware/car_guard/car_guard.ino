@@ -836,7 +836,9 @@ bool persistFactoryReset() {
   LicenseClockRecord clearedClock;
   memset(&clearedClock, 0, sizeof(clearedClock));
 
-  if (!EEPROM.begin(EEPROM_SIZE)) return false;
+  // ESP8266 EEPROM.begin() initializes the emulated EEPROM in place and
+  // returns void; commit() below is the operation that reports success.
+  EEPROM.begin(EEPROM_SIZE);
   EEPROM.put(0, factorySettings);
   EEPROM.put(LICENSE_EEPROM_OFFSET, clearedLicense);
   EEPROM.put(LICENSE_CLOCK_EEPROM_OFFSET, clearedClock);
