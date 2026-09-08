@@ -94,6 +94,16 @@ class Esp8266Repository implements DeviceRepository {
   /// disconnected (or revive an obsolete fallback loop).
   int _httpFallbackGeneration = 0;
 
+  /// Factory reset is destructive and causes an expected module reboot. Keep
+  /// the one HTTP request serialized even if two UI surfaces or callbacks call
+  /// the repository at the same time.
+  bool _factoryResetInFlight = false;
+
+  /// Blocks late frames from the pre-reset transport. The reset response can
+  /// arrive before the ESP8266 closes its socket; those frames must not revive
+  /// ACTIVE telemetry or license state while the device is rebooting.
+  bool _factoryResetAwaitingReconnect = false;
+
   /// Consecutive failed fallback polls; a single dropped packet must not
   /// flap the UI to Disconnected.
   int _pollFailureCount = 0;
@@ -232,6 +242,10 @@ class Esp8266Repository implements DeviceRepository {
     // disconnect() flagged the repository as stopped; clear the flag because
     // connect() is about to establish a brand new session.
     _stopped = false;
+    // A new connect() owns a new transport session, but reset quarantine stays
+    // active until that session proves the post-reset LOCKED status. A mere
+    // TCP reconnect is not enough: the module might still be inside the
+    // deferred-restart window.
 
     // Mark the moment the transport will be available for license queries;
     // command readiness must not depend on the first sensor reading.
@@ -1535,10 +1549,36 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
-  /// Wipes everything stored on the module EEPROM (`/factoryreset`) and
-  /// reboots it into factory defaults: AP name CarGaurd / 12345678, default
-  /// limits, empty STA creds.
-  Future<bool> factoryResetModule() => _getExpectsOk(DeviceEndpoints.factoryReset);
+  /// Wipes the module's factory-configurable Settings and license records
+  /// through the existing `/factoryreset` endpoint. The ESP8266 answers `OK`
+  /// only after the single EEPROM transaction succeeds; its reboot is then
+  /// expected and handled by the normal reconnect/watchdog path.
+  Future<bool> factoryResetModule() async {
+    if (_factoryResetInFlight) return false;
+    _factoryResetInFlight = true;
+
+    try {
+      final ok = await _getExpectsOk(DeviceEndpoints.factoryReset);
+      if (ok) _markFactoryResetLocally();
+      return ok;
+    } finally {
+      _factoryResetInFlight = false;
+    }
+  }
+
+  /// Stop exposing the old active session as authorized as soon as the device
+  /// confirms the reset. The subsequent WebSocket close is therefore an
+  /// expected authorization transition, not a stale ACTIVE-data window.
+  void _markFactoryResetLocally() {
+    _factoryResetAwaitingReconnect = true;
+    _licenseProofOfLife = false;
+    _licenseActivityGeneration = 0;
+    _telemetrySeenOnSocket = false;
+    _licenseDeviceStatus = LicenseDeviceStatus.locked;
+    _lastKnownLicenseStatus = LicenseDeviceStatus.locked;
+    _lastTelemetryStatus = null;
+    _statusController.add(DeviceStatus.disconnected());
+  }
 
 
 
@@ -1894,6 +1934,24 @@ class Esp8266Repository implements DeviceRepository {
   ) {
 
     final license = parseLicenseMessage(data);
+    final serialDuringResetQuarantine =
+        _factoryResetAwaitingReconnect && license is DeviceSerialMessage;
+
+    if (_factoryResetAwaitingReconnect &&
+        license is! DeviceSerialMessage &&
+        !(license is LicenseStatusMessage &&
+            license.status == LicenseDeviceStatus.locked)) {
+      debugPrint('IGNORING PRE-RESET FRAME DURING EXPECTED REBOOT');
+      return false;
+    }
+
+    if (license is LicenseStatusMessage &&
+        license.status == LicenseDeviceStatus.locked) {
+      // A post-reset LOCKED status is the authoritative proof that the new
+      // session has crossed the reboot boundary. ACTIVE replies remain
+      // quarantined until this proof arrives.
+      _factoryResetAwaitingReconnect = false;
+    }
 
     if (license != null) {
 
@@ -1913,7 +1971,11 @@ class Esp8266Repository implements DeviceRepository {
         _licenseController.add(license);
       }
 
-      return true;
+      // DEVICE_SERIAL can complete a query during reset quarantine, but it is
+      // not proof that this is the post-reboot transport. Do not emit a
+      // connection-true event that could clear the provider's expected-reset
+      // marker after an old socket briefly reported disconnected.
+      return !serialDuringResetQuarantine;
 
     }
 

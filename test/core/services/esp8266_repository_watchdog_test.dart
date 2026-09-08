@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:car_guard/core/models/license_models.dart';
 import 'package:car_guard/core/services/esp8266_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,9 @@ class _ModuleServer {
     this.httpDataBody = 'DEVICE LOCKED',
     this.controlStatus = 200,
     this.controlBody = 'OK',
+    this.factoryResetStatus = 200,
+    this.factoryResetBody = 'OK',
+    this.factoryResetDelay = Duration.zero,
   });
 
   final bool replyToSerial;
@@ -39,6 +43,9 @@ class _ModuleServer {
   final String httpDataBody;
   final int controlStatus;
   final String controlBody;
+  final int factoryResetStatus;
+  final String factoryResetBody;
+  final Duration factoryResetDelay;
 
   late HttpServer _server;
   final Set<WebSocket> _sockets = <WebSocket>{};
@@ -49,6 +56,7 @@ class _ModuleServer {
   final List<int> receivedStatusTimes = <int>[];
   var websocketConnectionCount = 0;
   var httpDataRequestCount = 0;
+  var factoryResetRequestCount = 0;
   var _closing = false;
 
   String get host => InternetAddress.loopbackIPv4.address;
@@ -80,6 +88,14 @@ class _ModuleServer {
       response.statusCode = controlStatus;
       response.headers.contentType = ContentType.text;
       response.write(controlBody);
+    } else if (request.uri.path == '/factoryreset') {
+      factoryResetRequestCount++;
+      if (factoryResetDelay > Duration.zero) {
+        await Future<void>.delayed(factoryResetDelay);
+      }
+      response.statusCode = factoryResetStatus;
+      response.headers.contentType = ContentType.text;
+      response.write(factoryResetBody);
     } else {
       response.statusCode = 404;
     }
@@ -458,6 +474,58 @@ void main() {
       // The repository must not turn a protected-command response into a
       // transport success, and it must keep the firmware response in logs.
       expect(await repository.muteBuzzer(), isFalse);
+    } finally {
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('J. factory reset requires an exact OK and serializes duplicates',
+      () async {
+    final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
+      factoryResetDelay: const Duration(milliseconds: 60),
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      final status = await repository.getLicenseStatus();
+      expect(status?.status, LicenseDeviceStatus.active);
+
+      final first = repository.factoryResetModule();
+      await _waitUntil(() => server.factoryResetRequestCount == 1);
+      final duplicate = await repository.factoryResetModule();
+
+      expect(duplicate, isFalse);
+      expect(await first, isTrue);
+      expect(server.factoryResetRequestCount, 1);
+      expect(repository.hasAuthoritativeActiveLicense, isFalse);
+    } finally {
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('K. factory reset rejects the old non-OK reboot response', () async {
+    final server = _ModuleServer(
+      replyToStatus: true,
+      licenseStatus: 'ACTIVE',
+      licenseType: 'PERMANENT',
+      factoryResetBody: 'FACTORY RESET - REBOOTING',
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      expect((await repository.getLicenseStatus())?.status,
+          LicenseDeviceStatus.active);
+      expect(await repository.factoryResetModule(), isFalse);
+      expect(repository.hasAuthoritativeActiveLicense, isTrue);
     } finally {
       await repository.disconnect();
       await server.close();

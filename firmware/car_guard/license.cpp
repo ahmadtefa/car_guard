@@ -444,6 +444,21 @@ void license_init() {
   memset(_licenseRecord.serial, 0, sizeof(_licenseRecord.serial));
 }
 
+void license_reset_runtime() {
+  license_init();
+  _phoneTimeEpoch = 0;
+  _phoneTimeMillis = 0;
+  _phoneTimeAvailable = false;
+  _lastPhoneTime = 0;
+  _lastPersistedPhoneTime = 0;
+  _clockRecordValid = false;
+  _clockRollbackDetected = false;
+  _clockRollbackPersisted = false;
+  _temporaryExpired = false;
+  _temporaryExpiredPersisted = false;
+  last_activation_reason[0] = '\0';
+}
+
 void license_load() {
   EEPROM.begin(EEPROM_SIZE);
   LicenseRecord rec;

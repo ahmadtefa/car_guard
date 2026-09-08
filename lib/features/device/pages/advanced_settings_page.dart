@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
+import '../../../core/services/factory_reset_action.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
@@ -280,6 +281,27 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
     _snack(ok ? l.restartMsg : l.restartFailed);
   }
 
+  Future<void> _factoryReset() async {
+    if (_busy) return;
+
+    final notifier = ref.read(licenseProvider.notifier);
+    setState(() => _busy = true);
+
+    final l = ref.read(l10nProvider);
+    final result = await runFactoryResetAction(
+      context: context,
+      l: l,
+      repository: ref.read(esp8266RepositoryProvider),
+      beginFactoryReset: notifier.beginFactoryReset,
+      finishFactoryReset: notifier.finishFactoryReset,
+    );
+
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result == null) return;
+    _snack(result ? l.factoryResetDone : l.factoryResetFailed);
+  }
+
   Widget _buildLockScreen(AppL10n l) {
     return Center(
       child: SingleChildScrollView(
@@ -459,6 +481,22 @@ class _AdvancedSettingsPageState extends ConsumerState<AdvancedSettingsPage> {
               SecondaryButton(
                 onPressed: !_busy && moduleLicensed ? _restartDevice : null,
                 child: Text(l.restartModule),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              SectionTitle(
+                title: l.factoryResetModule,
+                subtitle: l.factoryResetInfo,
+              ),
+              SecondaryButton(
+                onPressed: !_busy && moduleLicensed ? _factoryReset : null,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.restore_rounded),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(l.factoryResetModule),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               SecondaryButton(

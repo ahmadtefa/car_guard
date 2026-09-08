@@ -126,6 +126,12 @@ static_assert(LICENSE_CLOCK_EEPROM_OFFSET + sizeof(LicenseClockRecord) <= EEPROM
 void license_init();
 void license_load();
 
+// Clears the in-memory license/clock state after the caller has durably
+// invalidated the corresponding EEPROM records. It never writes EEPROM itself;
+// the factory-reset transaction in car_guard.ino writes Settings, LicenseRecord
+// and LicenseClockRecord together before calling this function.
+void license_reset_runtime();
+
 bool license_is_active();
 uint32_t license_get_expiration();
 const char* license_get_serial();

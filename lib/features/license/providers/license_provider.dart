@@ -31,6 +31,9 @@ class LicenseNotifier extends Notifier<LicenseState> {
   DeviceRepository _repo = _emptyRepo();
   bool _refreshing = false;
   bool _activationInFlight = false;
+  bool _factoryResetInFlight = false;
+  bool _factoryResetRestartExpected = false;
+  bool _factoryResetDisconnectObserved = false;
   bool _connectionKnownUp = false;
 
   /// Retried queries: a LOCKED module broadcasts no telemetry, so the socket
@@ -55,6 +58,18 @@ class LicenseNotifier extends Notifier<LicenseState> {
 
     _connectionSub = repo.connectionStream.listen((isConnected) {
       if (isConnected) {
+        // Keep telemetry from the old socket from clearing the expected-reset
+        // marker. The marker is cleared only by the first proof on a new
+        // transport after the old connection has reported false.
+        if (_factoryResetRestartExpected) {
+          // A LOCKED proof can arrive on the old socket before the firmware
+          // closes it. Only a true event after an observed false transition
+          // belongs to the post-reboot transport.
+          if (!_factoryResetDisconnectObserved) return;
+          _factoryResetRestartExpected = false;
+          _factoryResetDisconnectObserved = false;
+        }
+
         // Esp8266Repository reports true for every valid telemetry frame. A
         // license handshake is needed only when the transport transitions up,
         // not once per sensor tick.
@@ -67,6 +82,13 @@ class LicenseNotifier extends Notifier<LicenseState> {
         _resetRetries();
         _statusRefreshTimer?.cancel();
         _statusRefreshTimer = null;
+
+        if (_factoryResetRestartExpected) {
+          _factoryResetDisconnectObserved = true;
+          _setFactoryResetLockedState();
+          return;
+        }
+
         state = state.copyWith(
           status: LicenseDeviceStatus.unknown,
           checkStatus: LicenseCheckStatus.error,
@@ -119,7 +141,12 @@ class LicenseNotifier extends Notifier<LicenseState> {
 
   /// Queries the module for its serial and current license status.
   Future<void> _refresh() async {
-    if (_refreshing || _activationInFlight) return;
+    if (_refreshing ||
+        _activationInFlight ||
+        _factoryResetInFlight ||
+        _factoryResetRestartExpected) {
+      return;
+    }
     _refreshing = true;
 
     // Checking is a visible status, never a route-level loading gate.
@@ -167,6 +194,50 @@ class LicenseNotifier extends Notifier<LicenseState> {
     await _refresh();
   }
 
+  /// Claims the provider-side reset window so background status refreshes do
+  /// not race the destructive HTTP request. The repository also serializes the
+  /// request as a second line of defense for non-UI callers.
+  bool beginFactoryReset() {
+    if (_factoryResetInFlight ||
+        _factoryResetRestartExpected ||
+        _refreshing ||
+        _activationInFlight) {
+      return false;
+    }
+    _factoryResetInFlight = true;
+    return true;
+  }
+
+  /// Completes the reset window. A successful device confirmation enters the
+  /// local NO LICENSE state immediately; the next post-reboot connection still
+  /// performs the authoritative LICENSE_STATUS refresh.
+  void finishFactoryReset(bool success) {
+    _factoryResetInFlight = false;
+    if (!success) {
+      _factoryResetDisconnectObserved = false;
+      return;
+    }
+
+    _factoryResetRestartExpected = true;
+    // If the repository was already disconnected before confirmation, that
+    // transition counts; otherwise wait for the old socket's explicit false.
+    _factoryResetDisconnectObserved = !_connectionKnownUp;
+    _setFactoryResetLockedState();
+  }
+
+  void _setFactoryResetLockedState() {
+    state = state.copyWith(
+      status: LicenseDeviceStatus.locked,
+      licenseType: LicenseType.none,
+      expires: 0,
+      checkStatus: LicenseCheckStatus.noLicense,
+      activationState: LicenseActivationState.idle,
+      clearFailure: true,
+      clearCheckError: true,
+      activationReason: '',
+    );
+  }
+
   /// Reads and applies the module-reported serial.
   Future<void> _readSerial() async {
     final serial = await _repo.getDeviceSerial();
@@ -206,9 +277,14 @@ class LicenseNotifier extends Notifier<LicenseState> {
   /// stays locked and a mapped, non-cryptographic failure reason is exposed.
   Future<void> activateLicense(String code) async {
     // The activation protocol has no request id and a replacement must not be
-    // interleaved with a background status refresh. Ignore a second tap while
-    // the first activation is waiting for the authoritative result.
-    if (_activationInFlight) return;
+    // interleaved with a background status refresh or an expected factory-reset
+    // reconnect. Ignore a second tap while the first operation is pending.
+    if (_activationInFlight ||
+        _refreshing ||
+        _factoryResetInFlight ||
+        _factoryResetRestartExpected) {
+      return;
+    }
     _activationInFlight = true;
 
     try {

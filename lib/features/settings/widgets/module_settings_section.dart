@@ -8,6 +8,7 @@ import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_provider.dart';
 import '../../../core/services/device_models.dart';
 import '../../../core/services/esp8266_repository.dart';
+import '../../../core/services/factory_reset_action.dart';
 import '../../../core/services/network_binding_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -182,43 +183,32 @@ class _ModuleSettingsSectionState
     _snack(ok ? l.savedToModule : l.failedReachable);
   }
 
-  /// [STA+mDNS] Sends the external network (hotspot/router) credentials to
-  /// the module — it joins it alongside its own AP and becomes discoverable
-  /// as car_guard.local.
+  /// Kept as the single module-settings action implementation for callers
+  /// that still hold this widget. The visible Factory Reset control is placed
+  /// only on AdvancedSettingsPage; both paths use the same shared action and
+  /// repository transaction.
+  // Kept for source/API compatibility with older callers; the rendered
+  // control moved to AdvancedSettingsPage.
+  // ignore: unused_element
   Future<void> _factoryReset() async {
-    final l = ref.read(l10nProvider);
+    if (_saving) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l.factoryResetModule),
-        content: Text(l.factoryResetConfirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l.factoryResetModule),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
+    final notifier = ref.read(licenseProvider.notifier);
     setState(() => _saving = true);
 
-    final ok = await ref
-        .read(esp8266RepositoryProvider)
-        .factoryResetModule();
+    final l = ref.read(l10nProvider);
+    final result = await runFactoryResetAction(
+      context: context,
+      l: l,
+      repository: ref.read(esp8266RepositoryProvider),
+      beginFactoryReset: notifier.beginFactoryReset,
+      finishFactoryReset: notifier.finishFactoryReset,
+    );
 
     if (!mounted) return;
-
     setState(() => _saving = false);
-
-    _snack(ok ? l.factoryResetDone : l.joinNetworkFailed);
+    if (result == null) return;
+    _snack(result ? l.factoryResetDone : l.factoryResetFailed);
   }
 
   Future<void> _saveWifi() async {
@@ -486,15 +476,6 @@ class _ModuleSettingsSectionState
             child: Text(l.saveWifi),
           ),
           const SizedBox(height: AppSpacing.xl),
-
-          SectionTitle(
-            title: l.factoryResetModule,
-            subtitle: l.factoryResetInfo,
-          ),
-          SecondaryButton(
-            onPressed: !_saving && moduleLicensed ? _factoryReset : null,
-            child: Text(l.factoryResetModule),
-          ),
         ],
       ],
     );

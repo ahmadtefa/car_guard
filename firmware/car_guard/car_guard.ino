@@ -205,6 +205,13 @@ float lastBroadcastVolt = -999;
 // ESP8266 WebSockets library is never re-entered by broadcastTXT().
 bool licenseTelemetryPending = false;
 
+// Factory reset is committed synchronously, but restart is deferred until the
+// HTTP handler has returned so the confirmation response can leave the module
+// without restarting from inside a request callback.
+bool factoryResetPending = false;
+uint32_t factoryResetRestartAt = 0;
+const uint32_t FACTORY_RESET_RESTART_DELAY_MS = 750;
+
 // =========================================================
 // HELPER FUNCTIONS
 // =========================================================
@@ -322,6 +329,41 @@ void sendCORS() {
 // =========================================================
 // EEPROM
 // =========================================================
+void fillFactorySettings(Settings& target) {
+  memset(&target, 0, sizeof(target));
+  target.signature    = EEPROM_SIGNATURE;
+  target.maxTemp      = 97.0;
+  target.fanOnTemp    = 90.0;
+  target.minVolt      = 12.0;
+  target.maxVolt      = 14.8;
+  target.offset       = 0.0;
+  target.r1           = 4700.0;
+  target.r2           = 1000.0;
+  target.voltCalib    = 1.0;
+  target.sensorPullUp = 4700.0;
+  strcpy(target.installDate, "2026-06-08");
+  // [STA+mDNS] fresh unit starts as AP-only until /joinwifi is called.
+  target.staSSID[0] = 0;
+  target.staPASS[0] = 0;
+  strcpy(target.wifiSSID, "CarGaurd");
+  strcpy(target.wifiPASS, "12345678");
+}
+
+void applySettingsToRuntime(const Settings& source) {
+  MAX_TEMP    = source.maxTemp;
+  FAN_ON_TEMP = source.fanOnTemp;
+  MIN_VOLT    = source.minVolt;
+  MAX_VOLT    = source.maxVolt;
+  tempOffset  = source.offset;
+
+  // Settings is EEPROM data. Bound the copies so a damaged but signature-valid
+  // record cannot overflow the runtime AP buffers.
+  memcpy(ap_ssid, source.wifiSSID, sizeof(ap_ssid));
+  ap_ssid[sizeof(ap_ssid) - 1] = '\0';
+  memcpy(ap_password, source.wifiPASS, sizeof(ap_password));
+  ap_password[sizeof(ap_password) - 1] = '\0';
+}
+
 void saveSettings() {
   settings.signature = EEPROM_SIGNATURE;
   EEPROM.begin(EEPROM_SIZE);
@@ -338,35 +380,13 @@ void loadSettings() {
   EEPROM.end();
 
   if (settings.signature == EEPROM_SIGNATURE) {
-    MAX_TEMP    = settings.maxTemp;
-    FAN_ON_TEMP = settings.fanOnTemp;
-    MIN_VOLT    = settings.minVolt;
-    MAX_VOLT    = settings.maxVolt;
-    tempOffset  = settings.offset;
-    strcpy(ap_ssid,     settings.wifiSSID);
-    strcpy(ap_password, settings.wifiPASS);
+    applySettingsToRuntime(settings);
     Serial.println("✅ SETTINGS LOADED");
     Serial.print("📶 SSID: ");
     Serial.println(ap_ssid);
   } else {
-    settings.signature   = EEPROM_SIGNATURE;
-    settings.maxTemp     = 97.0;
-    settings.fanOnTemp   = 90.0;
-    settings.minVolt     = 12.0;
-    settings.maxVolt     = 14.8;
-    settings.offset      = 0.0;
-    settings.r1          = 4700.0;
-    settings.r2          = 1000.0;
-    settings.voltCalib   = 1.0;
-    settings.sensorPullUp = 4700.0;
-    strcpy(settings.installDate, "2026-06-08");
-    // [STA+mDNS] fresh unit starts as AP-only until /joinwifi is called.
-    settings.staSSID[0] = 0;
-    settings.staPASS[0] = 0;
-    strcpy(settings.wifiSSID, "CarGaurd");
-    strcpy(settings.wifiPASS, "12345678");
-    strcpy(ap_ssid,     settings.wifiSSID);
-    strcpy(ap_password, settings.wifiPASS);
+    fillFactorySettings(settings);
+    applySettingsToRuntime(settings);
     saveSettings();
   }
 }
@@ -803,23 +823,80 @@ void handleGetWiFiSettings() {
   server.send(200, "application/json", json);
 }
 
-// [FACTORY RESET] /factoryreset — wipes every stored setting (AP name,
-// password, alarm limits, STA creds…) by invalidating the EEPROM signature,
-// then rebooting so defaults are re-burned. Needed when someone forgets
-// custom credentials they saved earlier through /savewifi.
+// [FACTORY RESET] The settings, license and phone-clock records occupy three
+// known non-overlapping EEPROM regions. Write their reset images in one
+// EEPROM.commit() so a reset cannot leave factory settings paired with an old
+// license (or a cleared license paired with an old trusted clock).
+bool persistFactoryReset() {
+  Settings factorySettings;
+  fillFactorySettings(factorySettings);
+
+  LicenseRecord clearedLicense;
+  memset(&clearedLicense, 0, sizeof(clearedLicense));
+  LicenseClockRecord clearedClock;
+  memset(&clearedClock, 0, sizeof(clearedClock));
+
+  if (!EEPROM.begin(EEPROM_SIZE)) return false;
+  EEPROM.put(0, factorySettings);
+  EEPROM.put(LICENSE_EEPROM_OFFSET, clearedLicense);
+  EEPROM.put(LICENSE_CLOCK_EEPROM_OFFSET, clearedClock);
+  const bool committed = EEPROM.commit();
+  EEPROM.end();
+  if (!committed) return false;
+
+  // Make the running process match the durable image immediately. The chip
+  // derived serial/ID is intentionally not part of this transaction.
+  settings = factorySettings;
+  applySettingsToRuntime(settings);
+  license_reset_runtime();
+  return true;
+}
+
+// [FACTORY RESET] /factoryreset — clears factory-configurable Settings plus
+// LicenseRecord/LicenseClockRecord, confirms the durable commit, then defers
+// restart until loop(). The endpoint is intentionally kept as the existing
+// HTTP API used by Flutter; there is no separate WebSocket reset command.
 void handleFactoryReset() {
   sendCORS();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (server.method() != HTTP_GET) {
+    server.send(405, "text/plain", "METHOD_NOT_ALLOWED");
+    return;
+  }
+  if (server.args() != 0) {
+    server.send(400, "text/plain", "INVALID_FACTORY_RESET_REQUEST");
+    return;
+  }
+  if (factoryResetPending) {
+    server.send(409, "text/plain", "FACTORY_RESET_IN_PROGRESS");
+    return;
+  }
+  if (!license_is_active()) {
+    server.send(423, "text/plain", "LICENSE_REQUIRED");
+    return;
+  }
 
-  settings.signature   = 0x00000000;          // invalidate -> defaults on boot
-  settings.staSSID[0]  = 0;
-  settings.staPASS[0]  = 0;
-  saveSettings();
+  if (!persistFactoryReset()) {
+    server.send(500, "text/plain", "FACTORY_RESET_FAILED");
+    return;
+  }
 
-  server.send(200, "text/plain", "FACTORY RESET - REBOOTING");
-  Serial.println("🏭 FACTORY RESET REQUESTED — rebooting with defaults");
-  delay(600);
-  ESP.restart();
+  // Reset volatile gated outputs immediately; the normal loop continues to
+  // keep sensor/telemetry plumbing alive during the short response window.
+  fanOff();
+  fanTestActive = false;
+  manualFanOverride = false;
+  alarmActive = false;
+  buzzMuted = false;
+  licenseTelemetryPending = false;
+  lastBroadcastTemp = -999;
+  lastBroadcastVolt = -999;
+  digitalWrite(BUZZER, LOW);
+
+  factoryResetPending = true;
+  factoryResetRestartAt = millis() + FACTORY_RESET_RESTART_DELAY_MS;
+  server.send(200, "text/plain", "OK");
+  Serial.println("🏭 FACTORY RESET COMMITTED — reboot deferred");
 }
 
 void handleGetAllSettings() {
@@ -1178,6 +1255,13 @@ void loop() {
   dnsServer.processNextRequest();
   server.handleClient();
   webSocket.loop();
+
+  if (factoryResetPending &&
+      (int32_t)(millis() - factoryResetRestartAt) >= 0) {
+    factoryResetPending = false;
+    ESP.restart();
+    return;
+  }
 
   if (licenseTelemetryPending) {
     licenseTelemetryPending = false;

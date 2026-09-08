@@ -75,16 +75,20 @@ class AppL10n {
   String get joinNetworkFailed => isAr
       ? 'تعذر الوصول للجهاز لإرسال بيانات الشبكة.'
       : 'Could not reach the module to send the network.';
-  String get factoryResetModule => isAr ? 'إعادة ضبط المصنع للجهاز' : 'Factory reset module';
+  String get factoryResetModule =>
+      isAr ? 'استعادة حالة المصنع' : 'Restore factory state';
   String get factoryResetInfo => isAr
-      ? 'بيمسح كل الإعدادات المتخزنة على الجهاز (اسم الشبكة، الباسوورد، الحدود، المعايرات) — الجهاز بيعمل Restart وبعدين الوضع الافتراضي كله يرجع.'
-      : 'Wipes every stored module setting (Wi-Fi name, password, limits, calibration) — the module reboots into factory defaults.';
+      ? 'بتمسح إعدادات الجهاز والترخيص الحالي وساعة الترخيص — الجهاز بيحافظ على هويته وبيعمل Restart آمن.'
+      : 'Clears module settings, the current license and its trusted clock — the device identity stays unchanged and it reboots safely.';
   String get factoryResetConfirmBody => isAr
-      ? 'متأكد؟ كل إعدادات الجهاز هتترجع للأوضاع الافتراضية والجهاز هيعمل Restart فورًا.'
-      : 'Sure? Every module setting returns to factory defaults and it reboots immediately.';
+      ? 'متأكد؟ العملية هتمسح الترخيص الحالي وكل إعدادات الجهاز، وترجع الإعدادات الافتراضية، وبعدها الجهاز هيعمل Restart آمن.'
+      : 'Continue? This clears the current license and all factory-configurable settings, restores defaults, then safely reboots the module.';
   String get factoryResetDone => isAr
-      ? 'اتمسحت إعدادات الجهاز — الجهاز بيعيد تقليعه دلوقتي.'
-      : 'Module settings wiped — rebooting now.';
+      ? 'تم تأكيد استعادة حالة المصنع — الجهاز بيعيد تقليعه، وبعدها هيظهر من غير ترخيص.'
+      : 'Factory reset committed — the module is rebooting and will return without a license.';
+  String get factoryResetFailed => isAr
+      ? 'فشل استعادة حالة المصنع — لم يتم تأكيد المسح.'
+      : 'Factory reset failed — the module did not confirm the reset.';
   String get speedingTitle => isAr ? 'سرعة زيادة!' : 'Speeding!';
   String speedingMessage(String speed, String limit) => isAr
       ? 'انت ماشي $speed كم/س — الحد $limit كم/س'

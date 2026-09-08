@@ -192,4 +192,52 @@ void main() {
     expect(state.checkStatus, LicenseCheckStatus.invalid);
     expect(state.canUseRealData, isFalse);
   });
+
+  test('M. factory reset is serialized and old-socket proofs stay ignored',
+      () async {
+    final fake = FakeDeviceRepository(
+      statusMessage: const LicenseStatusMessage(
+        status: LicenseDeviceStatus.active,
+        licenseType: LicenseType.permanent,
+        expires: 0,
+      ),
+    );
+
+    final container = ProviderContainer(
+      overrides: [deviceRepositoryProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(licenseProvider.notifier);
+    fake._connection.add(true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(container.read(licenseProvider).canUseRealData, isTrue);
+
+    expect(notifier.beginFactoryReset(), isTrue);
+    expect(notifier.beginFactoryReset(), isFalse);
+    notifier.finishFactoryReset(true);
+    expect(container.read(licenseProvider).status, LicenseDeviceStatus.locked);
+    expect(
+      container.read(licenseProvider).checkStatus,
+      LicenseCheckStatus.noLicense,
+    );
+
+    // A queued true event from the old session must not clear the expected
+    // reboot marker or trigger an ACTIVE refresh.
+    fake._connection.add(true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(container.read(licenseProvider).status, LicenseDeviceStatus.locked);
+
+    // Only the reconnect transition is allowed to run the authoritative query.
+    fake.statusMessage = const LicenseStatusMessage(
+      status: LicenseDeviceStatus.locked,
+      licenseType: LicenseType.none,
+      expires: 0,
+    );
+    fake._connection.add(false);
+    fake._connection.add(true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(container.read(licenseProvider).status, LicenseDeviceStatus.locked);
+    expect(container.read(licenseProvider).checkStatus, LicenseCheckStatus.noLicense);
+  });
 }
