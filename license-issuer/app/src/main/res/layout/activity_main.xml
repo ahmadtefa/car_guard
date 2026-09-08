@@ -42,6 +42,27 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Private key settings"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/change_key_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Change / re-import private key" />
+
+        <Button
+            android:id="@+id/forget_key_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Forget saved private key" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
             android:text="Device serial"
             android:textStyle="bold" />

@@ -6,14 +6,19 @@ firmware. It does not modify either one.
 
 ## Security model
 
-- The production private key is selected with Android's system document picker.
-- The PEM is parsed in memory and is never copied into app storage, assets,
-  preferences, logs, network requests, or the APK.
+- On first use, the production private key is selected with Android's system
+  document picker.
+- After fingerprint validation, the imported PEM bytes are encrypted with
+  AES-GCM before being stored in app-private SharedPreferences. The AES key is
+  generated and kept by the Android Keystore, so the private key is not stored
+  as plaintext and is never included in source code, assets, logs, network
+  requests, or the APK.
+- On later launches, the encrypted key is decrypted, validated again against
+  the configured production fingerprint, and loaded automatically.
+- The **Private key settings** controls allow the operator to replace the key
+  or forget the saved key. Forget/reset removes the encrypted copy and the
+  Keystore alias on a best-effort basis.
 - No `INTERNET` permission is declared.
-- The key is accepted only when its derived P-256 public key matches the
-  configured production fingerprint.
-- Clear/reset drops the in-memory key reference and clears the imported byte
-  buffer and displayed activation code on a best-effort basis.
 - Development tests use an ephemeral random test key and never print or save a
   production activation code.
 

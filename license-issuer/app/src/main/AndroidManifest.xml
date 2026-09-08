@@ -2,13 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:fullBackupOnly="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Car Guard License Issuer"
+        android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>

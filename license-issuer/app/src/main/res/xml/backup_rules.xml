@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- The ciphertext is useless without the Keystore key and should not be copied. -->
+    <exclude
+        domain="sharedpref"
+        path="license_issuer_secure_storage.xml" />
+</full-backup-content>
