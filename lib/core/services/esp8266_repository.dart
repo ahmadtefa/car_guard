@@ -2271,7 +2271,7 @@ class Esp8266Repository implements DeviceRepository {
     // activation commands are not permanently blocked behind it.
     _licenseRequestTail = request.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     return request;
   }
@@ -2331,7 +2331,7 @@ class Esp8266Repository implements DeviceRepository {
         (_) => true,
       );
 
-  /// { "cmd":"LICENSE_STATUS","currentTime":<UTC epoch> } ->
+  /// { "cmd":"LICENSE_STATUS","currentTime":UTC_EPOCH } ->
   /// { "type":"LICENSE_STATUS", ... }.
   @override
   Future<LicenseStatusMessage?> getLicenseStatus() async {
@@ -2352,7 +2352,7 @@ class Esp8266Repository implements DeviceRepository {
     return status;
   }
 
-  /// { "cmd":"LICENSE_ACTIVATE","code":...,"activationTime":<UTC epoch> }
+  /// { "cmd":"LICENSE_ACTIVATE","code":...,"activationTime":UTC_EPOCH }
   /// -> { "type":"LICENSE_RESULT", ... }.
   @override
   Future<LicenseResultMessage?> activateLicense(String code) =>

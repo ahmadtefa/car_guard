@@ -264,10 +264,9 @@ Future<void> _waitUntil(
 }
 
 Future<void> _waitForConnected(
-  Esp8266Repository repository, {
-  Duration timeout = const Duration(seconds: 3),
-}) async {
-  final deadline = DateTime.now().add(timeout);
+  Esp8266Repository repository,
+) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 3));
   while (DateTime.now().isBefore(deadline)) {
     if (await repository.isConnected()) return;
     await Future<void>.delayed(const Duration(milliseconds: 10));

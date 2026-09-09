@@ -1,5 +1,5 @@
 import 'package:car_guard/core/models/app_settings.dart';
-import 'package:car_guard/features/license/models/license_state.dart';
+import 'package:car_guard/core/models/license_models.dart';
 import 'package:car_guard/features/license/widgets/license_status_banner.dart';
 import 'package:car_guard/features/settings/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
