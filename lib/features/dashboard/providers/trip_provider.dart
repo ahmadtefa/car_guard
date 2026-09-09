@@ -117,6 +117,10 @@ class TripNotifier extends Notifier<TripState> {
     // voltage readings.
     final allowed = settingsReady;
     final wasAllowed = _dataAccessAllowed;
+    // A dependency rebuild must not replace a restored/live odometer with a
+    // fresh zero state. The initial allowed build still starts at zero and
+    // _restoreDistance fills it from SharedPreferences asynchronously.
+    final preservedState = allowed && wasAllowed ? state : null;
     _dataAccessAllowed = allowed;
 
     if (!allowed && wasAllowed) {
@@ -152,7 +156,8 @@ class TripNotifier extends Notifier<TripState> {
       await start(generation: generation);
     });
 
-    return allowed ? const TripState() : _neutralState;
+    return preservedState ??
+        (allowed ? const TripState() : _neutralState);
   }
 
   bool _isActive([int? generation]) {
@@ -239,12 +244,14 @@ class TripNotifier extends Notifier<TripState> {
     if (!_isActive(operationGeneration) || _restored) {
       return;
     }
-    _restored = true;
-
     try {
       final prefs = await SharedPreferences.getInstance();
       if (!_isActive(operationGeneration)) return;
       final saved = prefs.getDouble('trip_distance_km');
+      // Only mark the session restored after the async read completes while
+      // it still belongs to the active provider generation. If a rebuild
+      // invalidates this operation, the next build must be allowed to retry.
+      _restored = true;
 
       if (saved != null && saved > 0 && state.distanceKm == 0) {
         state = state.copyWith(distanceKm: saved);

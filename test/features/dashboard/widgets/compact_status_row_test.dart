@@ -104,7 +104,7 @@ void main() {
 
     expect(overflowErrors, isEmpty);
     expectTextWithinCard(tester, find.text('Fan: OFF'));
-    expectTextWithinCard(tester, find.text('Alternator: Not charging'));
+    expectTextWithinCard(tester, find.text('Alternator: Charging'));
   });
 
   testWidgets('fan and alternator text wraps in narrow Arabic RTL layout',
@@ -118,7 +118,7 @@ void main() {
 
     expect(overflowErrors, isEmpty);
     expectTextWithinCard(tester, find.text('المروحة: متوقفة'));
-    expectTextWithinCard(tester, find.text('الدينامو: لا يشحن'));
+    expectTextWithinCard(tester, find.text('الدينامو: يشحن'));
   });
 
   testWidgets('normal width keeps both status items on one row', (tester) async {
@@ -131,7 +131,7 @@ void main() {
 
     expect(overflowErrors, isEmpty);
     final fanRect = tester.getRect(find.text('Fan: OFF'));
-    final alternatorRect = tester.getRect(find.text('Alternator: Not charging'));
+    final alternatorRect = tester.getRect(find.text('Alternator: Charging'));
     expect((fanRect.top - alternatorRect.top).abs(), lessThan(1));
   });
 }

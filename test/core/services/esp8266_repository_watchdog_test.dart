@@ -26,7 +26,6 @@ class _ModuleServer {
     this.httpDataBody = 'DEVICE LOCKED',
     this.controlStatus = 200,
     this.controlBody = 'OK',
-    this.factoryResetStatus = 200,
     this.factoryResetBody = 'OK',
     this.factoryResetDelay = Duration.zero,
   });
@@ -43,7 +42,7 @@ class _ModuleServer {
   final String httpDataBody;
   final int controlStatus;
   final String controlBody;
-  final int factoryResetStatus;
+  final int factoryResetStatus = 200;
   final String factoryResetBody;
   final Duration factoryResetDelay;
 
