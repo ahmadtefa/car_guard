@@ -54,4 +54,44 @@ void main() {
       expect(computeVoltageDelta(history), closeTo(-0.8, 0.0001));
     });
   });
+
+  group('resolveVoltageDelta', () {
+    test('prefers a valid module-reported value over the history fallback', () {
+      final history = [
+        _sample(base, 12.0),
+        _sample(base.add(const Duration(seconds: 90)), 13.6),
+      ];
+
+      expect(
+        resolveVoltageDelta(moduleDelta: 0.24, history: history),
+        closeTo(0.24, 0.0001),
+      );
+    });
+
+    test('keeps a legitimate module-reported zero as a real value', () {
+      final history = [
+        _sample(base, 12.0),
+        _sample(base.add(const Duration(seconds: 90)), 13.6),
+      ];
+
+      expect(resolveVoltageDelta(moduleDelta: 0, history: history), 0);
+    });
+
+    test('uses the 90-second fallback when the module value is unavailable',
+        () {
+      final history = [
+        _sample(base, 12.0),
+        _sample(base.add(const Duration(seconds: 90)), 13.6),
+      ];
+
+      expect(
+        resolveVoltageDelta(moduleDelta: null, history: history),
+        closeTo(1.6, 0.0001),
+      );
+    });
+
+    test('preserves null when neither source is available', () {
+      expect(resolveVoltageDelta(moduleDelta: null, history: const []), isNull);
+    });
+  });
 }

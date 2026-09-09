@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../../../core/providers/device_status_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
 import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
@@ -26,10 +26,7 @@ class VoltageDeltaCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-    final device = ref.watch(deviceStatusProvider).value;
-    final delta = device == null || !device.connected
-        ? null
-        : device.batteryData.voltageDifference;
+    final delta = ref.watch(voltageDeltaProvider);
 
     final String valueText;
     final String statusText;

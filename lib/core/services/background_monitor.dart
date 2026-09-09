@@ -167,6 +167,33 @@ class BackgroundMonitorHandler extends TaskHandler {
     }
   }
 
+  double? _parseOptionalDouble(Object? raw) {
+    final value = raw is num
+        ? raw.toDouble()
+        : raw is String
+            ? double.tryParse(raw.trim())
+            : null;
+    return value?.isFinite == true ? value : null;
+  }
+
+  double? _moduleVoltageDifference(Map<String, dynamic> json) {
+    for (final key in const [
+      'voltDiff',
+      'voltageDifference',
+      'voltageDelta',
+    ]) {
+      final value = _parseOptionalDouble(json[key]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  double? _csvVoltageDifference(List<String> parts) {
+    if (parts.length == 6) return _parseOptionalDouble(parts[5]);
+    if (parts.length > 11) return _parseOptionalDouble(parts[11]);
+    return null;
+  }
+
   DeviceStatus? _statusFromJson(Map<String, dynamic> json) {
     final licenseStatus = json['licenseStatus'];
     if (licenseStatus is String && licenseStatus != 'ACTIVE') {
@@ -187,7 +214,7 @@ class BackgroundMonitorHandler extends TaskHandler {
       deviceId: 'Car Guard',
       batteryData: BatteryData(
         voltage: rawVoltage.toDouble(),
-        voltageDifference: (json['voltDiff'] as num?)?.toDouble() ?? 0,
+        voltageDifference: _moduleVoltageDifference(json),
       ),
       temperatureData: TemperatureData(
         engineTemperature: rawTemperature.toDouble(),
@@ -216,11 +243,14 @@ class BackgroundMonitorHandler extends TaskHandler {
     final voltage = double.tryParse(parts[1].trim());
     if (temperature == null || voltage == null) return null;
 
+    final moduleVoltageDifference = _csvVoltageDifference(parts);
+
     return DeviceStatus(
       connected: true,
       deviceId: 'Car Guard',
       batteryData: BatteryData(
         voltage: voltage,
+        voltageDifference: moduleVoltageDifference,
       ),
       temperatureData: TemperatureData(
         engineTemperature: temperature,

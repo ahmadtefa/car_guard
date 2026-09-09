@@ -62,7 +62,7 @@ Widget buildGaugeArea(
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _ResponsivePrimaryReadings(
+      ResponsivePrimaryReadings(
         temperature: temperatureGauge,
         voltageDifference: VoltageDeltaCard(
           styleName: settings.dashboardStyleName,
@@ -74,14 +74,19 @@ Widget buildGaugeArea(
   );
 }
 
-/// Uses the same natural two-column/one-column behavior as the dashboard's
-/// other responsive cards: the primary readings share a row only when the
-/// available width can support both cards without compressing their content.
-class _ResponsivePrimaryReadings extends StatelessWidget {
-  const _ResponsivePrimaryReadings({
+/// Uses a bounded minimum card width to choose between two columns and a
+/// stacked layout. This lets ordinary portrait widths share a row without
+/// forcing a fixed child width or creating horizontal overflow.
+class ResponsivePrimaryReadings extends StatelessWidget {
+  const ResponsivePrimaryReadings({
+    super.key,
     required this.temperature,
     required this.voltageDifference,
   });
+
+  /// The cards can wrap their labels at this width while keeping their gauge
+  /// and value readable. The actual children remain Expanded and responsive.
+  static const double minimumReadingWidth = 150;
 
   final Widget temperature;
   final Widget voltageDifference;
@@ -90,7 +95,10 @@ class _ResponsivePrimaryReadings extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final sideBySide = constraints.maxWidth >= 460;
+        final sideBySide =
+            constraints.hasBoundedWidth &&
+            constraints.maxWidth >=
+                minimumReadingWidth * 2 + AppSpacing.md;
 
         if (!sideBySide) {
           return Column(
@@ -248,7 +256,7 @@ class _UnavailableGaugeArea extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ResponsivePrimaryReadings(
+        ResponsivePrimaryReadings(
           temperature: _UnavailableGaugeCard(
             label: l.engineTempLabel,
             unit: '°C',

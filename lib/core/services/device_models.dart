@@ -147,16 +147,40 @@ class DeviceStatus {
 class BatteryData {
   const BatteryData({
     this.voltage = 0.0,
-    this.voltageDifference = 0.0,
+    this.voltageDifference,
   });
 
   final double voltage;
-  final double voltageDifference;
+
+  /// Module-reported voltage difference, when the transport includes it.
+  ///
+  /// A missing field is intentionally kept as `null`: callers can then apply
+  /// the documented 90-second history fallback instead of mistaking missing
+  /// telemetry for a real zero reading.
+  final double? voltageDifference;
 
   factory BatteryData.fromJson(Map<String, dynamic> json) {
+    double? parsedDifference;
+    for (final key in const [
+      'voltageDifference',
+      'voltDiff',
+      'voltageDelta',
+    ]) {
+      final rawDifference = json[key];
+      final value = rawDifference is num
+          ? rawDifference.toDouble()
+          : rawDifference is String
+              ? double.tryParse(rawDifference.trim())
+              : null;
+      if (value != null && value.isFinite) {
+        parsedDifference = value;
+        break;
+      }
+    }
+
     return BatteryData(
       voltage: (json['voltage'] as num?)?.toDouble() ?? 0.0,
-      voltageDifference: (json['voltageDifference'] as num?)?.toDouble() ?? 0.0,
+      voltageDifference: parsedDifference,
     );
   }
 

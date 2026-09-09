@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
+import 'voltage_delta_provider.dart';
 
 final dashboardProvider =
     NotifierProvider<DashboardNotifier, DashboardState>(
@@ -28,6 +29,21 @@ class DashboardNotifier extends Notifier<DashboardState> {
       return const DashboardState();
     }
 
+    // The effective delta can change after the status frame arrives because
+    // the history provider may need to append a sample before the 90-second
+    // fallback becomes available. Listen separately so DashboardState cannot
+    // remain stuck at the module model's old zero default.
+    ref.listen<double?>(voltageDeltaProvider, (previous, delta) {
+      if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
+      final device = ref.read(deviceStatusProvider).value;
+      if (device == null || !device.connected) return;
+
+      state = state.copyWith(
+        voltageDifference: _formatVoltageDifference(delta),
+      );
+    });
+
     ref.listen(deviceStatusProvider, (previous, next) {
       if (generation != _accessGeneration) return;
       next.when(
@@ -43,29 +59,21 @@ class DashboardNotifier extends Notifier<DashboardState> {
           state = DashboardState(
             connectionStatus:
                 deviceStatus.connected ? 'Connected' : 'Disconnected',
-
             engineTemperature:
                 '${deviceStatus.temperatureData.engineTemperature.toStringAsFixed(1)} °C',
-
             batteryVoltage:
                 '${deviceStatus.batteryData.voltage.toStringAsFixed(2)} V',
-
-            voltageDifference:
-                '${deviceStatus.batteryData.voltageDifference.toStringAsFixed(2)} V',
-
+            voltageDifference: _formatVoltageDifference(
+              ref.read(voltageDeltaProvider),
+            ),
             coolantLevel: deviceStatus.coolantLevelData.coolantAvailable
                 ? 'Available'
                 : 'Low',
-
-            fanStatus:
-                deviceStatus.controlData.fanRunning ? 'ON' : 'OFF',
-
+            fanStatus: deviceStatus.controlData.fanRunning ? 'ON' : 'OFF',
             lastUpdated: _formatClock(deviceStatus.lastUpdated),
           );
         },
-
         loading: () {},
-
         error: (error, stackTrace) {
           state = const DashboardState(
             connectionStatus: 'Disconnected',
@@ -75,6 +83,11 @@ class DashboardNotifier extends Notifier<DashboardState> {
     }, fireImmediately: true);
 
     return const DashboardState();
+  }
+
+  String _formatVoltageDifference(double? delta) {
+    if (delta == null || !delta.isFinite) return '--.- V';
+    return '${delta.toStringAsFixed(2)} V';
   }
 
   String _formatClock(DateTime time) {

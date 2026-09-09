@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:car_guard/core/models/license_models.dart';
+import 'package:car_guard/core/services/device_models.dart';
 import 'package:car_guard/core/services/esp8266_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -626,6 +627,90 @@ void main() {
       expect(readings.last.connected, isTrue);
       expect(await repository.isConnected(), isTrue);
       expect(server.websocketConnectionCount, greaterThanOrEqualTo(1));
+    } finally {
+      await subscription.cancel();
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('L. HTTP JSON module delta reaches the live status unchanged',
+      () async {
+    final server = _ModuleServer(
+      httpDataStatus: 200,
+      httpDataBody:
+          '{"temp":90.0,"volt":12.6,"voltDiff":0.37,'
+          '"licenseStatus":"ACTIVE"}',
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+    final readings = <DeviceStatus>[];
+    final subscription = repository.liveUpdates.listen(readings.add);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      await _waitUntil(
+        () => readings.any((reading) => reading.connected),
+        timeout: const Duration(seconds: 3),
+      );
+
+      final reading = readings.lastWhere((reading) => reading.connected);
+      expect(reading.batteryData.voltageDifference, closeTo(0.37, 0.0001));
+      expect(reading.batteryData.voltageDifference, isNot(0));
+    } finally {
+      await subscription.cancel();
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('M. documented six-field CSV module delta is parsed at index five',
+      () async {
+    final server = _ModuleServer(
+      httpDataStatus: 200,
+      httpDataBody: '90.0,12.6,0,0,0,0.41',
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+    final readings = <DeviceStatus>[];
+    final subscription = repository.liveUpdates.listen(readings.add);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      await _waitUntil(
+        () => readings.any((reading) => reading.connected),
+        timeout: const Duration(seconds: 3),
+      );
+
+      final reading = readings.lastWhere((reading) => reading.connected);
+      expect(reading.batteryData.voltageDifference, closeTo(0.41, 0.0001));
+    } finally {
+      await subscription.cancel();
+      await repository.disconnect();
+      await server.close();
+    }
+  });
+
+  test('N. current eleven-field CSV keeps unavailable delta as null',
+      () async {
+    final server = _ModuleServer(
+      httpDataStatus: 200,
+      httpDataBody: _activeTelemetry,
+    );
+    await server.start();
+    final repository = _repositoryFor(server);
+    final readings = <DeviceStatus>[];
+    final subscription = repository.liveUpdates.listen(readings.add);
+
+    try {
+      await repository.connect(host: server.host, port: server.port);
+      await _waitUntil(
+        () => readings.any((reading) => reading.connected),
+        timeout: const Duration(seconds: 3),
+      );
+
+      final reading = readings.lastWhere((reading) => reading.connected);
+      expect(reading.batteryData.voltageDifference, isNull);
     } finally {
       await subscription.cancel();
       await repository.disconnect();

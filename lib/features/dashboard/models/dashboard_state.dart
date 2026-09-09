@@ -23,4 +23,24 @@ class DashboardState {
 
   /// Clock time of the last reading received from the device.
   final String lastUpdated;
+
+  DashboardState copyWith({
+    String? connectionStatus,
+    String? engineTemperature,
+    String? batteryVoltage,
+    String? voltageDifference,
+    String? coolantLevel,
+    String? fanStatus,
+    String? lastUpdated,
+  }) {
+    return DashboardState(
+      connectionStatus: connectionStatus ?? this.connectionStatus,
+      engineTemperature: engineTemperature ?? this.engineTemperature,
+      batteryVoltage: batteryVoltage ?? this.batteryVoltage,
+      voltageDifference: voltageDifference ?? this.voltageDifference,
+      coolantLevel: coolantLevel ?? this.coolantLevel,
+      fanStatus: fanStatus ?? this.fanStatus,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
 }

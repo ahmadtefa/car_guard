@@ -1637,6 +1637,49 @@ class Esp8266Repository implements DeviceRepository {
 
 
 
+  double? _parseFiniteDouble(Object? raw) {
+    final value = raw is num
+        ? raw.toDouble()
+        : raw is String
+            ? double.tryParse(raw.trim())
+            : null;
+
+    return value?.isFinite == true ? value : null;
+  }
+
+  /// Supports the field names used by the module builds that have shipped:
+  /// `voltDiff` is the wire key, while `voltageDifference` is used by a few
+  /// JSON adapters. A missing/invalid field stays null for the history
+  /// fallback instead of becoming a synthetic zero.
+  double? _parseModuleVoltageDifference(Map<String, dynamic> json) {
+    for (final key in const [
+      'voltDiff',
+      'voltageDifference',
+      'voltageDelta',
+    ]) {
+      final value = _parseFiniteDouble(json[key]);
+      if (value != null) return value;
+    }
+
+    return null;
+  }
+
+  /// Parses the documented legacy six-field CSV (`voltDiff` at index 5) and
+  /// the additive format that appends the field after the current eleven-field
+  /// telemetry frame. The current eleven-field frame has no delta at index 5:
+  /// that slot is `fanOnTemp`, so it must remain unavailable.
+  double? _parseCsvModuleVoltageDifference(List<String> parts) {
+    if (parts.length == 6) {
+      return _parseFiniteDouble(parts[5]);
+    }
+
+    if (parts.length > 11) {
+      return _parseFiniteDouble(parts[11]);
+    }
+
+    return null;
+  }
+
   /// Parses a raw payload into a [DeviceStatus], or returns `null` when
   /// the payload is not valid device telemetry. Used both for live updates
   /// and as proof that whatever answered is really the Car Guard module.
@@ -1671,6 +1714,12 @@ class Esp8266Repository implements DeviceRepository {
             rawCoolant == '1' ||
             rawCoolant == true;
 
+        final temperature = _parseFiniteDouble(json["temp"]);
+        final voltage = _parseFiniteDouble(json["volt"]);
+        if (temperature == null || voltage == null) return null;
+
+        final moduleVoltageDifference = _parseModuleVoltageDifference(json);
+
         final moduleLimits = ModuleLimits(
           maxTemp: (json["maxTemp"] as num?)?.toDouble(),
           fanOnTemp: (json["fanOnTemp"] as num?)?.toDouble(),
@@ -1688,23 +1737,15 @@ class Esp8266Repository implements DeviceRepository {
 
           batteryData: BatteryData(
 
-            voltage:
-                (json["volt"] as num)
-                    .toDouble(),
-
-            voltageDifference:
-                (json["voltDiff"] as num?)?.toDouble() ??
-                (json["voltageDifference"] as num?)?.toDouble() ??
-                0.0,
+            voltage: voltage,
+            voltageDifference: moduleVoltageDifference,
 
           ),
 
 
           temperatureData: TemperatureData(
 
-            engineTemperature:
-                (json["temp"] as num)
-                    .toDouble(),
+            engineTemperature: temperature,
 
           ),
 
@@ -1762,8 +1803,8 @@ class Esp8266Repository implements DeviceRepository {
         // A payload that cannot even produce the two core numbers is noise
         // from a foreign service (router page, captive portal...), not
         // module telemetry.
-        final tempCelsius = double.tryParse(parts[0].trim());
-        final volt = double.tryParse(parts[1].trim());
+        final tempCelsius = _parseFiniteDouble(parts[0]);
+        final volt = _parseFiniteDouble(parts[1]);
 
         if (tempCelsius == null || volt == null) {
 
@@ -1774,6 +1815,9 @@ class Esp8266Repository implements DeviceRepository {
           return null;
 
         }
+
+        final moduleVoltageDifference =
+            _parseCsvModuleVoltageDifference(parts);
 
 
         // Reference protocol (from the original Kayan dashboard):
@@ -1788,6 +1832,7 @@ class Esp8266Repository implements DeviceRepository {
           batteryData: BatteryData(
 
             voltage: volt,
+            voltageDifference: moduleVoltageDifference,
 
           ),
 
