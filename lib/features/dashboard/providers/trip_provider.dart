@@ -163,7 +163,12 @@ class TripNotifier extends Notifier<TripState> {
     });
 
     if (preservedState != null) return preservedState;
-    if (!allowed) return _neutralState;
+    if (!allowed) {
+      final restoredDistance = _restoredDistance;
+      return restoredDistance == null
+          ? _neutralState
+          : _neutralState.copyWith(distanceKm: restoredDistance);
+    }
     return TripState(distanceKm: _restoredDistance ?? 0);
   }
 
