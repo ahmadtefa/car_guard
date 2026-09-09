@@ -81,6 +81,10 @@ class TripNotifier extends Notifier<TripState> {
   /// live counter to whatever happens to be on disk.
   bool _restored = false;
 
+  /// The latest value read from storage, retained while settings are still
+  /// loading so the first allowed build can expose it without losing it.
+  double? _restoredDistance;
+
   /// True once persisted settings are ready. GPS/trip state is read-only and
   /// does not grant or bypass any protected module command.
   bool _dataAccessAllowed = false;
@@ -144,26 +148,33 @@ class TripNotifier extends Notifier<TripState> {
       _filter.reset();
       _restored = false;
       _backgroundServiceStarted = false;
+      _restoredDistance = null;
       _stopBackgroundService();
     });
 
-    // Fire and forget: restore the saved odometer only after access is
-    // allowed, then let the GPS stream populate the state asynchronously.
+    // Restore the local odometer as soon as this provider generation is
+    // alive. Starting GPS remains gated by settings readiness below, but a
+    // settings load must not prevent a saved trip value from being read.
     Future<void>.microtask(() async {
-      if (!_isActive(generation)) return;
+      if (!_isGenerationActive(generation)) return;
       await _restoreDistance(generation);
       if (!_isActive(generation)) return;
       await start(generation: generation);
     });
 
-    return preservedState ??
-        (allowed ? const TripState() : _neutralState);
+    if (preservedState != null) return preservedState;
+    if (!allowed) return _neutralState;
+    return TripState(distanceKm: _restoredDistance ?? 0);
   }
 
   bool _isActive([int? generation]) {
     return !_disposed &&
         _dataAccessAllowed &&
         (generation == null || generation == _lifecycleGeneration);
+  }
+
+  bool _isGenerationActive(int generation) {
+    return !_disposed && generation == _lifecycleGeneration;
   }
 
   bool _isStartActive(int lifecycleGeneration, int startGeneration) {
@@ -189,6 +200,7 @@ class TripNotifier extends Notifier<TripState> {
     _serviceStatusSub = null;
     _filter.reset();
     _restored = false;
+    _restoredDistance = null;
     _backgroundServiceStarted = false;
     _stopBackgroundService();
   }
@@ -241,13 +253,14 @@ class TripNotifier extends Notifier<TripState> {
   /// the app never wipes the odometer — only [resetTrip] zeroes it.
   Future<void> _restoreDistance([int? generation]) async {
     final operationGeneration = generation ?? _lifecycleGeneration;
-    if (!_isActive(operationGeneration) || _restored) {
+    if (!_isGenerationActive(operationGeneration) || _restored) {
       return;
     }
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (!_isActive(operationGeneration)) return;
+      if (!_isGenerationActive(operationGeneration)) return;
       final saved = prefs.getDouble('trip_distance_km');
+      _restoredDistance = saved != null && saved >= 0 ? saved : null;
       // Only mark the session restored after the async read completes while
       // it still belongs to the active provider generation. If a rebuild
       // invalidates this operation, the next build must be allowed to retry.
@@ -392,6 +405,7 @@ class TripNotifier extends Notifier<TripState> {
     if (!_isActive()) return;
 
     _filter.reset();
+    _restoredDistance = 0;
     state = state.copyWith(distanceKm: 0);
     unawaited(
       _persist(
