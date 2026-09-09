@@ -6,7 +6,7 @@ import '../../../core/constants/app_colors.dart';
 
 /// Professional mini gauges designed for the classic dashboard cards:
 /// a semicircular temperature arc with danger glow, a zoned voltage bar
-/// and a center-zero voltage delta gauge. All CustomPainter based.
+/// and a non-negative voltage delta gauge. All CustomPainter based.
 
 /// Semicircular arc gauge with colored zones and a pulsing red glow while
 /// [danger] is true.
@@ -458,9 +458,10 @@ class _VoltBarPainter extends CustomPainter {
 
 enum AlignmentBucket { left, center, right }
 
-/// Center-zero differential gauge: positive fills right (green), negative
-/// fills left (red). The selected dashboard style changes its visual theme
-/// without changing that signed behavior.
+/// Non-negative voltage-difference gauge: the display range starts at zero
+/// and extends to the existing positive maximum. Signed telemetry is preserved
+/// by the card; values below the presentation minimum are pinned at zero
+/// rather than mirrored with `abs()`.
 class DeltaGauge extends StatelessWidget {
   const DeltaGauge({
     super.key,
@@ -472,7 +473,7 @@ class DeltaGauge extends StatelessWidget {
   /// The signed difference to display; null renders an empty track.
   final double? delta;
 
-  /// Full-scale magnitude (both directions).
+  /// Existing positive maximum for the presentation range (minimum is zero).
   final double scale;
 
   /// The persisted dashboard style selected for the primary gauges.
@@ -501,6 +502,8 @@ class _DeltaPainter extends CustomPainter {
   final double? delta;
   final double scale;
   final String styleName;
+
+  static const double _minimum = 0.0;
 
   Color _styleAccent() {
     switch (styleName) {
@@ -533,6 +536,23 @@ class _DeltaPainter extends CustomPainter {
 
   bool get _outlinedStyle => styleName == 'ring' || styleName == 'orb';
 
+  /// Maps only the gauge presentation to its [0, scale] range. The original
+  /// signed value remains untouched in the card and telemetry model.
+  double _displayFraction(double? value) {
+    if (value == null ||
+        !value.isFinite ||
+        !scale.isFinite ||
+        scale <= _minimum) {
+      return 0.0;
+    }
+
+    return ((value - _minimum) / (scale - _minimum))
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
+
+  String _positiveScaleLabel(double value) => '+${value.toString()}';
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
@@ -541,7 +561,6 @@ class _DeltaPainter extends CustomPainter {
 
     final value = delta;
     final accent = _styleAccent();
-    final center = w / 2;
 
     if (_segmentedStyle) {
       _paintSegments(canvas, size, value, accent);
@@ -573,10 +592,13 @@ class _DeltaPainter extends CustomPainter {
       );
     }
 
-    // Center zero line.
+    // Zero is the left edge of the presentation range.
+    const rangeStart = 2.0;
+    final rangeEnd = w - 2.0;
+    final rangeWidth = rangeEnd - rangeStart;
     canvas.drawLine(
-      Offset(center, barTop - 4),
-      Offset(center, barTop + barHeight + 4),
+      Offset(rangeStart, barTop - 4),
+      Offset(rangeStart, barTop + barHeight + 4),
       Paint()
         ..strokeWidth = styleName == 'sporty' || styleName == 'needle' ? 3 : 2
         ..color = styleName == 'cards'
@@ -584,45 +606,49 @@ class _DeltaPainter extends CustomPainter {
             : accent.withAlpha((255 * 0.8).round()),
     );
 
-    if (value != null && value.abs() > 0.005) {
-      final fraction = (value / scale).clamp(-1.0, 1.0);
-      final fillWidth = fraction * (w / 2 - 2);
-      final color = value > 0 ? AppColors.neonGreen : AppColors.neonRed;
-
-      final fillRect = Rect.fromCenter(
-        center: Offset(center + fillWidth / 2, barTop + barHeight / 2),
-        width: fillWidth.abs(),
-        height: barHeight,
+    if (value != null && value != _minimum) {
+      final fraction = _displayFraction(value);
+      final fillWidth = fraction * rangeWidth;
+      final color = value > _minimum ? AppColors.neonGreen : AppColors.neonRed;
+      final fillRect = Rect.fromLTWH(
+        rangeStart,
+        barTop,
+        fillWidth,
+        barHeight,
       );
 
-      final rrect = RRect.fromRectAndRadius(
-        fillRect,
-        const Radius.circular(6),
-      );
-      final fillPaint = Paint()..color = color;
+      if (fillWidth > 0.005) {
+        final rrect = RRect.fromRectAndRadius(
+          fillRect,
+          const Radius.circular(6),
+        );
+        final fillPaint = Paint()..color = color;
 
-      if (_gradientStyle) {
-        fillPaint.shader = LinearGradient(
-          begin: value > 0 ? Alignment.centerLeft : Alignment.centerRight,
-          end: value > 0 ? Alignment.centerRight : Alignment.centerLeft,
-          colors: [color.withAlpha((255 * 0.55).round()), color],
-        ).createShader(fillRect);
+        if (_gradientStyle) {
+          fillPaint.shader = LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [color.withAlpha((255 * 0.55).round()), color],
+          ).createShader(fillRect);
+        }
+
+        canvas.drawRRect(
+          rrect.inflate(2.5),
+          Paint()..color = color.withAlpha((255 * 0.18).round()),
+        );
+        canvas.drawRRect(rrect, fillPaint);
       }
 
-      canvas.drawRRect(
-        rrect.inflate(2.5),
-        Paint()..color = color.withAlpha((255 * 0.18).round()),
-      );
-      canvas.drawRRect(rrect, fillPaint);
-
+      // A negative reading stays at the zero boundary; it is not converted
+      // into a positive value or given a negative gauge segment.
       canvas.drawCircle(
-        Offset(center + fillWidth, barTop + barHeight / 2),
+        Offset(rangeStart + fillWidth, barTop + barHeight / 2),
         styleName == 'orb' ? 7 : 6,
-        Paint()..color = Colors.white,
+        Paint()..color = fillWidth > 0.005 ? Colors.white : color,
       );
     }
 
-    // Scale labels.
+    // Scale labels: 0 -> positive maximum, with no negative tick or segment.
     void label(String text, double x, bool alignRight) {
       final tp = TextPainter(
         text: TextSpan(
@@ -642,9 +668,9 @@ class _DeltaPainter extends CustomPainter {
       tp.paint(canvas, Offset(dx, barTop + barHeight + 4));
     }
 
-    label('-$scale', 0, false);
-    label('0', center, false);
-    label('+$scale', w, true);
+    label('0', 0, false);
+    label(_positiveScaleLabel(scale / 2), w / 2, false);
+    label(_positiveScaleLabel(scale), w, true);
   }
 
   void _paintSegments(
@@ -658,17 +684,11 @@ class _DeltaPainter extends CustomPainter {
     const barTop = 8.0;
     const barHeight = 10.0;
     final segmentWidth = (size.width - gap * (segmentCount - 1)) / segmentCount;
-    final fraction = value == null ? 0.0 : (value / scale).clamp(-1.0, 1.0);
-    final activeCount = (fraction.abs() * segmentCount / 2).round();
+    final fraction = _displayFraction(value);
+    final activeCount = (fraction * segmentCount).round();
 
     for (var index = 0; index < segmentCount; index++) {
-      final isRight = index >= segmentCount / 2;
-      final distanceFromCenter = isRight
-          ? index - segmentCount / 2
-          : segmentCount / 2 - index - 1;
-      final active = value != null &&
-          distanceFromCenter < activeCount &&
-          ((fraction > 0 && isRight) || (fraction < 0 && !isRight));
+      final active = value != null && index < activeCount;
       final left = index * (segmentWidth + gap);
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(left, barTop, segmentWidth, barHeight),
@@ -679,15 +699,15 @@ class _DeltaPainter extends CustomPainter {
         rect,
         Paint()
           ..color = active
-              ? (fraction > 0 ? AppColors.neonGreen : AppColors.neonRed)
+              ? AppColors.neonGreen
               : accent.withAlpha((255 * 0.18).round()),
       );
     }
 
-    final center = size.width / 2;
+    // The minimum marker is at the left edge; there is no center-zero split.
     canvas.drawLine(
-      Offset(center, barTop - 4),
-      Offset(center, barTop + barHeight + 4),
+      const Offset(0, barTop - 4),
+      const Offset(0, barTop + barHeight + 4),
       Paint()
         ..strokeWidth = 2
         ..color = accent.withAlpha((255 * 0.8).round()),
@@ -708,9 +728,9 @@ class _DeltaPainter extends CustomPainter {
       tp.paint(canvas, Offset(dx, barTop + barHeight + 4));
     }
 
-    label('-$scale', 0, false);
-    label('0', center, false);
-    label('+$scale', size.width, true);
+    label('0', 0, false);
+    label(_positiveScaleLabel(scale / 2), size.width / 2, false);
+    label(_positiveScaleLabel(scale), size.width, true);
   }
 
   @override
