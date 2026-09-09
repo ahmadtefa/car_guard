@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,6 +25,10 @@ class StorageServiceImpl implements StorageService {
   @override
   Future<String?> read(String key) async {
     final prefs = await _prefs;
+    debugPrint(
+      'TRIP TRACE storage.read key=$key prefs=${identityHashCode(prefs)} '
+      'appSettings=${prefs.getString(key)}',
+    );
     return prefs.getString(key);
   }
 
