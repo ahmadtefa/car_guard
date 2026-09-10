@@ -5,9 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
 import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
-import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
-import 'more_gauges.dart';
 
 /// Shows the signed voltage difference using the same card and gauge layout
 /// as the engine-temperature reading. The presentation range starts at zero;
@@ -48,140 +46,12 @@ class VoltageDeltaCard extends ConsumerWidget {
       }
     }
 
-    return _buildGauge(
+    return _buildCardsGauge(
       l: l,
       delta: delta,
       valueText: valueText,
       statusText: statusText,
     );
-  }
-
-  Widget _buildGauge({
-    required AppL10n l,
-    required double? delta,
-    required String valueText,
-    required String statusText,
-  }) {
-    final card = _buildCardsGauge(
-      l: l,
-      delta: delta,
-      valueText: valueText,
-      statusText: statusText,
-    );
-
-    // The classic card is the exact Engine Temperature card structure. Keep
-    // the empty card for a missing reading instead of presenting a synthetic
-    // zero through one of the non-nullable style gauges.
-    if (delta == null || styleName == 'cards') return card;
-
-    final reading = delta;
-    final percent = (reading / _gaugeScale).clamp(0.0, 1.0).toDouble();
-    final negativeReading = reading < 0;
-    final onTap = () {};
-
-    switch (styleName) {
-      case 'racing':
-        return RacingGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          warning: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'sporty':
-        return SportyGauge(
-          label: l.voltageDifference,
-          value: reading,
-          min: 0,
-          max: _gaugeScale,
-          redlineValue: _gaugeScale,
-          unit: 'V',
-          warning: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'segments':
-        return SegmentedGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          activeCount: (percent * 12).round(),
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'sweeper':
-        return AudiSweeperGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          gradientColors: [
-            AppColors.neonCyan,
-            AppColors.neonAmber,
-            AppColors.neonRed,
-          ],
-          accentColor: negativeReading
-              ? AppColors.neonRed
-              : AppColors.neonMagenta,
-          onTap: onTap,
-        );
-
-      case 'ring':
-        return NeonRingGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'led':
-        return LedStripGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'needle':
-        return NeedleMeterGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'orb':
-        return LiquidOrbGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'combo':
-        return DigitalClusterGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      default:
-        return card;
-    }
   }
 
   Widget _buildCardsGauge({
