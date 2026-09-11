@@ -54,11 +54,15 @@ double? resolveVoltageDelta({
 /// dashboard state cannot accidentally diverge or turn an unavailable value
 /// into zero.
 final voltageDeltaProvider = Provider<double?>((ref) {
+  // Keep history subscribed even while the status stream is loading or
+  // disconnected. Otherwise the first connected frame can arrive before the
+  // history listener is created, leaving the fallback with too few samples.
+  final history = ref.watch(readingsHistoryProvider);
   final device = ref.watch(deviceStatusProvider).value;
   if (device == null || !device.connected) return null;
 
   return resolveVoltageDelta(
     moduleDelta: device.batteryData.voltageDifference,
-    history: ref.watch(readingsHistoryProvider),
+    history: history,
   );
 });
