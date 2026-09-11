@@ -9,6 +9,7 @@ import 'package:car_guard/features/dashboard/providers/voltage_delta_provider.da
 import 'package:car_guard/features/dashboard/widgets/dashboard_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/feminine_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/gauge_area.dart';
+import 'package:car_guard/features/dashboard/widgets/more_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/voltage_delta_card.dart';
 import 'package:car_guard/features/settings/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
