@@ -913,7 +913,7 @@ class _FlamingoPainter extends CustomPainter {
 
     final body = Paint()..color = const Color(0xFFFF769F);
     final shadow = Paint()..color = const Color(0xFFCF4F83);
-    final highlight = Paint()..color = const Color(0xFFFFB4C8);
+    final highlight = const Color(0xFFFFB4C8);
 
     // The long neck and head are the centre of the gauge, not a detached icon.
     final neck = Path()
