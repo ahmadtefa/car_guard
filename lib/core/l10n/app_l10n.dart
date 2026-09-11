@@ -197,13 +197,14 @@ class AppL10n {
   String get styleCards => isAr ? 'كروت كلاسيك' : 'Classic cards';
   String get styleRacing => isAr ? 'سباق' : 'Racing';
   String get styleSporty => isAr ? 'سبورت' : 'Sporty gauges';
-  String get styleSegments => isAr ? 'أعمدة مجزأة' : 'Segmented bars';
+  String get styleSegments => isAr ? 'أعمدة مجزأة' : 'Segmented columns';
   String get styleSweeper => isAr ? 'عداد أودي' : 'Audi sweeper';
-  String get styleRing => isAr ? 'نيون دائري' : 'Neon ring';
   String get styleLed => isAr ? 'شريط LED' : 'LED strip';
   String get styleNeedle => isAr ? 'عداد إبرة' : 'Needle meter';
   String get styleOrb => isAr ? 'كرة سائلة' : 'Liquid orb';
-  String get styleCombo => isAr ? 'كلستر رقمي' : 'Digital cluster';
+  String get styleRose => isAr ? 'أناقة وردية' : 'Rose elegance';
+  String get styleLavender => isAr ? 'لؤلؤة لافندر' : 'Lavender pearl';
+  String get styleFlamingo => isAr ? 'فلامنجو' : 'Flamingo';
 
   // ---------- Device controls ----------
   String get deviceControls => isAr ? 'تحكم في الجهاز' : 'Device Controls';

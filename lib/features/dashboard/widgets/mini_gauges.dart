@@ -459,9 +459,8 @@ class _VoltBarPainter extends CustomPainter {
 enum AlignmentBucket { left, center, right }
 
 /// Non-negative voltage-difference gauge: the display range starts at zero
-/// and extends to the existing positive maximum. Signed telemetry is preserved
-/// by the card; values below the presentation minimum are pinned at zero
-/// rather than mirrored with `abs()`.
+/// and extends to the existing positive maximum. All input values are
+/// normalized to their absolute magnitude before painting.
 class DeltaGauge extends StatelessWidget {
   const DeltaGauge({
     super.key,
@@ -470,7 +469,7 @@ class DeltaGauge extends StatelessWidget {
     this.styleName = 'cards',
   });
 
-  /// The signed difference to display; null renders an empty track.
+  /// The difference to display; null renders an empty track.
   final double? delta;
 
   /// Existing positive maximum for the presentation range (minimum is zero).
@@ -515,14 +514,11 @@ class _DeltaPainter extends CustomPainter {
         return AppColors.neonCyan;
       case 'sweeper':
         return AppColors.neonAmber;
-      case 'ring':
-        return AppColors.neonMagenta;
       case 'led':
         return AppColors.neonGreen;
       case 'needle':
         return AppColors.neonAmber;
       case 'orb':
-      case 'combo':
         return AppColors.neonCyan;
       default:
         return AppColors.neonCyan;
@@ -532,9 +528,9 @@ class _DeltaPainter extends CustomPainter {
   bool get _segmentedStyle => styleName == 'segments' || styleName == 'led';
 
   bool get _gradientStyle =>
-      styleName == 'racing' || styleName == 'sweeper' || styleName == 'combo';
+      styleName == 'racing' || styleName == 'sweeper';
 
-  bool get _outlinedStyle => styleName == 'ring' || styleName == 'orb';
+  bool get _outlinedStyle => styleName == 'orb';
 
   /// Maps only the gauge presentation to its [0, scale] range. The original
   /// signed value remains untouched in the card and telemetry model.
@@ -546,7 +542,7 @@ class _DeltaPainter extends CustomPainter {
       return 0.0;
     }
 
-    return ((value - _minimum) / (scale - _minimum))
+    return ((value.abs() - _minimum) / (scale - _minimum))
         .clamp(0.0, 1.0)
         .toDouble();
   }
@@ -559,7 +555,7 @@ class _DeltaPainter extends CustomPainter {
 
     if (w < 40) return;
 
-    final value = delta;
+    final value = delta?.abs();
     final accent = _styleAccent();
 
     if (_segmentedStyle) {
@@ -609,7 +605,7 @@ class _DeltaPainter extends CustomPainter {
     if (value != null && value != _minimum) {
       final fraction = _displayFraction(value);
       final fillWidth = fraction * rangeWidth;
-      final color = value > _minimum ? AppColors.neonGreen : AppColors.neonRed;
+      final color = AppColors.neonGreen;
       final fillRect = Rect.fromLTWH(
         rangeStart,
         barTop,
@@ -639,8 +635,8 @@ class _DeltaPainter extends CustomPainter {
         canvas.drawRRect(rrect, fillPaint);
       }
 
-      // A negative reading stays at the zero boundary; it is not converted
-      // into a positive value or given a negative gauge segment.
+      // The normalized value can only move rightward from the zero boundary;
+      // no negative segment or negative color state is painted.
       canvas.drawCircle(
         Offset(rangeStart + fillWidth, barTop + barHeight / 2),
         styleName == 'orb' ? 7 : 6,

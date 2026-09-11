@@ -87,7 +87,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
 
   String _formatVoltageDifference(double? delta) {
     if (delta == null || !delta.isFinite) return '--.- V';
-    return '${delta.toStringAsFixed(2)} V';
+    return '${delta.abs().toStringAsFixed(2)} V';
   }
 
   String _formatClock(DateTime time) {

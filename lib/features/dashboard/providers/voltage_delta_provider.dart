@@ -10,8 +10,8 @@ import 'readings_history_provider.dart';
 /// (falling back to the very first sample of the session). Returns null
 /// until at least two samples exist.
 ///
-/// The history fallback always returns the absolute value to ensure
-/// a negative voltage difference is never displayed as negative.
+/// The returned history delta is always absolute because the dashboard
+/// displays voltage difference as a magnitude, never as a signed trend.
 double? computeVoltageDelta(
   List<ReadingSample> history, {
   Duration lookback = const Duration(seconds: 90),
@@ -33,18 +33,17 @@ double? computeVoltageDelta(
 
   if (reference.timestamp.isAtSameMomentAs(latest.timestamp)) return null;
 
-  // Return absolute value to ensure result is never negative from history fallback.
   return (latest.batteryVoltage - reference.batteryVoltage).abs();
 }
 
 /// Applies the dashboard's voltage-difference source order:
 ///
 /// 1. a finite module-reported value, including a legitimate zero;
-/// 2. the locally calculated 90-second history delta (always absolute);
+/// 2. the locally calculated 90-second history delta;
 /// 3. null while there is not enough information.
 ///
-/// A negative module-reported value is converted to its absolute value
-/// to ensure it is never displayed as negative.
+/// Module values are normalized to the same non-negative magnitude as the
+/// history fallback before they reach the dashboard.
 double? resolveVoltageDelta({
   required double? moduleDelta,
   required List<ReadingSample> history,
@@ -61,9 +60,7 @@ double? resolveVoltageDelta({
 /// The repository keeps a missing module field as null. This provider is the
 /// single place where the history fallback is selected, so the card and the
 /// dashboard state cannot accidentally diverge or turn an unavailable value
-/// into zero.
-///
-/// The returned value is always non-negative.
+/// into zero. Its non-null result is always non-negative.
 final voltageDeltaProvider = Provider<double?>((ref) {
   // Keep history subscribed even while the status stream is loading or
   // disconnected. Otherwise the first connected frame can arrive before the

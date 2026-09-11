@@ -9,9 +9,8 @@ import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
 import 'more_gauges.dart';
 
-/// Shows the signed voltage difference using the same card and gauge layout
-/// as the engine-temperature reading. The presentation range starts at zero;
-/// the signed reading remains unchanged in the card value and status text.
+/// Shows the non-negative voltage difference using the selected dashboard
+/// gauge style. Classic Cards keeps the original card and arc implementation.
 class VoltageDeltaCard extends ConsumerWidget {
   const VoltageDeltaCard({
     super.key,
@@ -26,7 +25,9 @@ class VoltageDeltaCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-    final delta = ref.watch(voltageDeltaProvider);
+    // Keep the UI defensive even if an older provider instance is still
+    // alive during a hot reload or settings migration.
+    final delta = ref.watch(voltageDeltaProvider)?.abs();
 
     final String valueText;
     final String statusText;
@@ -35,17 +36,8 @@ class VoltageDeltaCard extends ConsumerWidget {
       valueText = '--.- V';
       statusText = l.collectingData;
     } else {
-      final sign = delta >= 0 ? '+' : '';
-
-      valueText = '$sign${delta.toStringAsFixed(2)} V';
-
-      if (delta.abs() < 0.15) {
-        statusText = l.deltaStable;
-      } else if (delta > 0) {
-        statusText = l.deltaRising;
-      } else {
-        statusText = l.deltaFalling;
-      }
+      valueText = '${delta.toStringAsFixed(2)} V';
+      statusText = delta < 0.15 ? l.deltaStable : l.deltaRising;
     }
 
     return _buildGauge(
@@ -74,9 +66,8 @@ class VoltageDeltaCard extends ConsumerWidget {
     // zero through one of the non-nullable style gauges.
     if (delta == null || styleName == 'cards') return card;
 
-    final reading = delta;
+    final reading = delta.abs();
     final percent = (reading / _gaugeScale).clamp(0.0, 1.0).toDouble();
-    final negativeReading = reading < 0;
     final onTap = () {};
 
     switch (styleName) {
@@ -86,7 +77,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           value: reading,
           unit: 'V',
           percent: percent,
-          warning: negativeReading,
+          warning: false,
           onTap: onTap,
         );
 
@@ -98,7 +89,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           max: _gaugeScale,
           redlineValue: _gaugeScale,
           unit: 'V',
-          warning: negativeReading,
+          warning: false,
           onTap: onTap,
         );
 
@@ -108,7 +99,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           value: reading,
           unit: 'V',
           activeCount: (percent * 12).round(),
-          danger: negativeReading,
+          danger: false,
           onTap: onTap,
         );
 
@@ -123,19 +114,7 @@ class VoltageDeltaCard extends ConsumerWidget {
             AppColors.neonAmber,
             AppColors.neonRed,
           ],
-          accentColor: negativeReading
-              ? AppColors.neonRed
-              : AppColors.neonMagenta,
-          onTap: onTap,
-        );
-
-      case 'ring':
-        return NeonRingGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
+          accentColor: AppColors.neonMagenta,
           onTap: onTap,
         );
 
@@ -145,7 +124,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           value: reading,
           unit: 'V',
           percent: percent,
-          danger: negativeReading,
+          danger: false,
           onTap: onTap,
         );
 
@@ -155,7 +134,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           value: reading,
           unit: 'V',
           percent: percent,
-          danger: negativeReading,
+          danger: false,
           onTap: onTap,
         );
 
@@ -165,17 +144,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           value: reading,
           unit: 'V',
           percent: percent,
-          danger: negativeReading,
-          onTap: onTap,
-        );
-
-      case 'combo':
-        return DigitalClusterGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: negativeReading,
+          danger: false,
           onTap: onTap,
         );
 
@@ -213,7 +182,8 @@ class VoltageDeltaCard extends ConsumerWidget {
 
 /// Kept for callers that want the accent color of the current trend.
 Color deltaAccentColor(double? delta) {
-  if (delta == null) return AppColors.textSecondary;
-  if (delta.abs() < 0.15) return AppColors.neonCyan;
-  return delta > 0 ? AppColors.neonGreen : AppColors.neonRed;
+  final magnitude = delta?.abs();
+  if (magnitude == null) return AppColors.textSecondary;
+  if (magnitude < 0.15) return AppColors.neonCyan;
+  return AppColors.neonGreen;
 }

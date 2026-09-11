@@ -6,7 +6,9 @@ import 'package:car_guard/features/dashboard/models/dashboard_state.dart';
 import 'package:car_guard/features/dashboard/providers/dashboard_provider.dart';
 import 'package:car_guard/features/dashboard/providers/trip_provider.dart';
 import 'package:car_guard/features/dashboard/providers/voltage_delta_provider.dart';
+import 'package:car_guard/features/dashboard/widgets/feminine_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/gauge_area.dart';
+import 'package:car_guard/features/dashboard/widgets/voltage_delta_card.dart';
 import 'package:car_guard/features/settings/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -159,6 +161,72 @@ void main() {
     expect(find.text('0.37 V'), findsOneWidget);
   });
 
+  testWidgets('new feminine and Flamingo styles dispatch to real widgets',
+      (tester) async {
+    final styles = <(String, Type)>[
+      ('rose', RoseDashboardStyle),
+      ('lavender', LavenderDashboardStyle),
+      ('flamingo', FlamingoDashboardStyle),
+    ];
+
+    for (final (style, widgetType) in styles) {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsProvider.overrideWith(() => _TestSettingsNotifier()),
+            deviceStatusProvider.overrideWith(
+              (ref) => Stream<DeviceStatus>.value(_connectedStatus()),
+            ),
+            tripProvider.overrideWith(() => _TestTripNotifier()),
+          ],
+          child: MaterialApp(
+            home: SizedBox(
+              width: 800,
+              child: Consumer(
+                builder: (context, ref, child) {
+                  return buildGaugeArea(
+                    context,
+                    ref,
+                    settings: AppSettings(
+                      demoModeEnabled: true,
+                      dashboardStyleName: style,
+                    ),
+                    state: const DashboardState(),
+                    l: const AppL10n('en'),
+                    onOpenHud: (_) {},
+                    compact: true,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.byType(widgetType), findsOneWidget);
+    }
+  });
+
+  testWidgets('Voltage Difference never displays a negative value',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsProvider.overrideWith(() => _TestSettingsNotifier()),
+          voltageDeltaProvider.overrideWithValue(-0.37),
+        ],
+        child: const MaterialApp(home: VoltageDeltaCard()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    expect(find.text('0.37 V'), findsOneWidget);
+    expect(find.text('-0.37 V'), findsNothing);
+  });
+
   testWidgets(
     'the shared gauge area keeps temperature, voltage, speed and distance',
     (tester) async {
@@ -198,9 +266,23 @@ void main() {
 
       expect(find.text('Engine Temperature'), findsWidgets);
       expect(find.text('Voltage Difference'), findsWidgets);
-      expect(find.text('+0.37 V'), findsOneWidget);
+      expect(find.text('0.37 V'), findsOneWidget);
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
+
+      final temperatureRect = tester.getRect(
+        find.text('Engine Temperature').first,
+      );
+      final voltageRect = tester.getRect(
+        find.text('Voltage Difference').first,
+      );
+      final speedRect = tester.getRect(find.text('Vehicle speed'));
+      final distanceRect = tester.getRect(find.text('Trip distance'));
+
+      expect((temperatureRect.top - voltageRect.top).abs(), lessThan(1));
+      expect(voltageRect.left, greaterThan(temperatureRect.right));
+      expect((speedRect.top - distanceRect.top).abs(), lessThan(1));
+      expect(speedRect.top, greaterThan(temperatureRect.bottom));
     },
   );
 }

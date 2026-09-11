@@ -68,16 +68,25 @@ void main() {
         _sample(base.add(const Duration(seconds: 10)), 12.1),
       ];
 
-      expect(computeVoltageDelta(history), closeTo(-0.1, 0.0001));
+      expect(computeVoltageDelta(history), closeTo(0.1, 0.0001));
     });
 
-    test('handles negative (dropping) values', () {
+    test('reverse voltage movement still returns a positive difference', () {
       final history = [
         _sample(base, 13.8),
         _sample(base.add(const Duration(seconds: 30)), 13.0),
       ];
 
-      expect(computeVoltageDelta(history), closeTo(-0.8, 0.0001));
+      expect(computeVoltageDelta(history), closeTo(0.8, 0.0001));
+    });
+
+    test('equal voltages produce zero', () {
+      final history = [
+        _sample(base, 13.2),
+        _sample(base.add(const Duration(seconds: 30)), 13.2),
+      ];
+
+      expect(computeVoltageDelta(history), 0);
     });
   });
 
@@ -101,6 +110,13 @@ void main() {
       ];
 
       expect(resolveVoltageDelta(moduleDelta: 0, history: history), 0);
+    });
+
+    test('normalizes a negative module-reported value for display', () {
+      expect(
+        resolveVoltageDelta(moduleDelta: -0.24, history: const []),
+        closeTo(0.24, 0.0001),
+      );
     });
 
     test('uses the 90-second fallback when the module value is unavailable',

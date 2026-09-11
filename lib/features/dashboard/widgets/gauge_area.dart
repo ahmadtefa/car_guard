@@ -8,8 +8,11 @@ import '../../../core/models/app_settings.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
+import '../providers/trip_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'dashboard_gauges.dart';
 import 'engine_temperature_card.dart';
+import 'feminine_gauges.dart';
 import 'more_gauges.dart';
 import 'trip_cards.dart';
 import 'voltage_delta_card.dart';
@@ -49,6 +52,62 @@ Widget buildGaugeArea(
     return _UnavailableGaugeArea(l: l, compact: compact);
   }
 
+  final style = settings.dashboardStyleName;
+  if (style == 'rose' || style == 'lavender' || style == 'flamingo') {
+    final trip = ref.watch(tripProvider);
+    final voltageDelta = ref.watch(voltageDeltaProvider);
+    final common = _FeminineDashboardData(
+      temperatureLabel: l.engineTempLabel,
+      voltageLabel: l.voltageDifference,
+      speedLabel: l.vehicleSpeed,
+      distanceLabel: l.tripDistance,
+      temperature: temperature,
+      voltageDelta: voltageDelta,
+      speed: trip.speedKmh,
+      distance: trip.distanceKm,
+      hasFix: trip.hasFix,
+      onTemperatureTap: () => onOpenHud('temp'),
+    );
+
+    return switch (style) {
+      'rose' => RoseDashboardStyle(
+          temperatureLabel: common.temperatureLabel,
+          voltageLabel: common.voltageLabel,
+          speedLabel: common.speedLabel,
+          distanceLabel: common.distanceLabel,
+          temperature: common.temperature,
+          voltageDelta: common.voltageDelta,
+          speed: common.speed,
+          distance: common.distance,
+          hasFix: common.hasFix,
+          onTemperatureTap: common.onTemperatureTap,
+        ),
+      'lavender' => LavenderDashboardStyle(
+          temperatureLabel: common.temperatureLabel,
+          voltageLabel: common.voltageLabel,
+          speedLabel: common.speedLabel,
+          distanceLabel: common.distanceLabel,
+          temperature: common.temperature,
+          voltageDelta: common.voltageDelta,
+          speed: common.speed,
+          distance: common.distance,
+          hasFix: common.hasFix,
+          onTemperatureTap: common.onTemperatureTap,
+        ),
+      _ => FlamingoDashboardStyle(
+          temperatureLabel: common.temperatureLabel,
+          voltageLabel: common.voltageLabel,
+          speedLabel: common.speedLabel,
+          distanceLabel: common.distanceLabel,
+          temperature: common.temperature,
+          voltageDelta: common.voltageDelta,
+          speed: common.speed,
+          distance: common.distance,
+          hasFix: common.hasFix,
+        ),
+    };
+  }
+
   final temperatureGauge = _buildTemperatureGauge(
     settings: settings,
     state: state,
@@ -72,6 +131,32 @@ Widget buildGaugeArea(
       TripCards(showControls: !compact),
     ],
   );
+}
+
+class _FeminineDashboardData {
+  const _FeminineDashboardData({
+    required this.temperatureLabel,
+    required this.voltageLabel,
+    required this.speedLabel,
+    required this.distanceLabel,
+    required this.temperature,
+    required this.voltageDelta,
+    required this.speed,
+    required this.distance,
+    required this.hasFix,
+    required this.onTemperatureTap,
+  });
+
+  final String temperatureLabel;
+  final String voltageLabel;
+  final String speedLabel;
+  final String distanceLabel;
+  final double temperature;
+  final double? voltageDelta;
+  final double speed;
+  final double distance;
+  final bool hasFix;
+  final VoidCallback onTemperatureTap;
 }
 
 /// Uses a bounded minimum card width to choose between two columns and a
@@ -185,16 +270,6 @@ Widget _buildTemperatureGauge({
         onTap: () => onOpenHud('temp'),
       );
 
-    case 'ring':
-      return NeonRingGauge(
-        label: l.engineTempLabel,
-        value: temperature,
-        unit: '°C',
-        percent: tempPercent,
-        danger: tempWarning,
-        onTap: () => onOpenHud('temp'),
-      );
-
     case 'led':
       return LedStripGauge(
         label: l.engineTempLabel,
@@ -217,16 +292,6 @@ Widget _buildTemperatureGauge({
 
     case 'orb':
       return LiquidOrbGauge(
-        label: l.engineTempLabel,
-        value: temperature,
-        unit: '°C',
-        percent: tempPercent,
-        danger: tempWarning,
-        onTap: () => onOpenHud('temp'),
-      );
-
-    case 'combo':
-      return DigitalClusterGauge(
         label: l.engineTempLabel,
         value: temperature,
         unit: '°C',

@@ -80,6 +80,23 @@ void main() {
       expect(restored.engineTempCritical, 110);
     });
 
+    test('available dashboard styles keep classic and register new styles', () {
+      expect(AppSettings.dashboardStyleNames, contains('cards'));
+      expect(
+        AppSettings.dashboardStyleNames,
+        containsAll(<String>['segments', 'rose', 'lavender', 'flamingo']),
+      );
+      expect(AppSettings.dashboardStyleNames, isNot(contains('ring')));
+      expect(AppSettings.dashboardStyleNames, isNot(contains('combo')));
+
+      for (final style in const ['rose', 'lavender', 'flamingo']) {
+        final restored = AppSettings.fromJson(<String, dynamic>{
+          'dashboardStyleName': style,
+        });
+        expect(restored.dashboardStyleName, style);
+      }
+    });
+
     test('invalid dashboard styles fall back to cards', () {
       final restored = AppSettings.fromJson(<String, dynamic>{
         'dashboardStyleName': 'hologram',

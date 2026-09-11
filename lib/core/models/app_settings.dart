@@ -38,11 +38,12 @@ class AppSettings {
     'sporty',
     'segments',
     'sweeper',
-    'ring',
     'led',
     'needle',
     'orb',
-    'combo',
+    'rose',
+    'lavender',
+    'flamingo',
   ];
 
   /// UI languages accepted by [languageName].

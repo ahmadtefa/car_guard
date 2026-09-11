@@ -202,11 +202,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ('sporty', Icons.donut_large_outlined, l.styleSporty),
       ('segments', Icons.view_week_outlined, l.styleSegments),
       ('sweeper', Icons.linear_scale_outlined, l.styleSweeper),
-      ('ring', Icons.album_outlined, l.styleRing),
       ('led', Icons.lightbulb_outline, l.styleLed),
       ('needle', Icons.speed_outlined, l.styleNeedle),
       ('orb', Icons.water_drop_outlined, l.styleOrb),
-      ('combo', Icons.data_usage_rounded, l.styleCombo),
+      ('rose', Icons.local_florist_outlined, l.styleRose),
+      ('lavender', Icons.auto_awesome_outlined, l.styleLavender),
+      ('flamingo', Icons.flutter_dash, l.styleFlamingo),
     ];
 
     showModalBottomSheet<void>(
