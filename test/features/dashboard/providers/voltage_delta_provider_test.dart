@@ -153,7 +153,13 @@ void main() {
       await statuses.close();
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    // Wait for the demo settings to enable history, then eagerly build the
+    // history provider before the first telemetry frame is emitted. This
+    // makes the test exercise the two-frame lifecycle rather than racing the
+    // provider's initial async settings transition.
+    await container.read(settingsProvider.future);
+    container.read(readingsHistoryProvider);
+    await Future<void>.delayed(Duration.zero);
 
     final first = DateTime(2026, 1, 1, 10, 0, 0);
     statuses.add(_historyStatus(first, 12.0));

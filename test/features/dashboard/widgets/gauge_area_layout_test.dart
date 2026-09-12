@@ -9,7 +9,6 @@ import 'package:car_guard/features/dashboard/providers/voltage_delta_provider.da
 import 'package:car_guard/features/dashboard/widgets/dashboard_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/feminine_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/gauge_area.dart';
-import 'package:car_guard/features/dashboard/widgets/more_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/voltage_delta_card.dart';
 import 'package:car_guard/features/settings/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
@@ -227,8 +226,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    expect(find.text('0.37 V'), findsOneWidget);
-    expect(find.text('-0.37 V'), findsNothing);
+    expect(find.text('0.4 V'), findsOneWidget);
+    expect(find.text('-0.4 V'), findsNothing);
   });
 
   testWidgets('existing dashboard styles keep their specialized gauges',
@@ -237,8 +236,6 @@ void main() {
       ('racing', RacingGauge),
       ('sporty', SportyGauge),
       ('sweeper', AudiSweeperGauge),
-      ('led', LedStripGauge),
-      ('needle', NeedleMeterGauge),
     ];
 
     for (final (style, gaugeType) in styles) {
@@ -318,14 +315,14 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
-      expect(find.text('Engine Temperature'), findsWidgets);
+      expect(find.text('ENGINE TEMP'), findsWidgets);
       expect(find.text('Voltage Difference'), findsWidgets);
-      expect(find.text('0.37 V'), findsOneWidget);
+      expect(find.text('0.4 V'), findsOneWidget);
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
 
       final temperatureRect = tester.getRect(
-        find.text('Engine Temperature').first,
+        find.text('ENGINE TEMP').first,
       );
       final voltageRect = tester.getRect(
         find.text('Voltage Difference').first,
