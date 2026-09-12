@@ -246,6 +246,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       'rose' => l.styleRose,
       'lavender' => l.styleLavender,
       'flamingo' => l.styleFlamingo,
+      'big_numbers' => l.styleBigNumbers,
       _ => l.styleRacing,
     };
   }

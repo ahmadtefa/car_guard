@@ -41,6 +41,7 @@ class AppSettings {
     'rose',
     'lavender',
     'flamingo',
+    'big_numbers',
   ];
 
   /// UI languages accepted by [languageName].

@@ -205,6 +205,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ('rose', Icons.local_florist_outlined, l.styleRose),
       ('lavender', Icons.auto_awesome_outlined, l.styleLavender),
       ('flamingo', Icons.flutter_dash, l.styleFlamingo),
+      ('big_numbers', Icons.format_size, l.styleBigNumbers),
     ];
 
     showModalBottomSheet<void>(

@@ -205,6 +205,7 @@ class AppL10n {
   String get styleRose => isAr ? 'أناقة وردية' : 'Rose elegance';
   String get styleLavender => isAr ? 'لؤلؤة لافندر' : 'Lavender pearl';
   String get styleFlamingo => isAr ? 'فلامنجو' : 'Flamingo';
+  String get styleBigNumbers => isAr ? 'أرقام كبيرة' : 'Big Numbers';
 
   // ---------- Device controls ----------
   String get deviceControls => isAr ? 'تحكم في الجهاز' : 'Device Controls';

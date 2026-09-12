@@ -6,6 +6,7 @@ import 'package:car_guard/features/dashboard/models/dashboard_state.dart';
 import 'package:car_guard/features/dashboard/providers/dashboard_provider.dart';
 import 'package:car_guard/features/dashboard/providers/trip_provider.dart';
 import 'package:car_guard/features/dashboard/providers/voltage_delta_provider.dart';
+import 'package:car_guard/features/dashboard/widgets/big_numbers_dashboard.dart';
 import 'package:car_guard/features/dashboard/widgets/dashboard_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/feminine_gauges.dart';
 import 'package:car_guard/features/dashboard/widgets/gauge_area.dart';
@@ -276,6 +277,99 @@ void main() {
 
       expect(find.byType(gaugeType), findsNWidgets(2));
     }
+  });
+
+  testWidgets('Big Numbers displays all four readings in two rows',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsProvider.overrideWith(() => _TestSettingsNotifier()),
+          deviceStatusProvider.overrideWith(
+            (ref) => Stream<DeviceStatus>.value(_connectedStatus()),
+          ),
+          tripProvider.overrideWith(() => _TestTripNotifier()),
+        ],
+        child: MaterialApp(
+          home: SingleChildScrollView(
+            child: SizedBox(
+              width: 800,
+              child: Consumer(
+                builder: (context, ref, child) {
+                  return buildGaugeArea(
+                    context,
+                    ref,
+                    settings: const AppSettings(
+                      demoModeEnabled: true,
+                      dashboardStyleName: 'big_numbers',
+                    ),
+                    state: const DashboardState(),
+                    l: const AppL10n('en'),
+                    onOpenHud: (_) {},
+                    compact: true,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    expect(find.byType(BigNumbersDashboard), findsOneWidget);
+    expect(find.text('Engine Temperature'), findsOneWidget);
+    expect(find.text('Voltage Difference'), findsOneWidget);
+    expect(find.text('Vehicle speed'), findsOneWidget);
+    expect(find.text('Trip distance'), findsOneWidget);
+    expect(find.text('82'), findsOneWidget);
+    expect(find.text('0.37'), findsOneWidget);
+    expect(find.text('42'), findsOneWidget);
+    expect(find.text('1.25'), findsOneWidget);
+
+    final temperature = tester.getRect(find.text('Engine Temperature'));
+    final voltage = tester.getRect(find.text('Voltage Difference'));
+    final speed = tester.getRect(find.text('Vehicle speed'));
+    final distance = tester.getRect(find.text('Trip distance'));
+
+    expect((temperature.top - voltage.top).abs(), lessThan(1));
+    expect(voltage.left, greaterThan(temperature.right));
+    expect((speed.top - distance.top).abs(), lessThan(1));
+    expect(speed.top, greaterThan(temperature.bottom));
+  });
+
+  testWidgets('Big Numbers stacks each row on a narrow screen', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 300,
+          child: BigNumbersDashboard(
+            temperature: 82,
+            voltageDifference: 0.37,
+            speed: 42,
+            distance: 1.25,
+            temperatureLabel: 'Engine Temperature',
+            voltageLabel: 'Voltage Difference',
+            speedLabel: 'Vehicle speed',
+            distanceLabel: 'Trip distance',
+            temperatureUnit: '°C',
+            voltageUnit: 'V',
+            speedUnit: 'km/h',
+            distanceUnit: 'km',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final temperature = tester.getRect(find.text('Engine Temperature'));
+    final voltage = tester.getRect(find.text('Voltage Difference'));
+    final speed = tester.getRect(find.text('Vehicle speed'));
+    final distance = tester.getRect(find.text('Trip distance'));
+
+    expect(voltage.top, greaterThanOrEqualTo(temperature.bottom));
+    expect(distance.top, greaterThanOrEqualTo(speed.bottom));
   });
 
   testWidgets(

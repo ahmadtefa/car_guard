@@ -84,7 +84,12 @@ void main() {
       expect(AppSettings.dashboardStyleNames, contains('racing'));
       expect(
         AppSettings.dashboardStyleNames,
-        containsAll(<String>['rose', 'lavender', 'flamingo']),
+        containsAll(<String>[
+          'rose',
+          'lavender',
+          'flamingo',
+          'big_numbers',
+        ]),
       );
       expect(AppSettings.dashboardStyleNames, isNot(contains('cards')));
       expect(AppSettings.dashboardStyleNames, isNot(contains('segments')));
@@ -92,7 +97,12 @@ void main() {
       expect(AppSettings.dashboardStyleNames, isNot(contains('ring')));
       expect(AppSettings.dashboardStyleNames, isNot(contains('combo')));
 
-      for (final style in const ['rose', 'lavender', 'flamingo']) {
+      for (final style in const [
+        'rose',
+        'lavender',
+        'flamingo',
+        'big_numbers',
+      ]) {
         final restored = AppSettings.fromJson(<String, dynamic>{
           'dashboardStyleName': style,
         });

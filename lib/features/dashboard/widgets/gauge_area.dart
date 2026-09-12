@@ -10,6 +10,7 @@ import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/trip_provider.dart';
 import '../providers/voltage_delta_provider.dart';
+import 'big_numbers_dashboard.dart';
 import 'dashboard_gauges.dart';
 import 'engine_temperature_card.dart';
 import 'feminine_gauges.dart';
@@ -44,6 +45,26 @@ Widget buildGaugeArea(
   final temperature = device?.temperatureData.engineTemperature ?? 0;
   final tempPercent = (temperature / 180).clamp(0.0, 1.0);
   final tempWarning = connected && temperature >= settings.engineTempCritical;
+
+  if (settings.dashboardStyleName == 'big_numbers') {
+    final trip = ref.watch(tripProvider);
+    final voltageDelta = ref.watch(voltageDeltaProvider);
+
+    return BigNumbersDashboard(
+      temperature: connected ? temperature : null,
+      voltageDifference: voltageDelta?.abs(),
+      speed: trip.hasFix ? trip.speedKmh : null,
+      distance: trip.hasFix ? trip.distanceKm : null,
+      temperatureLabel: l.engineTemperature,
+      voltageLabel: l.voltageDifference,
+      speedLabel: l.vehicleSpeed,
+      distanceLabel: l.tripDistance,
+      temperatureUnit: '°C',
+      voltageUnit: 'V',
+      speedUnit: l.kmh,
+      distanceUnit: l.km,
+    );
+  }
 
   // Never render a disconnected device as a synthetic zero. The two phone
   // GPS cards remain in the layout, but their own provider supplies '--' until
