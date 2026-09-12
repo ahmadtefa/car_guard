@@ -243,16 +243,6 @@ Widget _buildTemperatureGauge({
         onTap: () => onOpenHud('temp'),
       );
 
-    case 'segments':
-      return SegmentedGauge(
-        label: l.engineTempLabel,
-        value: temperature,
-        unit: '°C',
-        activeCount: (tempPercent * 12).round(),
-        danger: tempWarning,
-        onTap: () => onOpenHud('temp'),
-      );
-
     case 'sweeper':
       return AudiSweeperGauge(
         label: l.engineTempLabel,
@@ -282,16 +272,6 @@ Widget _buildTemperatureGauge({
 
     case 'needle':
       return NeedleMeterGauge(
-        label: l.engineTempLabel,
-        value: temperature,
-        unit: '°C',
-        percent: tempPercent,
-        danger: tempWarning,
-        onTap: () => onOpenHud('temp'),
-      );
-
-    case 'orb':
-      return LiquidOrbGauge(
         label: l.engineTempLabel,
         value: temperature,
         unit: '°C',

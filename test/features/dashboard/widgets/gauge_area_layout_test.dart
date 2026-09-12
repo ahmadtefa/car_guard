@@ -219,7 +219,9 @@ void main() {
           settingsProvider.overrideWith(() => _TestSettingsNotifier()),
           voltageDeltaProvider.overrideWithValue(-0.37),
         ],
-        child: const MaterialApp(home: VoltageDeltaCard()),
+        child: const MaterialApp(
+          home: VoltageDeltaCard(styleName: 'racing'),
+        ),
       ),
     );
     await tester.pump();
@@ -229,71 +231,14 @@ void main() {
     expect(find.text('-0.37 V'), findsNothing);
   });
 
-  testWidgets(
-    'Segmented Columns keeps the required two dashboard rows',
-    (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            settingsProvider.overrideWith(() => _TestSettingsNotifier()),
-            deviceStatusProvider.overrideWith(
-              (ref) => Stream<DeviceStatus>.value(_connectedStatus()),
-            ),
-            tripProvider.overrideWith(() => _TestTripNotifier()),
-          ],
-          child: MaterialApp(
-            home: SingleChildScrollView(
-              child: SizedBox(
-                width: 800,
-                child: Consumer(
-                  builder: (context, ref, child) {
-                    return buildGaugeArea(
-                      context,
-                      ref,
-                      settings: const AppSettings(
-                        demoModeEnabled: true,
-                        dashboardStyleName: 'segments',
-                      ),
-                      state: const DashboardState(),
-                      l: const AppL10n('en'),
-                      onOpenHud: (_) {},
-                      compact: true,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
-
-      expect(find.byType(SegmentedGauge), findsNWidgets(2));
-
-      final temperature =
-          tester.getRect(find.text('Engine Temperature').first);
-      final voltage = tester.getRect(find.text('Voltage Difference').first);
-      final speed = tester.getRect(find.text('Vehicle speed'));
-      final distance = tester.getRect(find.text('Trip distance'));
-
-      expect((temperature.top - voltage.top).abs(), lessThan(1));
-      expect(voltage.left, greaterThan(temperature.right));
-      expect((speed.top - distance.top).abs(), lessThan(1));
-      expect(speed.top, greaterThan(temperature.bottom));
-    },
-  );
-
   testWidgets('existing dashboard styles keep their specialized gauges',
       (tester) async {
     final styles = <(String, Type)>[
       ('racing', RacingGauge),
       ('sporty', SportyGauge),
-      ('segments', SegmentedGauge),
       ('sweeper', AudiSweeperGauge),
       ('led', LedStripGauge),
       ('needle', NeedleMeterGauge),
-      ('orb', LiquidOrbGauge),
     ];
 
     for (final (style, gaugeType) in styles) {

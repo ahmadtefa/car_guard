@@ -240,15 +240,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return switch (name) {
       'racing' => l.styleRacing,
       'sporty' => l.styleSporty,
-      'segments' => l.styleSegments,
       'sweeper' => l.styleSweeper,
       'led' => l.styleLed,
       'needle' => l.styleNeedle,
-      'orb' => l.styleOrb,
       'rose' => l.styleRose,
       'lavender' => l.styleLavender,
       'flamingo' => l.styleFlamingo,
-      _ => l.styleCards,
+      _ => l.styleRacing,
     };
   }
 

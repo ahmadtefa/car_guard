@@ -16,7 +16,7 @@ void main() {
       expect(settings.demoModeEnabled, isFalse);
       expect(settings.themeModeName, 'system');
       expect(settings.maxBatteryVoltage, 15.0);
-      expect(settings.dashboardStyleName, 'cards');
+      expect(settings.dashboardStyleName, 'racing');
       expect(settings.languageName, 'en');
       expect(settings.alarmSoundEnabled, isTrue);
       expect(settings.backgroundMonitoringEnabled, isFalse);
@@ -80,12 +80,15 @@ void main() {
       expect(restored.engineTempCritical, 110);
     });
 
-    test('available dashboard styles keep classic and register new styles', () {
-      expect(AppSettings.dashboardStyleNames, contains('cards'));
+    test('available dashboard styles keep only supported dashboard styles', () {
+      expect(AppSettings.dashboardStyleNames, contains('racing'));
       expect(
         AppSettings.dashboardStyleNames,
-        containsAll(<String>['segments', 'rose', 'lavender', 'flamingo']),
+        containsAll(<String>['rose', 'lavender', 'flamingo']),
       );
+      expect(AppSettings.dashboardStyleNames, isNot(contains('cards')));
+      expect(AppSettings.dashboardStyleNames, isNot(contains('segments')));
+      expect(AppSettings.dashboardStyleNames, isNot(contains('orb')));
       expect(AppSettings.dashboardStyleNames, isNot(contains('ring')));
       expect(AppSettings.dashboardStyleNames, isNot(contains('combo')));
 
@@ -97,12 +100,12 @@ void main() {
       }
     });
 
-    test('invalid dashboard styles fall back to cards', () {
+    test('invalid dashboard styles fall back to racing', () {
       final restored = AppSettings.fromJson(<String, dynamic>{
         'dashboardStyleName': 'hologram',
       });
 
-      expect(restored.dashboardStyleName, 'cards');
+      expect(restored.dashboardStyleName, 'racing');
     });
 
     test('invalid language names fall back to English', () {

@@ -93,16 +93,6 @@ class VoltageDeltaCard extends ConsumerWidget {
           onTap: onTap,
         );
 
-      case 'segments':
-        return SegmentedGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          activeCount: (percent * 12).round(),
-          danger: false,
-          onTap: onTap,
-        );
-
       case 'sweeper':
         return AudiSweeperGauge(
           label: l.voltageDifference,
@@ -130,16 +120,6 @@ class VoltageDeltaCard extends ConsumerWidget {
 
       case 'needle':
         return NeedleMeterGauge(
-          label: l.voltageDifference,
-          value: reading,
-          unit: 'V',
-          percent: percent,
-          danger: false,
-          onTap: onTap,
-        );
-
-      case 'orb':
-        return LiquidOrbGauge(
           label: l.voltageDifference,
           value: reading,
           unit: 'V',

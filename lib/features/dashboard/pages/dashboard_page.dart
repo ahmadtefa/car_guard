@@ -197,14 +197,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final settings = ref.read(settingsProvider).value ?? const AppSettings();
 
     final options = <(String, IconData, String)>[
-      ('cards', Icons.dashboard_outlined, l.styleCards),
       ('racing', Icons.speed, l.styleRacing),
       ('sporty', Icons.donut_large_outlined, l.styleSporty),
-      ('segments', Icons.view_week_outlined, l.styleSegments),
       ('sweeper', Icons.linear_scale_outlined, l.styleSweeper),
       ('led', Icons.lightbulb_outline, l.styleLed),
       ('needle', Icons.speed_outlined, l.styleNeedle),
-      ('orb', Icons.water_drop_outlined, l.styleOrb),
       ('rose', Icons.local_florist_outlined, l.styleRose),
       ('lavender', Icons.auto_awesome_outlined, l.styleLavender),
       ('flamingo', Icons.flutter_dash, l.styleFlamingo),

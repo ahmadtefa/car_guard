@@ -21,7 +21,7 @@ class AppSettings {
     this.demoModeEnabled = false,
     this.themeModeName = 'system',
     this.maxBatteryVoltage = 15.0,
-    this.dashboardStyleName = 'cards',
+    this.dashboardStyleName = 'racing',
     this.languageName = 'en',
     this.alarmSoundEnabled = true,
     this.backgroundMonitoringEnabled = false,
@@ -33,14 +33,11 @@ class AppSettings {
 
   /// Dashboard gauge styles accepted by [dashboardStyleName].
   static const List<String> dashboardStyleNames = [
-    'cards',
     'racing',
     'sporty',
-    'segments',
     'sweeper',
     'led',
     'needle',
-    'orb',
     'rose',
     'lavender',
     'flamingo',
@@ -199,7 +196,7 @@ class AppSettings {
       dashboardStyleName:
           dashboardStyleNames.contains(json['dashboardStyleName'] as String?)
           ? json['dashboardStyleName'] as String
-          : 'cards',
+          : 'racing',
       languageName: languageNames.contains(json['languageName'] as String?)
           ? json['languageName'] as String
           : 'en',
