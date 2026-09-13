@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/reading_sample.dart';
 import '../../../core/providers/device_status_provider.dart';
+import '../../../core/services/device_models.dart';
 import '../../license/providers/license_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 
@@ -40,36 +41,52 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
       return const <ReadingSample>[];
     }
 
+    void appendStatus(DeviceStatus status) {
+      if (!_dataAccessAllowed || generation != _accessGeneration) return;
+
+      // A locked/expired module is represented as disconnected. Clear
+      // history instead of retaining old sensor values in charts.
+      if (!status.connected) {
+        state = const <ReadingSample>[];
+        return;
+      }
+
+      state = [
+        ...state,
+        ReadingSample(
+          timestamp: status.lastUpdated,
+          engineTemperature: status.temperatureData.engineTemperature,
+          batteryVoltage: status.batteryData.voltage,
+        ),
+      ];
+
+      if (state.length > maxSamples) {
+        state = state.sublist(state.length - maxSamples);
+      }
+    }
+
+    // Do not use fireImmediately here. A synchronous callback during
+    // Notifier.build would be overwritten by the empty list returned below,
+    // losing the first connected frame. Capture the current value explicitly
+    // as the initial state, then append future stream updates normally.
     ref.listen(
       deviceStatusProvider,
       (previous, next) {
         if (generation != _accessGeneration) return;
-        next.whenData((status) {
-          if (!_dataAccessAllowed || generation != _accessGeneration) return;
-
-          // A locked/expired module is represented as disconnected. Clear
-          // history instead of retaining old sensor values in charts.
-          if (!status.connected) {
-            state = const <ReadingSample>[];
-            return;
-          }
-
-          state = [
-            ...state,
-            ReadingSample(
-              timestamp: status.lastUpdated,
-              engineTemperature: status.temperatureData.engineTemperature,
-              batteryVoltage: status.batteryData.voltage,
-            ),
-          ];
-
-          if (state.length > maxSamples) {
-            state = state.sublist(state.length - maxSamples);
-          }
-        });
+        next.whenData(appendStatus);
       },
-      fireImmediately: true,
     );
+
+    final currentStatus = ref.read(deviceStatusProvider).value;
+    if (currentStatus != null && currentStatus.connected) {
+      return [
+        ReadingSample(
+          timestamp: currentStatus.lastUpdated,
+          engineTemperature: currentStatus.temperatureData.engineTemperature,
+          batteryVoltage: currentStatus.batteryData.voltage,
+        ),
+      ];
+    }
 
     return const <ReadingSample>[];
   }

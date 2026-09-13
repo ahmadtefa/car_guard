@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 
 /// Minimal four-reading dashboard presentation: the values are the visual
@@ -136,9 +136,24 @@ class BigNumbersCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final panelColor = theme.brightness == Brightness.dark
+        ? Color.alphaBlend(
+            Colors.white.withAlpha((255 * 0.06).round()),
+            colors.surface,
+          )
+        : colors.surfaceContainerLow;
 
     return Card(
-      color: theme.colorScheme.surfaceContainerLow,
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: panelColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.large,
+        side: BorderSide(
+          color: colors.outlineVariant.withAlpha((255 * 0.55).round()),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -150,29 +165,37 @@ class BigNumbersCard extends StatelessWidget {
             Text(
               label,
               style: theme.textTheme.labelLarge?.copyWith(
-                color: AppColors.textSecondary,
+                color: colors.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.displaySmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontSize: 46,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              unit,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: colors.onSurface,
+                      fontSize: 46,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  unit,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

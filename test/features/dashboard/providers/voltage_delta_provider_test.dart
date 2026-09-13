@@ -137,6 +137,30 @@ void main() {
     });
   });
 
+  test('history keeps a connected frame present before listener setup', () async {
+    final status = _historyStatus(
+      DateTime(2026, 1, 1, 10, 0, 0),
+      12.4,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        settingsProvider.overrideWith(() => _TestSettingsNotifier()),
+        deviceStatusProvider.overrideWith(
+          (ref) => Stream<DeviceStatus>.value(status),
+        ),
+      ],
+    );
+
+    addTearDown(container.dispose);
+
+    await container.read(settingsProvider.future);
+    container.read(deviceStatusProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(container.read(deviceStatusProvider).value, isNotNull);
+    expect(container.read(readingsHistoryProvider), hasLength(1));
+  });
+
   test('provider uses history when the module reports no delta', () async {
     final statuses = StreamController<DeviceStatus>.broadcast();
     final container = ProviderContainer(
