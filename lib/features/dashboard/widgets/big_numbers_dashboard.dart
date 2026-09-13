@@ -78,7 +78,10 @@ class BigNumbersDashboard extends StatelessWidget {
 class _BigNumbersRow extends StatelessWidget {
   const _BigNumbersRow({required this.first, required this.second});
 
-  static const double _minimumCardWidth = 150;
+  // Large numeric cards need a little more room than the ordinary gauge
+  // cards. Keep two columns only when both values can remain comfortably
+  // readable; otherwise stack the row before an overflow can occur.
+  static const double _minimumCardWidth = 170;
 
   final Widget first;
   final Widget second;
