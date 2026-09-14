@@ -40,6 +40,18 @@ DeviceStatus _connectedStatus() {
   );
 }
 
+DeviceStatus _connectedStatusWithVoltage(double voltage) {
+  return DeviceStatus(
+    connected: true,
+    deviceId: 'test-device',
+    batteryData: BatteryData(voltage: voltage),
+    temperatureData: const TemperatureData(engineTemperature: 82),
+    coolantLevelData: const CoolantLevelData(),
+    controlData: const DeviceControlData(),
+    lastUpdated: DateTime(2026, 1, 1),
+  );
+}
+
 Widget _probe(String key) {
   return SizedBox(
     key: ValueKey<String>(key),
@@ -222,9 +234,7 @@ void main() {
           settingsProvider.overrideWith(() => _TestSettingsNotifier()),
           deviceStatusProvider.overrideWith(
             (ref) => Stream<DeviceStatus>.value(
-              _connectedStatus().copyWith(
-                batteryData: const BatteryData(voltage: -12.6),
-              ),
+              _connectedStatusWithVoltage(-12.6),
             ),
           ),
         ],
