@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../providers/voltage_delta_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
 import 'base_dashboard_card.dart';
 import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
@@ -24,7 +24,8 @@ class VoltageDeltaCard extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
     // Keep the UI defensive even if an older provider instance is still
     // alive during a hot reload or settings migration.
-    final delta = ref.watch(voltageDeltaProvider)?.abs();
+    final delta =
+        ref.watch(deviceStatusProvider).value?.batteryData.voltage.abs();
 
     final String valueText;
     final String statusText;
