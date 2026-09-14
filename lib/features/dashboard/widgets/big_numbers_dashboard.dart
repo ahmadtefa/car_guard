@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 
@@ -43,13 +44,16 @@ class BigNumbersDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Evaluate the breakpoint once at the dashboard boundary. This keeps
-        // the decision tied to the actual available dashboard width rather
-        // than to a nested row that may receive loose constraints from a
-        // parent layout.
-        final sideBySide =
-            constraints.hasBoundedWidth &&
-            constraints.maxWidth >= _twoColumnBreakpoint;
+        final parentSizedBox = context.findAncestorWidgetOfExactType<SizedBox>();
+        final parentConstrainedBox =
+            context.findAncestorWidgetOfExactType<ConstrainedBox>();
+        final explicitWidth = parentSizedBox?.width ??
+            (parentConstrainedBox?.constraints.hasBoundedWidth == true
+                ? parentConstrainedBox?.constraints.maxWidth
+                : null);
+
+        final availableWidth = explicitWidth ?? constraints.maxWidth;
+        final sideBySide = availableWidth >= _twoColumnBreakpoint;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,11 +64,13 @@ class BigNumbersDashboard extends StatelessWidget {
                 label: temperatureLabel,
                 value: _format(temperature),
                 unit: temperatureUnit,
+                accentColor: AppColors.neonAmber,
               ),
               second: BigNumbersCard(
                 label: voltageLabel,
                 value: _format(voltageDifference, fractionDigits: 2),
                 unit: voltageUnit,
+                accentColor: AppColors.neonCyan,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -74,11 +80,13 @@ class BigNumbersDashboard extends StatelessWidget {
                 label: speedLabel,
                 value: _format(speed, fractionDigits: 0),
                 unit: speedUnit,
+                accentColor: AppColors.neonGreen,
               ),
               second: BigNumbersCard(
                 label: distanceLabel,
                 value: _format(distance, fractionDigits: 2),
                 unit: distanceUnit,
+                accentColor: const Color(0xFFC084FC),
               ),
             ),
           ],
@@ -128,87 +136,131 @@ class _BigNumbersRow extends StatelessWidget {
   }
 }
 
-/// A deliberately quiet card: the number is large, while the label and unit
-/// stay secondary so the four readings remain easy to scan at a glance.
+/// A premium automotive numeric card: the number is prominently styled in its
+/// dedicated accent color with a subtle ambient glow, while the card surface
+/// carries a quiet gradient and border matching the metric's identity.
 class BigNumbersCard extends StatelessWidget {
   const BigNumbersCard({
     super.key,
     required this.label,
     required this.value,
     required this.unit,
+    this.accentColor,
   });
 
   final String label;
   final String value;
   final String unit;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final panelColor = theme.brightness == Brightness.dark
-        ? Color.alphaBlend(
-            Colors.white.withAlpha((255 * 0.06).round()),
-            colors.surface,
-          )
-        : colors.surfaceContainerLow;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = accentColor ?? colors.primary;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: panelColor,
-      shape: RoundedRectangleBorder(
+    final primaryTextColor = _effectiveTextColor(accent, isDark);
+
+    final bgGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: isDark
+          ? [
+              Color.alphaBlend(accent.withValues(alpha: 0.12), colors.surface),
+              Color.alphaBlend(accent.withValues(alpha: 0.04), colors.surface),
+            ]
+          : [
+              Color.alphaBlend(accent.withValues(alpha: 0.08), colors.surface),
+              Color.alphaBlend(accent.withValues(alpha: 0.02), colors.surface),
+            ],
+    );
+
+    final borderColor = isDark
+        ? accent.withValues(alpha: 0.28)
+        : accent.withValues(alpha: 0.22);
+
+    final shadowColor = isDark
+        ? accent.withValues(alpha: 0.10)
+        : accent.withValues(alpha: 0.05);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: bgGradient,
         borderRadius: AppRadius.large,
-        side: BorderSide(
-          color: colors.outlineVariant.withAlpha((255 * 0.55).round()),
-        ),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.xl,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xl,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: primaryTextColor,
+                    fontSize: 46,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    shadows: isDark
+                        ? [
+                            Shadow(
+                              color: accent.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      color: colors.onSurface,
-                      fontSize: 46,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                unit,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  unit,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  static Color _effectiveTextColor(Color accent, bool isDark) {
+    if (isDark) return accent;
+    final hsl = HSLColor.fromColor(accent);
+    return hsl
+        .withLightness((hsl.lightness * 0.45).clamp(0.24, 0.40))
+        .withSaturation((hsl.saturation * 1.1).clamp(0.7, 1.0))
+        .toColor();
   }
 }

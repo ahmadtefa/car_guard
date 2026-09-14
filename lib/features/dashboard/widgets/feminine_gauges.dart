@@ -212,18 +212,32 @@ class _StyleGrid extends StatelessWidget {
             constraints.maxWidth >= _sideBySideBreakpoint;
 
         if (!sideBySide) {
+          if (hideSecondRow) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: first),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(child: second),
+              ],
+            );
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               first,
               const SizedBox(height: AppSpacing.md),
               second,
-              if (!hideSecondRow) ...[
-                const SizedBox(height: AppSpacing.md),
-                third,
-                const SizedBox(height: AppSpacing.md),
-                fourth,
-              ],
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: third),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(child: fourth),
+                ],
+              ),
             ],
           );
         }
@@ -321,10 +335,7 @@ class _RoseReading extends StatelessWidget {
           SizedBox(
             height: 58,
             child: CustomPaint(
-              painter: _RoseArcPainter(
-                progress: progress,
-                accent: accent,
-              ),
+              painter: _RoseArcPainter(progress: progress, accent: accent),
             ),
           ),
         ],
@@ -382,9 +393,7 @@ class _RoseTripReading extends StatelessWidget {
           const SizedBox(height: 10),
           SizedBox(
             height: 18,
-            child: CustomPaint(
-              painter: _RoseTripPainter(progress: progress),
-            ),
+            child: CustomPaint(painter: _RoseTripPainter(progress: progress)),
           ),
         ],
       ),
@@ -433,7 +442,10 @@ class _RoseArcPainter extends CustomPainter {
 
     final angle = start + sweep * progress.clamp(0.0, 1.0);
     canvas.drawCircle(
-      Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle)),
+      Offset(
+        center.dx + radius * math.cos(angle),
+        center.dy + radius * math.sin(angle),
+      ),
       5,
       Paint()..color = accent,
     );
@@ -472,7 +484,11 @@ class _RoseTripPainter extends CustomPainter {
 
     for (var i = 0; i < 5; i++) {
       final x = 2 + (size.width - 4) * i / 4;
-      canvas.drawCircle(Offset(x, y), 3, Paint()..color = const Color(0xFFF4B7C8));
+      canvas.drawCircle(
+        Offset(x, y),
+        3,
+        Paint()..color = const Color(0xFFF4B7C8),
+      );
     }
   }
 
@@ -649,7 +665,10 @@ class _LavenderGaugePainter extends CustomPainter {
 
     final angle = -math.pi / 2 + math.pi * 2 * progress.clamp(0.0, 1.0);
     canvas.drawCircle(
-      Offset(center.dx + outer * math.cos(angle), center.dy + outer * math.sin(angle)),
+      Offset(
+        center.dx + outer * math.cos(angle),
+        center.dy + outer * math.sin(angle),
+      ),
       5,
       Paint()..color = accent,
     );
@@ -678,9 +697,10 @@ class _LavenderPearlsPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         7,
-        Paint()..color = isActive
-            ? const Color(0xFFAD92E7)
-            : const Color(0xFFE3DAF4),
+        Paint()
+          ..color = isActive
+              ? const Color(0xFFAD92E7)
+              : const Color(0xFFE3DAF4),
       );
       if (isActive) {
         canvas.drawCircle(
@@ -740,10 +760,12 @@ class _FlamingoPrimaryVisual extends StatelessWidget {
               Positioned.fill(
                 child: CustomPaint(
                   painter: _FlamingoPainter(
-                    temperatureProgress:
-                        (temperature / 180).clamp(0.0, 1.0).toDouble(),
-                    voltageProgress:
-                        ((voltageDelta ?? 0) / 1.5).clamp(0.0, 1.0).toDouble(),
+                    temperatureProgress: (temperature / 180)
+                        .clamp(0.0, 1.0)
+                        .toDouble(),
+                    voltageProgress: ((voltageDelta ?? 0) / 1.5)
+                        .clamp(0.0, 1.0)
+                        .toDouble(),
                   ),
                 ),
               ),
@@ -945,7 +967,11 @@ class _FlamingoPainter extends CustomPainter {
       ..close();
     canvas.drawPath(beak, Paint()..color = const Color(0xFF24202E));
     canvas.drawCircle(const Offset(145, 29), 3, Paint()..color = Colors.white);
-    canvas.drawCircle(const Offset(145, 29), 1.5, Paint()..color = const Color(0xFF302033));
+    canvas.drawCircle(
+      const Offset(145, 29),
+      1.5,
+      Paint()..color = const Color(0xFF302033),
+    );
 
     final bodyRect = Rect.fromCenter(
       center: const Offset(250, 190),

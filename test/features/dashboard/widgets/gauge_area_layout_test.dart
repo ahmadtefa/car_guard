@@ -13,7 +13,6 @@ import 'package:car_guard/features/dashboard/widgets/gauge_area.dart';
 import 'package:car_guard/features/dashboard/widgets/voltage_delta_card.dart';
 import 'package:car_guard/features/settings/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,11 +24,7 @@ class _TestSettingsNotifier extends SettingsNotifier {
 class _TestTripNotifier extends TripNotifier {
   @override
   TripState build() {
-    return const TripState(
-      speedKmh: 42,
-      distanceKm: 1.25,
-      hasFix: true,
-    );
+    return const TripState(speedKmh: 42, distanceKm: 1.25, hasFix: true);
   }
 }
 
@@ -37,10 +32,7 @@ DeviceStatus _connectedStatus() {
   return DeviceStatus(
     connected: true,
     deviceId: 'test-device',
-    batteryData: const BatteryData(
-      voltage: 12.6,
-      voltageDifference: 0.37,
-    ),
+    batteryData: const BatteryData(voltage: 12.6, voltageDifference: 0.37),
     temperatureData: const TemperatureData(engineTemperature: 82),
     coolantLevelData: const CoolantLevelData(),
     controlData: const DeviceControlData(),
@@ -99,46 +91,55 @@ void main() {
       final errors = await _pumpPrimaryReadings(tester, 360);
 
       expect(errors, isEmpty);
-      final temperature =
-          tester.getRect(find.byKey(const ValueKey('temperature')));
-      final voltage =
-          tester.getRect(find.byKey(const ValueKey('voltage-difference')));
+      final temperature = tester.getRect(
+        find.byKey(const ValueKey('temperature')),
+      );
+      final voltage = tester.getRect(
+        find.byKey(const ValueKey('voltage-difference')),
+      );
 
       expect((temperature.top - voltage.top).abs(), lessThan(1));
       expect(voltage.left, greaterThan(temperature.right));
     },
   );
 
-  testWidgets('narrow width below the calculated breakpoint stacks readings',
-      (tester) async {
+  testWidgets('narrow width below the calculated breakpoint stacks readings', (
+    tester,
+  ) async {
     final errors = await _pumpPrimaryReadings(tester, 300);
 
     expect(errors, isEmpty);
-    final temperature =
-        tester.getRect(find.byKey(const ValueKey('temperature')));
-    final voltage =
-        tester.getRect(find.byKey(const ValueKey('voltage-difference')));
+    final temperature = tester.getRect(
+      find.byKey(const ValueKey('temperature')),
+    );
+    final voltage = tester.getRect(
+      find.byKey(const ValueKey('voltage-difference')),
+    );
 
     expect(voltage.top, greaterThanOrEqualTo(temperature.bottom));
     expect(voltage.left, closeTo(temperature.left, 0.1));
   });
 
-  testWidgets('landscape width remains side-by-side without overflow',
-      (tester) async {
+  testWidgets('landscape width remains side-by-side without overflow', (
+    tester,
+  ) async {
     final errors = await _pumpPrimaryReadings(tester, 800);
 
     expect(errors, isEmpty);
-    final temperature =
-        tester.getRect(find.byKey(const ValueKey('temperature')));
-    final voltage =
-        tester.getRect(find.byKey(const ValueKey('voltage-difference')));
+    final temperature = tester.getRect(
+      find.byKey(const ValueKey('temperature')),
+    );
+    final voltage = tester.getRect(
+      find.byKey(const ValueKey('voltage-difference')),
+    );
 
     expect((temperature.top - voltage.top).abs(), lessThan(1));
     expect(voltage.right, lessThanOrEqualTo(800));
   });
 
-  testWidgets('DashboardState receives the effective voltage difference',
-      (tester) async {
+  testWidgets('DashboardState receives the effective voltage difference', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -163,8 +164,9 @@ void main() {
     expect(find.text('0.37 V'), findsOneWidget);
   });
 
-  testWidgets('new feminine and Flamingo styles dispatch to real widgets',
-      (tester) async {
+  testWidgets('new feminine and Flamingo styles dispatch to real widgets', (
+    tester,
+  ) async {
     final styles = <(String, Type)>[
       ('rose', RoseDashboardStyle),
       ('lavender', LavenderDashboardStyle),
@@ -211,17 +213,16 @@ void main() {
     }
   });
 
-  testWidgets('Voltage Difference never displays a negative value',
-      (tester) async {
+  testWidgets('Voltage Difference never displays a negative value', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           settingsProvider.overrideWith(() => _TestSettingsNotifier()),
           voltageDeltaProvider.overrideWithValue(-0.37),
         ],
-        child: const MaterialApp(
-          home: VoltageDeltaCard(styleName: 'racing'),
-        ),
+        child: const MaterialApp(home: VoltageDeltaCard(styleName: 'racing')),
       ),
     );
     await tester.pump();
@@ -231,8 +232,9 @@ void main() {
     expect(find.text('-0.4 V'), findsNothing);
   });
 
-  testWidgets('existing dashboard styles keep their specialized gauges',
-      (tester) async {
+  testWidgets('existing dashboard styles keep their specialized gauges', (
+    tester,
+  ) async {
     final styles = <(String, Type)>[
       ('racing', RacingGauge),
       ('sporty', SportyGauge),
@@ -279,8 +281,9 @@ void main() {
     }
   });
 
-  testWidgets('Big Numbers displays all four readings in two rows',
-      (tester) async {
+  testWidgets('Big Numbers displays all four readings in two rows', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -415,12 +418,8 @@ void main() {
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
 
-      final temperatureRect = tester.getRect(
-        find.text('ENGINE TEMP').first,
-      );
-      final voltageRect = tester.getRect(
-        find.text('Voltage Difference').first,
-      );
+      final temperatureRect = tester.getRect(find.text('ENGINE TEMP').first);
+      final voltageRect = tester.getRect(find.text('Voltage Difference').first);
       final speedRect = tester.getRect(find.text('Vehicle speed'));
       final distanceRect = tester.getRect(find.text('Trip distance'));
 
@@ -428,6 +427,62 @@ void main() {
       expect(voltageRect.left, greaterThan(temperatureRect.right));
       expect((speedRect.top - distanceRect.top).abs(), lessThan(1));
       expect(speedRect.top, greaterThan(temperatureRect.bottom));
+    },
+  );
+
+  testWidgets(
+    'horizontal indicator styles stack temperature over voltage and keep speed and distance side by side',
+    (tester) async {
+      for (final style in ['led', 'needle']) {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsProvider.overrideWith(() => _TestSettingsNotifier()),
+              deviceStatusProvider.overrideWith(
+                (ref) => Stream<DeviceStatus>.value(_connectedStatus()),
+              ),
+              tripProvider.overrideWith(() => _TestTripNotifier()),
+            ],
+            child: MaterialApp(
+              home: SingleChildScrollView(
+                child: SizedBox(
+                  width: 800,
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      return buildGaugeArea(
+                        context,
+                        ref,
+                        settings: AppSettings(
+                          demoModeEnabled: true,
+                          dashboardStyleName: style,
+                        ),
+                        state: const DashboardState(),
+                        l: const AppL10n('en'),
+                        onOpenHud: (_) {},
+                        compact: true,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
+
+        final temperatureRect = tester.getRect(find.text('ENGINE TEMP').first);
+        final voltageRect = tester.getRect(
+          find.text('Voltage Difference').first,
+        );
+        final speedRect = tester.getRect(find.text('Vehicle speed'));
+        final distanceRect = tester.getRect(find.text('Trip distance'));
+
+        expect(voltageRect.top, greaterThan(temperatureRect.bottom));
+        expect((speedRect.top - distanceRect.top).abs(), lessThan(1));
+        expect(distanceRect.left, greaterThan(speedRect.right));
+        expect(speedRect.top, greaterThan(voltageRect.bottom));
+      }
     },
   );
 }

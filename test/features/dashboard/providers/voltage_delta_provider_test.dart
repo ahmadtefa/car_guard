@@ -154,10 +154,9 @@ void main() {
     addTearDown(container.dispose);
 
     await container.read(settingsProvider.future);
-    // Resolve the real StreamProvider state before creating the history
-    // listener. This exercises the lifecycle where a connected frame already
-    // exists and must be copied into the history's initial state.
-    await container.read(deviceStatusProvider.future);
+    final sub = container.listen(deviceStatusProvider, (_, _) {});
+    addTearDown(sub.close);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
 
     expect(container.read(deviceStatusProvider).value, isNotNull);
     expect(container.read(readingsHistoryProvider), hasLength(1));

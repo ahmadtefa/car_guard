@@ -12,10 +12,7 @@ import 'more_gauges.dart';
 /// Shows the non-negative voltage difference using the selected dashboard
 /// gauge style. Classic Cards keeps the original card and arc implementation.
 class VoltageDeltaCard extends ConsumerWidget {
-  const VoltageDeltaCard({
-    super.key,
-    this.styleName = 'cards',
-  });
+  const VoltageDeltaCard({super.key, this.styleName = 'cards'});
 
   /// Uses the same persisted dashboard style as the temperature gauge.
   final String styleName;
@@ -68,7 +65,7 @@ class VoltageDeltaCard extends ConsumerWidget {
 
     final reading = delta.abs();
     final percent = (reading / _gaugeScale).clamp(0.0, 1.0).toDouble();
-    final onTap = () {};
+    void onTap() {}
 
     switch (styleName) {
       case 'racing':

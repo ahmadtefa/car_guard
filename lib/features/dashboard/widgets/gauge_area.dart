@@ -37,9 +37,7 @@ Widget buildGaugeArea(
   final settingsReady = ref.watch(
     settingsProvider.select((value) => value.value != null),
   );
-  final device = settingsReady
-      ? ref.watch(deviceStatusProvider).value
-      : null;
+  final device = settingsReady ? ref.watch(deviceStatusProvider).value : null;
 
   final connected = device?.connected ?? false;
   final temperature = device?.temperatureData.engineTemperature ?? 0;
@@ -92,40 +90,40 @@ Widget buildGaugeArea(
 
     return switch (style) {
       'rose' => RoseDashboardStyle(
-          temperatureLabel: common.temperatureLabel,
-          voltageLabel: common.voltageLabel,
-          speedLabel: common.speedLabel,
-          distanceLabel: common.distanceLabel,
-          temperature: common.temperature,
-          voltageDelta: common.voltageDelta,
-          speed: common.speed,
-          distance: common.distance,
-          hasFix: common.hasFix,
-          onTemperatureTap: common.onTemperatureTap,
-        ),
+        temperatureLabel: common.temperatureLabel,
+        voltageLabel: common.voltageLabel,
+        speedLabel: common.speedLabel,
+        distanceLabel: common.distanceLabel,
+        temperature: common.temperature,
+        voltageDelta: common.voltageDelta,
+        speed: common.speed,
+        distance: common.distance,
+        hasFix: common.hasFix,
+        onTemperatureTap: common.onTemperatureTap,
+      ),
       'lavender' => LavenderDashboardStyle(
-          temperatureLabel: common.temperatureLabel,
-          voltageLabel: common.voltageLabel,
-          speedLabel: common.speedLabel,
-          distanceLabel: common.distanceLabel,
-          temperature: common.temperature,
-          voltageDelta: common.voltageDelta,
-          speed: common.speed,
-          distance: common.distance,
-          hasFix: common.hasFix,
-          onTemperatureTap: common.onTemperatureTap,
-        ),
+        temperatureLabel: common.temperatureLabel,
+        voltageLabel: common.voltageLabel,
+        speedLabel: common.speedLabel,
+        distanceLabel: common.distanceLabel,
+        temperature: common.temperature,
+        voltageDelta: common.voltageDelta,
+        speed: common.speed,
+        distance: common.distance,
+        hasFix: common.hasFix,
+        onTemperatureTap: common.onTemperatureTap,
+      ),
       _ => FlamingoDashboardStyle(
-          temperatureLabel: common.temperatureLabel,
-          voltageLabel: common.voltageLabel,
-          speedLabel: common.speedLabel,
-          distanceLabel: common.distanceLabel,
-          temperature: common.temperature,
-          voltageDelta: common.voltageDelta,
-          speed: common.speed,
-          distance: common.distance,
-          hasFix: common.hasFix,
-        ),
+        temperatureLabel: common.temperatureLabel,
+        voltageLabel: common.voltageLabel,
+        speedLabel: common.speedLabel,
+        distanceLabel: common.distanceLabel,
+        temperature: common.temperature,
+        voltageDelta: common.voltageDelta,
+        speed: common.speed,
+        distance: common.distance,
+        hasFix: common.hasFix,
+      ),
     };
   }
 
@@ -139,15 +137,22 @@ Widget buildGaugeArea(
     onOpenHud: onOpenHud,
   );
 
+  final isHorizontalIndicator = style == 'led' || style == 'needle';
+
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      ResponsivePrimaryReadings(
-        temperature: temperatureGauge,
-        voltageDifference: VoltageDeltaCard(
-          styleName: settings.dashboardStyleName,
+      if (isHorizontalIndicator) ...[
+        temperatureGauge,
+        const SizedBox(height: AppSpacing.md),
+        VoltageDeltaCard(styleName: settings.dashboardStyleName),
+      ] else
+        ResponsivePrimaryReadings(
+          temperature: temperatureGauge,
+          voltageDifference: VoltageDeltaCard(
+            styleName: settings.dashboardStyleName,
+          ),
         ),
-      ),
       const SizedBox(height: AppSpacing.md),
       TripCards(showControls: !compact),
     ],
@@ -203,8 +208,7 @@ class ResponsivePrimaryReadings extends StatelessWidget {
       builder: (context, constraints) {
         final sideBySide =
             constraints.hasBoundedWidth &&
-            constraints.maxWidth >=
-                minimumReadingWidth * 2 + AppSpacing.md;
+            constraints.maxWidth >= minimumReadingWidth * 2 + AppSpacing.md;
 
         if (!sideBySide) {
           return Column(
@@ -275,9 +279,7 @@ Widget _buildTemperatureGauge({
           AppColors.neonAmber,
           AppColors.neonRed,
         ],
-        accentColor: tempWarning
-            ? AppColors.neonRed
-            : AppColors.neonMagenta,
+        accentColor: tempWarning ? AppColors.neonRed : AppColors.neonMagenta,
         onTap: () => onOpenHud('temp'),
       );
 
@@ -336,9 +338,9 @@ class _UnavailableGaugeArea extends StatelessWidget {
         Text(
           l.realReadingsUnavailable,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.md),
         TripCards(showControls: !compact),
@@ -381,9 +383,9 @@ class _UnavailableGaugeCard extends StatelessWidget {
             Text(
               '-- $unit',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textSecondary,
-                  ),
+                fontWeight: FontWeight.w900,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
