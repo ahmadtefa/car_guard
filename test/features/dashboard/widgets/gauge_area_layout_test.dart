@@ -244,8 +244,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    expect(find.text('12.60 V'), findsOneWidget);
-    expect(find.text('-12.60 V'), findsNothing);
+    expect(find.text('12.6 V'), findsOneWidget);
+    expect(find.text('-12.6 V'), findsNothing);
   });
 
   testWidgets('existing dashboard styles keep their specialized gauges', (
@@ -343,7 +343,7 @@ void main() {
     expect(find.text('Vehicle speed'), findsOneWidget);
     expect(find.text('Trip distance'), findsOneWidget);
     expect(find.text('82'), findsOneWidget);
-    expect(find.text('12.6'), findsOneWidget);
+    expect(find.text('12.60'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
     expect(find.text('1.25'), findsOneWidget);
 
@@ -430,7 +430,7 @@ void main() {
 
       expect(find.text('ENGINE TEMP'), findsWidgets);
       expect(find.text('Voltage Difference'), findsWidgets);
-      expect(find.text('12.60 V'), findsOneWidget);
+      expect(find.text('12.6 V'), findsOneWidget);
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
 
