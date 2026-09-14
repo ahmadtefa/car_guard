@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../providers/battery_voltage_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
 import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
 import 'more_gauges.dart';
 
-/// Shows the non-negative battery voltage using the selected dashboard
+/// Shows the non-negative voltage difference using the selected dashboard
 /// gauge style. Classic Cards keeps the original card and arc implementation.
 class VoltageDeltaCard extends ConsumerWidget {
   const VoltageDeltaCard({super.key, this.styleName = 'cards'});
@@ -24,7 +24,7 @@ class VoltageDeltaCard extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
     // Keep the UI defensive even if an older provider instance is still
     // alive during a hot reload or settings migration.
-    final delta = ref.watch(batteryVoltageProvider)?.abs();
+    final delta = ref.watch(voltageDeltaProvider)?.abs();
 
     final String valueText;
     final String statusText;

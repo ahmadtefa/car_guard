@@ -9,7 +9,7 @@ import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/trip_provider.dart';
-import '../providers/battery_voltage_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'big_numbers_dashboard.dart';
 import 'dashboard_gauges.dart';
 import 'engine_temperature_card.dart';
@@ -46,7 +46,7 @@ Widget buildGaugeArea(
 
   if (settings.dashboardStyleName == 'big_numbers') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = ref.watch(batteryVoltageProvider);
+    final voltageDelta = ref.watch(voltageDeltaProvider);
 
     return BigNumbersDashboard(
       temperature: connected ? temperature : null,
@@ -74,7 +74,7 @@ Widget buildGaugeArea(
   final style = settings.dashboardStyleName;
   if (style == 'rose' || style == 'lavender' || style == 'flamingo') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = ref.watch(batteryVoltageProvider);
+    final voltageDelta = ref.watch(voltageDeltaProvider);
     final common = _FeminineDashboardData(
       temperatureLabel: l.engineTempLabel,
       voltageLabel: l.voltageDifference,
