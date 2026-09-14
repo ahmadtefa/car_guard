@@ -35,37 +35,55 @@ class BigNumbersDashboard extends StatelessWidget {
   final String speedUnit;
   final String distanceUnit;
 
+  // Two 170px cards plus the inter-card gap. Below this width, stacking keeps
+  // the 46px value typography readable without horizontal overflow.
+  static const double _twoColumnBreakpoint = 352;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _BigNumbersRow(
-          first: BigNumbersCard(
-            label: temperatureLabel,
-            value: _format(temperature),
-            unit: temperatureUnit,
-          ),
-          second: BigNumbersCard(
-            label: voltageLabel,
-            value: _format(voltageDifference, fractionDigits: 2),
-            unit: voltageUnit,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _BigNumbersRow(
-          first: BigNumbersCard(
-            label: speedLabel,
-            value: _format(speed, fractionDigits: 0),
-            unit: speedUnit,
-          ),
-          second: BigNumbersCard(
-            label: distanceLabel,
-            value: _format(distance, fractionDigits: 2),
-            unit: distanceUnit,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Evaluate the breakpoint once at the dashboard boundary. This keeps
+        // the decision tied to the actual available dashboard width rather
+        // than to a nested row that may receive loose constraints from a
+        // parent layout.
+        final sideBySide =
+            constraints.hasBoundedWidth &&
+            constraints.maxWidth >= _twoColumnBreakpoint;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _BigNumbersRow(
+              sideBySide: sideBySide,
+              first: BigNumbersCard(
+                label: temperatureLabel,
+                value: _format(temperature),
+                unit: temperatureUnit,
+              ),
+              second: BigNumbersCard(
+                label: voltageLabel,
+                value: _format(voltageDifference, fractionDigits: 2),
+                unit: voltageUnit,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _BigNumbersRow(
+              sideBySide: sideBySide,
+              first: BigNumbersCard(
+                label: speedLabel,
+                value: _format(speed, fractionDigits: 0),
+                unit: speedUnit,
+              ),
+              second: BigNumbersCard(
+                label: distanceLabel,
+                value: _format(distance, fractionDigits: 2),
+                unit: distanceUnit,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -76,45 +94,36 @@ class BigNumbersDashboard extends StatelessWidget {
 }
 
 class _BigNumbersRow extends StatelessWidget {
-  const _BigNumbersRow({required this.first, required this.second});
-
-  // Large numeric cards need a little more room than the ordinary gauge
-  // cards. Keep two columns only when both values can remain comfortably
-  // readable; otherwise stack the row before an overflow can occur.
-  static const double _minimumCardWidth = 170;
+  const _BigNumbersRow({
+    required this.first,
+    required this.second,
+    required this.sideBySide,
+  });
 
   final Widget first;
   final Widget second;
+  final bool sideBySide;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final sideBySide =
-            constraints.hasBoundedWidth &&
-            constraints.maxWidth >=
-                _minimumCardWidth * 2 + AppSpacing.md;
+    if (!sideBySide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          first,
+          const SizedBox(height: AppSpacing.md),
+          second,
+        ],
+      );
+    }
 
-        if (!sideBySide) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              first,
-              const SizedBox(height: AppSpacing.md),
-              second,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: first),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: second),
-          ],
-        );
-      },
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(child: second),
+      ],
     );
   }
 }
