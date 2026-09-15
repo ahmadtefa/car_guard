@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../../../core/providers/device_status_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'base_dashboard_card.dart';
 import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
 import 'more_gauges.dart';
+import 'premium_needle_gauge.dart';
 
 /// Shows the non-negative voltage difference using the selected dashboard
 /// gauge style. Classic Cards keeps the original card and arc implementation.
@@ -17,15 +18,12 @@ class VoltageDeltaCard extends ConsumerWidget {
   /// Uses the same persisted dashboard style as the temperature gauge.
   final String styleName;
 
-  static const double _gaugeScale = 1.5;
+  static const double _gaugeScale = 30.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-    // Keep the UI defensive even if an older provider instance is still
-    // alive during a hot reload or settings migration.
-    final delta =
-        ref.watch(deviceStatusProvider).value?.batteryData.voltage.abs();
+    final delta = ref.watch(voltageDeltaProvider)?.abs();
 
     final String valueText;
     final String statusText;
@@ -69,6 +67,15 @@ class VoltageDeltaCard extends ConsumerWidget {
     void onTap() {}
 
     switch (styleName) {
+      case 'premium':
+        return PremiumNeedleGauge(
+          title: l.voltageDifference,
+          value: reading,
+          unit: 'V',
+          min: 0,
+          max: 30,
+          onTap: onTap,
+        );
       case 'racing':
         return RacingGauge(
           label: l.voltageDifference,
@@ -151,6 +158,7 @@ class VoltageDeltaCard extends ConsumerWidget {
             warnValue: _gaugeScale,
             criticalValue: _gaugeScale,
             danger: false,
+            unit: 'V',
           ),
         ],
       ),

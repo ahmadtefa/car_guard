@@ -44,7 +44,10 @@ DeviceStatus _connectedStatusWithVoltage(double voltage) {
   return DeviceStatus(
     connected: true,
     deviceId: 'test-device',
-    batteryData: BatteryData(voltage: voltage),
+    batteryData: BatteryData(
+      voltage: voltage,
+      voltageDifference: voltage,
+    ),
     temperatureData: const TemperatureData(engineTemperature: 82),
     coolantLevelData: const CoolantLevelData(),
     controlData: const DeviceControlData(),
@@ -343,7 +346,7 @@ void main() {
     expect(find.text('Vehicle speed'), findsOneWidget);
     expect(find.text('Trip distance'), findsOneWidget);
     expect(find.text('82'), findsOneWidget);
-    expect(find.text('12.60'), findsOneWidget);
+    expect(find.text('0.37'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
     expect(find.text('1.25'), findsOneWidget);
 
@@ -430,7 +433,7 @@ void main() {
 
       expect(find.text('ENGINE TEMP'), findsWidgets);
       expect(find.text('Voltage Difference'), findsWidgets);
-      expect(find.text('12.6 V'), findsOneWidget);
+      expect(find.text('0.4 V'), findsOneWidget);
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
 

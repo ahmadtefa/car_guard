@@ -9,11 +9,13 @@ import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/trip_provider.dart';
+import '../providers/voltage_delta_provider.dart';
 import 'big_numbers_dashboard.dart';
 import 'dashboard_gauges.dart';
 import 'engine_temperature_card.dart';
 import 'feminine_gauges.dart';
 import 'more_gauges.dart';
+import 'premium_needle_gauge.dart';
 import 'trip_cards.dart';
 import 'voltage_delta_card.dart';
 
@@ -45,7 +47,7 @@ Widget buildGaugeArea(
 
   if (settings.dashboardStyleName == 'big_numbers') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = connected ? device?.batteryData.voltage : null;
+    final voltageDelta = ref.watch(voltageDeltaProvider);
 
     return BigNumbersDashboard(
       temperature: connected ? temperature : null,
@@ -245,6 +247,17 @@ Widget _buildTemperatureGauge({
   required void Function(String type) onOpenHud,
 }) {
   switch (settings.dashboardStyleName) {
+    case 'premium':
+      return PremiumNeedleGauge(
+        title: l.engineTempLabel,
+        value: temperature,
+        unit: '°C',
+        min: 0,
+        max: 180,
+        warning: tempWarning,
+        temperature: true,
+        onTap: () => onOpenHud('temp'),
+      );
     case 'racing':
       return RacingGauge(
         label: l.engineTempLabel,

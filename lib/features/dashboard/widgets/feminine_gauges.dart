@@ -763,7 +763,7 @@ class _FlamingoPrimaryVisual extends StatelessWidget {
                     temperatureProgress: (temperature / 180)
                         .clamp(0.0, 1.0)
                         .toDouble(),
-                    voltageProgress: ((voltageDelta ?? 0) / 1.5)
+                    voltageProgress: ((voltageDelta ?? 0) / 30.0)
                         .clamp(0.0, 1.0)
                         .toDouble(),
                   ),

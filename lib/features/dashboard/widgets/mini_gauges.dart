@@ -19,6 +19,7 @@ class MiniArcGauge extends StatefulWidget {
     required this.warnValue,
     required this.criticalValue,
     required this.danger,
+    this.unit = '',
   });
 
   /// Current reading; null keeps the track only (no needle/knob).
@@ -28,6 +29,7 @@ class MiniArcGauge extends StatefulWidget {
   final double warnValue;
   final double criticalValue;
   final bool danger;
+  final String unit;
 
   @override
   State<MiniArcGauge> createState() => _MiniArcGaugeState();
@@ -79,6 +81,7 @@ class _MiniArcGaugeState extends State<MiniArcGauge>
             criticalValue: widget.criticalValue,
             danger: widget.danger,
             pulse: widget.danger ? _pulse.value : 0,
+            unit: widget.unit,
           ),
         );
       },
@@ -95,6 +98,7 @@ class _ArcGaugePainter extends CustomPainter {
     required this.criticalValue,
     required this.danger,
     required this.pulse,
+    required this.unit,
   });
 
   final double? value;
@@ -104,6 +108,7 @@ class _ArcGaugePainter extends CustomPainter {
   final double criticalValue;
   final bool danger;
   final double pulse;
+  final String unit;
 
   static const double _stroke = 10;
 
@@ -157,7 +162,7 @@ class _ArcGaugePainter extends CustomPainter {
     zone(warnFraction, critFraction, AppColors.neonAmber);
     zone(critFraction, 1, AppColors.neonRed);
 
-    // Scale ticks + labels at 0 / 50 / 100 %.
+    // Scale ticks and labels use the actual min/max values.
     for (final fraction in const [0.0, 0.5, 1.0]) {
       final angle = startAngle + fraction * sweep;
 
@@ -181,7 +186,7 @@ class _ArcGaugePainter extends CustomPainter {
       final labelValue = (min + fraction * total).round();
       final tp = TextPainter(
         text: TextSpan(
-          text: '$labelValue',
+          text: unit.isEmpty ? '$labelValue' : '$labelValue $unit',
           style: TextStyle(
             color: Colors.white.withAlpha((255 * 0.4).round()),
             fontSize: 9,
