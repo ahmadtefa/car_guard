@@ -206,6 +206,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ('lavender', Icons.auto_awesome_outlined, l.styleLavender),
       ('flamingo', Icons.flutter_dash, l.styleFlamingo),
       ('big_numbers', Icons.format_size, l.styleBigNumbers),
+      ('premium', Icons.speed_outlined, 'Premium'),
     ];
 
     showModalBottomSheet<void>(
