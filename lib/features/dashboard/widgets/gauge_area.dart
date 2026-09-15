@@ -41,17 +41,18 @@ Widget buildGaugeArea(
   final device = settingsReady ? ref.watch(deviceStatusProvider).value : null;
 
   final connected = device?.connected ?? false;
+  final runtimeVoltageDelta = ref.watch(voltageDeltaProvider)?.abs();
   final temperature = device?.temperatureData.engineTemperature ?? 0;
   final tempPercent = (temperature / 180).clamp(0.0, 1.0);
   final tempWarning = connected && temperature >= settings.engineTempCritical;
 
   if (settings.dashboardStyleName == 'big_numbers') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = ref.watch(voltageDeltaProvider);
+    final voltageDelta = runtimeVoltageDelta;
 
     return BigNumbersDashboard(
       temperature: connected ? temperature : null,
-      voltageDifference: voltageDelta?.abs(),
+      voltageDifference: voltageDelta,
       speed: trip.hasFix ? trip.speedKmh : null,
       distance: trip.hasFix ? trip.distanceKm : null,
       temperatureLabel: l.engineTemperature,
@@ -75,7 +76,7 @@ Widget buildGaugeArea(
   final style = settings.dashboardStyleName;
   if (style == 'rose' || style == 'lavender' || style == 'flamingo') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = connected ? device?.batteryData.voltage : null;
+    final voltageDelta = runtimeVoltageDelta;
     final common = _FeminineDashboardData(
       temperatureLabel: l.engineTempLabel,
       voltageLabel: l.voltageDifference,
