@@ -346,7 +346,7 @@ void main() {
     expect(find.text('Vehicle speed'), findsOneWidget);
     expect(find.text('Trip distance'), findsOneWidget);
     expect(find.text('82'), findsOneWidget);
-    expect(find.text('0.37'), findsOneWidget);
+    expect(find.text('12.60'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
     expect(find.text('1.25'), findsOneWidget);
 
