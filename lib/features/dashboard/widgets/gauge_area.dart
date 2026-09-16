@@ -9,7 +9,6 @@ import '../../../core/providers/device_status_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/dashboard_state.dart';
 import '../providers/trip_provider.dart';
-import '../providers/voltage_delta_provider.dart';
 import 'big_numbers_dashboard.dart';
 import 'dashboard_gauges.dart';
 import 'engine_temperature_card.dart';
@@ -41,18 +40,20 @@ Widget buildGaugeArea(
   final device = settingsReady ? ref.watch(deviceStatusProvider).value : null;
 
   final connected = device?.connected ?? false;
-  final runtimeVoltageDelta = ref.watch(voltageDeltaProvider)?.abs();
+  // The newer full-width gauge styles display Battery Voltage.
+  final runtimeBatteryVoltage =
+      connected ? device?.batteryData.voltage : null;
   final temperature = device?.temperatureData.engineTemperature ?? 0;
   final tempPercent = (temperature / 180).clamp(0.0, 1.0);
   final tempWarning = connected && temperature >= settings.engineTempCritical;
 
   if (settings.dashboardStyleName == 'big_numbers') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = runtimeVoltageDelta;
+    final batteryVoltage = runtimeBatteryVoltage;
 
     return BigNumbersDashboard(
       temperature: connected ? temperature : null,
-      voltageDifference: voltageDelta,
+      voltageDifference: batteryVoltage,
       speed: trip.hasFix ? trip.speedKmh : null,
       distance: trip.hasFix ? trip.distanceKm : null,
       temperatureLabel: l.engineTemperature,
@@ -76,14 +77,14 @@ Widget buildGaugeArea(
   final style = settings.dashboardStyleName;
   if (style == 'rose' || style == 'lavender' || style == 'flamingo') {
     final trip = ref.watch(tripProvider);
-    final voltageDelta = runtimeVoltageDelta;
+    final batteryVoltage = runtimeBatteryVoltage;
     final common = _FeminineDashboardData(
       temperatureLabel: l.engineTempLabel,
       voltageLabel: l.voltageDifference,
       speedLabel: l.vehicleSpeed,
       distanceLabel: l.tripDistance,
       temperature: temperature,
-      voltageDelta: voltageDelta,
+      voltageDelta: batteryVoltage,
       speed: trip.speedKmh,
       distance: trip.distanceKm,
       hasFix: trip.hasFix,
