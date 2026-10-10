@@ -80,33 +80,39 @@ void main() {
       expect(restored.engineTempCritical, 110);
     });
 
-    test('available dashboard styles keep only supported dashboard styles', () {
-      expect(AppSettings.dashboardStyleNames, contains('racing'));
+    test('all dashboard styles are supported, persistable and reloadable', () {
+      expect(AppSettings.dashboardStyleNames.length, 15);
       expect(
         AppSettings.dashboardStyleNames,
         containsAll(<String>[
+          'cards',
+          'racing',
+          'sporty',
+          'segments',
+          'sweeper',
+          'ring',
+          'led',
+          'needle',
+          'orb',
+          'combo',
           'rose',
           'lavender',
           'flamingo',
           'big_numbers',
+          'premium',
         ]),
       );
-      expect(AppSettings.dashboardStyleNames, isNot(contains('cards')));
-      expect(AppSettings.dashboardStyleNames, isNot(contains('segments')));
-      expect(AppSettings.dashboardStyleNames, isNot(contains('orb')));
-      expect(AppSettings.dashboardStyleNames, isNot(contains('ring')));
-      expect(AppSettings.dashboardStyleNames, isNot(contains('combo')));
 
-      for (final style in const [
-        'rose',
-        'lavender',
-        'flamingo',
-        'big_numbers',
-      ]) {
+      for (final style in AppSettings.dashboardStyleNames) {
         final restored = AppSettings.fromJson(<String, dynamic>{
           'dashboardStyleName': style,
         });
         expect(restored.dashboardStyleName, style);
+
+        final roundTripped = AppSettings.fromRaw(
+          AppSettings(dashboardStyleName: style).encode(),
+        );
+        expect(roundTripped.dashboardStyleName, style);
       }
     });
 

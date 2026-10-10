@@ -1,0 +1,1699 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/constants/app_colors.dart';
+import '../../../core/l10n/app_l10n.dart';
+import '../../../core/models/app_settings.dart';
+import '../../settings/providers/settings_provider.dart';
+
+/// Item metadata for each of the 15 automotive dashboard styles.
+class StyleCardItem {
+  const StyleCardItem({
+    required this.id,
+    required this.category,
+    required this.badgeText,
+    required this.englishSubtitle,
+    required this.icon,
+  });
+
+  final String id;
+  final String category; // 'cockpit', 'scifi', 'luxury', 'minimal'
+  final String badgeText;
+  final String englishSubtitle;
+  final IconData icon;
+}
+
+/// The 15 existing dashboard styles defined in AppSettings.dashboardStyleNames.
+const List<StyleCardItem> kDashboardStyles = [
+  StyleCardItem(
+    id: 'cards',
+    category: 'cockpit',
+    badgeText: 'كلاسيك',
+    englishSubtitle: 'Classic Cards',
+    icon: Icons.dashboard_outlined,
+  ),
+  StyleCardItem(
+    id: 'racing',
+    category: 'cockpit',
+    badgeText: 'سباق',
+    englishSubtitle: 'Racing Track',
+    icon: Icons.speed,
+  ),
+  StyleCardItem(
+    id: 'sporty',
+    category: 'cockpit',
+    badgeText: 'تناظري',
+    englishSubtitle: 'Sporty Gauges',
+    icon: Icons.donut_large_outlined,
+  ),
+  StyleCardItem(
+    id: 'segments',
+    category: 'cockpit',
+    badgeText: 'أعمدة',
+    englishSubtitle: 'Segmented Columns',
+    icon: Icons.view_week_outlined,
+  ),
+  StyleCardItem(
+    id: 'sweeper',
+    category: 'cockpit',
+    badgeText: 'سويبر',
+    englishSubtitle: 'Audi Sweeper',
+    icon: Icons.linear_scale_outlined,
+  ),
+  StyleCardItem(
+    id: 'ring',
+    category: 'scifi',
+    badgeText: 'نيون',
+    englishSubtitle: 'Neon Ring',
+    icon: Icons.album_outlined,
+  ),
+  StyleCardItem(
+    id: 'led',
+    category: 'scifi',
+    badgeText: 'شريط',
+    englishSubtitle: 'LED Strip',
+    icon: Icons.lightbulb_outline,
+  ),
+  StyleCardItem(
+    id: 'needle',
+    category: 'scifi',
+    badgeText: 'إبرة VU',
+    englishSubtitle: 'Needle Meter',
+    icon: Icons.speed_outlined,
+  ),
+  StyleCardItem(
+    id: 'orb',
+    category: 'scifi',
+    badgeText: 'سائل',
+    englishSubtitle: 'Liquid Orb',
+    icon: Icons.water_drop_outlined,
+  ),
+  StyleCardItem(
+    id: 'combo',
+    category: 'scifi',
+    badgeText: 'كلستر',
+    englishSubtitle: 'Digital Cluster',
+    icon: Icons.data_usage_rounded,
+  ),
+  StyleCardItem(
+    id: 'rose',
+    category: 'luxury',
+    badgeText: 'وردي',
+    englishSubtitle: 'Rose Elegance',
+    icon: Icons.local_florist_outlined,
+  ),
+  StyleCardItem(
+    id: 'lavender',
+    category: 'luxury',
+    badgeText: 'لؤلؤ',
+    englishSubtitle: 'Lavender Pearl',
+    icon: Icons.auto_awesome_outlined,
+  ),
+  StyleCardItem(
+    id: 'flamingo',
+    category: 'luxury',
+    badgeText: 'فلامنجو',
+    englishSubtitle: 'Flamingo Neon',
+    icon: Icons.flutter_dash,
+  ),
+  StyleCardItem(
+    id: 'big_numbers',
+    category: 'minimal',
+    badgeText: 'أرقام',
+    englishSubtitle: 'HUD Numerical',
+    icon: Icons.format_size,
+  ),
+  StyleCardItem(
+    id: 'premium',
+    category: 'cockpit',
+    badgeText: 'فاخر',
+    englishSubtitle: 'Premium Chrono',
+    icon: Icons.speed_outlined,
+  ),
+];
+
+/// A modern, visual modal sheet for browsing, previewing and selecting from
+/// all 15 automotive dashboard styles, inspired by Google Stitch designs.
+class VisualStylePickerSheet extends ConsumerStatefulWidget {
+  const VisualStylePickerSheet({super.key});
+
+  @override
+  ConsumerState<VisualStylePickerSheet> createState() =>
+      _VisualStylePickerSheetState();
+}
+
+class _VisualStylePickerSheetState
+    extends ConsumerState<VisualStylePickerSheet> {
+  String _selectedCategory = 'all';
+
+  String _getStyleName(String id, AppL10n l) {
+    return switch (id) {
+      'cards' => l.styleCards,
+      'racing' => l.styleRacing,
+      'sporty' => l.styleSporty,
+      'segments' => l.styleSegments,
+      'sweeper' => l.styleSweeper,
+      'ring' => l.styleRing,
+      'led' => l.styleLed,
+      'needle' => l.styleNeedle,
+      'orb' => l.styleOrb,
+      'combo' => l.styleCombo,
+      'rose' => l.styleRose,
+      'lavender' => l.styleLavender,
+      'flamingo' => l.styleFlamingo,
+      'big_numbers' => l.styleBigNumbers,
+      'premium' => l.stylePremium,
+      _ => id,
+    };
+  }
+
+  List<StyleCardItem> _filteredStyles() {
+    if (_selectedCategory == 'all') return kDashboardStyles;
+    return kDashboardStyles
+        .where((s) => s.category == _selectedCategory)
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = ref.watch(l10nProvider);
+    final settings = ref.watch(settingsProvider).value ?? const AppSettings();
+    final activeStyleId = settings.dashboardStyleName;
+    final filtered = _filteredStyles();
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(
+          top: BorderSide(color: Color(0x3300D4FF), width: 1.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Drag handle & Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(50),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.neonCyan.withAlpha(30),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.palette_outlined,
+                          color: AppColors.neonCyan,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l.dashboardStyle,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              l.visualStylePickerSubtitle,
+                              style: const TextStyle(
+                                color: Color(0xFF8D90A0),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: l.close,
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF8D90A0),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Category Filter Carousel
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                children: [
+                  _CategoryChip(
+                    label: '${l.filterAll} (15)',
+                    isSelected: _selectedCategory == 'all',
+                    onTap: () => setState(() => _selectedCategory = 'all'),
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryChip(
+                    label: l.filterCockpit,
+                    isSelected: _selectedCategory == 'cockpit',
+                    onTap: () => setState(() => _selectedCategory = 'cockpit'),
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryChip(
+                    label: l.filterSciFi,
+                    isSelected: _selectedCategory == 'scifi',
+                    onTap: () => setState(() => _selectedCategory = 'scifi'),
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryChip(
+                    label: l.filterLuxury,
+                    isSelected: _selectedCategory == 'luxury',
+                    onTap: () => setState(() => _selectedCategory = 'luxury'),
+                  ),
+                  const SizedBox(width: 6),
+                  _CategoryChip(
+                    label: l.filterMinimal,
+                    isSelected: _selectedCategory == 'minimal',
+                    onTap: () => setState(() => _selectedCategory = 'minimal'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 2-Column Responsive Card Grid
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final int crossAxisCount;
+                  if (width < 310) {
+                    crossAxisCount = 1;
+                  } else if (width >= 620) {
+                    crossAxisCount = 3;
+                  } else {
+                    crossAxisCount = 2;
+                  }
+
+                  return GridView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      mainAxisExtent: 154,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      final isSelected = item.id == activeStyleId;
+                      final title = _getStyleName(item.id, l);
+
+                      return _StylePreviewCard(
+                        item: item,
+                        title: title,
+                        isSelected: isSelected,
+                        activeLabel: l.activeStyleBadge,
+                        onTap: () {
+                          ref.read(settingsProvider.notifier).save(
+                                settings.copyWith(dashboardStyleName: item.id),
+                              );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // Footer Action
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.check_rounded, size: 20),
+                label: Text(
+                  l.applyStyle,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.neonCyan.withAlpha(45)
+              : const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.neonCyan : Colors.white.withAlpha(18),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? AppColors.neonCyan : const Color(0xFFC3C6D7),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StylePreviewCard extends StatelessWidget {
+  const _StylePreviewCard({
+    required this.item,
+    required this.title,
+    required this.isSelected,
+    required this.activeLabel,
+    required this.onTap,
+  });
+
+  final StyleCardItem item;
+  final String title;
+  final bool isSelected;
+  final String activeLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF172033) : const Color(0xFF101726),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? AppColors.neonCyan : Colors.white.withAlpha(20),
+            width: isSelected ? 2.0 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.neonCyan.withAlpha(60),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        padding: const EdgeInsets.all(7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Micro-Gauge Visual Preview
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _StyleMicroPreview(styleId: item.id),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Title & Radio Check
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFFDAE2FD),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 16,
+                  color: isSelected
+                      ? AppColors.neonCyan
+                      : const Color(0xFF64748B),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            // Subtitle & Category Badge
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.englishSubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      color: Color(0xFF8D90A0),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4.5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.neonCyan.withAlpha(40)
+                        : const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    isSelected ? activeLabel : item.badgeText,
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? AppColors.neonCyan
+                          : const Color(0xFFC3C6D7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders a distinctive, lightweight miniature preview for each of the 15 styles.
+class _StyleMicroPreview extends StatelessWidget {
+  const _StyleMicroPreview({required this.styleId});
+
+  final String styleId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: switch (styleId) {
+        'rose' => const Color(0xFFFFF6F9),
+        'lavender' => const Color(0xFFF8F5FF),
+        'flamingo' => const Color(0xFF281428),
+        _ => const Color(0xFF060E20),
+      },
+      child: Center(
+        child: switch (styleId) {
+          'cards' => const _CardsMicroPreview(),
+          'racing' => const _CustomPaintPreview(painter: _RacingMicroPainter()),
+          'sporty' => const _CustomPaintPreview(painter: _SportyMicroPainter()),
+          'segments' => const _SegmentsMicroPreview(),
+          'sweeper' => const _CustomPaintPreview(painter: _SweeperMicroPainter()),
+          'ring' => const _CustomPaintPreview(painter: _RingMicroPainter()),
+          'led' => const _LedMicroPreview(),
+          'needle' => const _CustomPaintPreview(painter: _NeedleMicroPainter()),
+          'orb' => const _CustomPaintPreview(painter: _OrbMicroPainter()),
+          'combo' => const _CustomPaintPreview(painter: _ComboMicroPainter()),
+          'rose' => const _RoseMicroPreview(),
+          'lavender' => const _LavenderMicroPreview(),
+          'flamingo' => const _FlamingoMicroPreview(),
+          'big_numbers' => const _BigNumbersMicroPreview(),
+          'premium' => const _CustomPaintPreview(painter: _PremiumMicroPainter()),
+          _ => const Icon(Icons.speed, color: AppColors.neonCyan, size: 28),
+        },
+      ),
+    );
+  }
+}
+
+class _CustomPaintPreview extends StatelessWidget {
+  const _CustomPaintPreview({required this.painter});
+
+  final CustomPainter painter;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: double.infinity,
+      child: CustomPaint(painter: painter),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 15 Micro-Gauge Implementations
+// -----------------------------------------------------------------------------
+
+// 1. Cards
+class _CardsMicroPreview extends StatelessWidget {
+  const _CardsMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: const [
+              Text(
+                'COOLANT',
+                style: TextStyle(
+                  color: Color(0xFF8D90A0),
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Spacer(),
+              Text(
+                '91°C',
+                style: TextStyle(
+                  color: AppColors.neonGreen,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: const LinearProgressIndicator(
+              value: 0.65,
+              minHeight: 3.5,
+              backgroundColor: Color(0xFF1E293B),
+              valueColor: AlwaysStoppedAnimation(AppColors.neonCyan),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: const [
+              Text(
+                'BATT',
+                style: TextStyle(
+                  color: Color(0xFF8D90A0),
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Spacer(),
+              Text(
+                '14.2V',
+                style: TextStyle(
+                  color: AppColors.neonCyan,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: const LinearProgressIndicator(
+              value: 0.72,
+              minHeight: 3.5,
+              backgroundColor: Color(0xFF1E293B),
+              valueColor: AlwaysStoppedAnimation(AppColors.neonGreen),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 2. Racing
+class _RacingMicroPainter extends CustomPainter {
+  const _RacingMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height * 0.58;
+    final r = math.min(size.width * 0.38, size.height * 0.44);
+
+    const start = 150 * math.pi / 180;
+    const sweep = 240 * math.pi / 180;
+
+    final trackPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF1E293B);
+
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r),
+      start,
+      sweep,
+      false,
+      trackPaint,
+    );
+
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+    final activePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..shader = const LinearGradient(
+        colors: [AppColors.neonCyan, AppColors.neonMagenta],
+      ).createShader(rect);
+
+    canvas.drawArc(rect, start, sweep * 0.68, false, activePaint);
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°C',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 3. Sporty
+class _SportyMicroPainter extends CustomPainter {
+  const _SportyMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height;
+    final w = size.width;
+    final r = math.min(w * 0.22, h * 0.36);
+
+    void drawDial(double cx, double cy, double pct, bool hasRedline) {
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r,
+        Paint()..color = const Color(0xFF0B101D),
+      );
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = const Color(0xFF222A3D),
+      );
+
+      const start = -210 * math.pi / 180;
+      const range = 240 * math.pi / 180;
+
+      if (hasRedline) {
+        canvas.drawArc(
+          Rect.fromCircle(center: Offset(cx, cy), radius: r - 2),
+          start + range * 0.75,
+          range * 0.25,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = AppColors.neonRed.withAlpha(150),
+        );
+      }
+
+      final angle = start + pct * range;
+      canvas.drawLine(
+        Offset(cx, cy),
+        Offset(cx + (r - 3) * math.cos(angle), cy + (r - 3) * math.sin(angle)),
+        Paint()
+          ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.round
+          ..color = AppColors.neonRed,
+      );
+
+      canvas.drawCircle(
+        Offset(cx, cy),
+        2.5,
+        Paint()..color = const Color(0xFF1E293B),
+      );
+    }
+
+    drawDial(w * 0.30, h * 0.46, 0.62, true);
+    drawDial(w * 0.70, h * 0.46, 0.72, false);
+
+    final tp1 = TextPainter(
+      text: const TextSpan(
+        text: '91°',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8.5,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp1.paint(canvas, Offset(w * 0.30 - tp1.width / 2, h * 0.82));
+
+    final tp2 = TextPainter(
+      text: const TextSpan(
+        text: '14.2V',
+        style: TextStyle(
+          color: AppColors.neonCyan,
+          fontSize: 8.5,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp2.paint(canvas, Offset(w * 0.70 - tp2.width / 2, h * 0.82));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 4. Segments
+class _SegmentsMicroPreview extends StatelessWidget {
+  const _SegmentsMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildColumn(filled: 6, total: 8, label: '91°C'),
+          _buildColumn(filled: 7, total: 8, label: '14.2V'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColumn({
+    required int filled,
+    required int total,
+    required String label,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 22,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: const Color(0xFF131B2E),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            verticalDirection: VerticalDirection.up,
+            children: List.generate(total, (i) {
+              final active = i < filled;
+              final Color color;
+              if (i >= 6) {
+                color = AppColors.neonAmber;
+              } else if (i >= 4) {
+                color = AppColors.neonGreen;
+              } else {
+                color = AppColors.neonCyan;
+              }
+
+              return Container(
+                height: 3,
+                margin: const EdgeInsets.symmetric(vertical: 0.75),
+                decoration: BoxDecoration(
+                  color: active ? color : const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// 5. Sweeper
+class _SweeperMicroPainter extends CustomPainter {
+  const _SweeperMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final rect = Rect.fromLTWH(w * 0.1, h * 0.32, w * 0.8, h * 0.36);
+    final full = Path()
+      ..moveTo(rect.left, rect.bottom)
+      ..lineTo(rect.left + 8, rect.top)
+      ..lineTo(rect.right, rect.top)
+      ..lineTo(rect.right - 8, rect.bottom)
+      ..close();
+
+    canvas.drawPath(
+      full,
+      Paint()..color = const Color(0xFF1E293B),
+    );
+
+    final fillWidth = rect.left + rect.width * 0.68;
+    final fill = Path()
+      ..moveTo(rect.left, rect.bottom)
+      ..lineTo(rect.left + 8, rect.top)
+      ..lineTo(fillWidth, rect.top)
+      ..lineTo(fillWidth - 8, rect.bottom)
+      ..close();
+
+    canvas.save();
+    canvas.clipPath(fill);
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [
+            AppColors.neonCyan,
+            AppColors.neonAmber,
+            AppColors.neonRed,
+          ],
+        ).createShader(rect),
+    );
+    canvas.restore();
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°C',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(w * 0.5 - tp.width / 2, h * 0.75));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 6. Ring
+class _RingMicroPainter extends CustomPainter {
+  const _RingMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = math.min(size.width, size.height) * 0.34;
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+
+    const start = -math.pi / 2;
+    const sweep = math.pi * 2;
+
+    canvas.drawArc(
+      rect,
+      0,
+      sweep,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5
+        ..color = const Color(0xFF1E293B),
+    );
+
+    final gradient = const SweepGradient(
+      startAngle: start,
+      endAngle: start + sweep,
+      colors: [
+        AppColors.neonGreen,
+        AppColors.neonCyan,
+        AppColors.neonAmber,
+        AppColors.neonRed,
+      ],
+    );
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..shader = gradient.createShader(rect);
+
+    canvas.drawArc(rect, start, sweep * 0.65, false, paint);
+
+    final knobAngle = start + sweep * 0.65;
+    canvas.drawCircle(
+      Offset(cx + r * math.cos(knobAngle), cy + r * math.sin(knobAngle)),
+      2.5,
+      Paint()..color = Colors.white,
+    );
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 7. LED
+class _LedMicroPreview extends StatelessWidget {
+  const _LedMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: List.generate(12, (index) {
+              final lit = index < 8;
+              final Color color =
+                  index >= 9
+                      ? AppColors.neonRed
+                      : (index >= 7 ? AppColors.neonAmber : AppColors.neonGreen);
+
+              return Expanded(
+                child: Container(
+                  height: 10,
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    color: lit ? color : const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(1.5),
+                    boxShadow: lit
+                        ? [
+                            BoxShadow(
+                              color: color.withAlpha(100),
+                              blurRadius: 3,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text(
+                '91°C',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '14.2V',
+                style: TextStyle(
+                  color: AppColors.neonCyan,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 8. Needle
+class _NeedleMicroPainter extends CustomPainter {
+  const _NeedleMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final pivot = Offset(w / 2, h * 0.78);
+    final r = math.min(w * 0.42, h * 0.55);
+
+    const sweepDeg = 100.0;
+    final zoneRect = Rect.fromCircle(center: pivot, radius: r);
+
+    canvas.drawArc(
+      zoneRect,
+      (-sweepDeg / 2 - 90) * math.pi / 180,
+      sweepDeg * math.pi / 180,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..shader = const LinearGradient(
+          colors: [
+            AppColors.neonGreen,
+            AppColors.neonCyan,
+            AppColors.neonAmber,
+          ],
+        ).createShader(zoneRect),
+    );
+
+    // Ticks
+    for (var i = 0; i <= 6; i++) {
+      final deg = -sweepDeg / 2 + (i / 6) * sweepDeg;
+      final rad = (deg - 90) * math.pi / 180;
+      canvas.drawLine(
+        Offset(pivot.dx + (r - 2) * math.cos(rad), pivot.dy + (r - 2) * math.sin(rad)),
+        Offset(pivot.dx + (r + 2) * math.cos(rad), pivot.dy + (r + 2) * math.sin(rad)),
+        Paint()
+          ..strokeWidth = 1
+          ..color = Colors.white54,
+      );
+    }
+
+    // Needle
+    final needleDeg = -sweepDeg / 2 + 0.65 * sweepDeg;
+    final rad = (needleDeg - 90) * math.pi / 180;
+    canvas.drawLine(
+      pivot,
+      Offset(pivot.dx + (r - 3) * math.cos(rad), pivot.dy + (r - 3) * math.sin(rad)),
+      Paint()
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.neonRed,
+    );
+
+    canvas.drawCircle(pivot, 3, Paint()..color = const Color(0xFF1E293B));
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°C',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8.5,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(w / 2 - tp.width / 2, h * 0.84));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 9. Orb
+class _OrbMicroPainter extends CustomPainter {
+  const _OrbMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = math.min(size.width, size.height) * 0.35;
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+
+    // Glass outline
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = AppColors.neonCyan.withAlpha(180),
+    );
+
+    // Liquid
+    canvas.save();
+    canvas.clipPath(Path()..addOval(rect));
+
+    final surfaceY = cy + r * 0.1;
+    final wave = Path()
+      ..moveTo(cx - r, surfaceY)
+      ..cubicTo(
+        cx - r * 0.5,
+        surfaceY - 3,
+        cx,
+        surfaceY + 3,
+        cx + r * 0.5,
+        surfaceY,
+      )
+      ..lineTo(cx + r, surfaceY)
+      ..lineTo(cx + r, cy + r)
+      ..lineTo(cx - r, cy + r)
+      ..close();
+
+    canvas.drawPath(
+      wave,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x9900D4FF), Color(0xCC00FF88)],
+        ).createShader(rect),
+    );
+
+    // Bubbles
+    canvas.drawCircle(
+      Offset(cx - r * 0.3, cy + r * 0.4),
+      1.5,
+      Paint()..color = Colors.white70,
+    );
+    canvas.drawCircle(
+      Offset(cx + r * 0.25, cy + r * 0.3),
+      1.2,
+      Paint()..color = Colors.white70,
+    );
+
+    canvas.restore();
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 10. Combo
+class _ComboMicroPainter extends CustomPainter {
+  const _ComboMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height * 0.55;
+    final r = math.min(size.width * 0.38, size.height * 0.44);
+
+    const start = 140 * math.pi / 180;
+    const sweep = 260 * math.pi / 180;
+
+    // Track
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r),
+      start,
+      sweep,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = const Color(0xFF1E293B),
+    );
+
+    // Outer dots
+    const dots = 8;
+    for (var i = 0; i <= dots; i++) {
+      final f = i / dots;
+      final a = start + f * sweep;
+      final lit = f <= 0.68;
+      final pos = Offset(cx + r * math.cos(a), cy + r * math.sin(a));
+      canvas.drawCircle(
+        pos,
+        1.5,
+        Paint()
+          ..color = lit
+              ? (f > 0.8 ? AppColors.neonRed : AppColors.neonGreen)
+              : Colors.white24,
+      );
+    }
+
+    // Inner arc
+    final innerRect = Rect.fromCircle(center: Offset(cx, cy), radius: r - 5);
+    canvas.drawArc(
+      innerRect,
+      start,
+      sweep * 0.68,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round
+        ..shader = const LinearGradient(
+          colors: [AppColors.neonGreen, AppColors.neonCyan],
+        ).createShader(innerRect),
+    );
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2 + 1));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// 11. Rose
+class _RoseMicroPreview extends StatelessWidget {
+  const _RoseMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.local_florist, size: 14, color: Color(0xFFE56B91)),
+              SizedBox(width: 4),
+              Text(
+                '91.0 °C',
+                style: TextStyle(
+                  color: Color(0xFF4D2638),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Container(
+            width: 70,
+            height: 3.5,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD1E1),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: 0.65,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE56B91),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            '14.20 V',
+            style: TextStyle(
+              color: Color(0xFFB84F86),
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 12. Lavender
+class _LavenderMicroPreview extends StatelessWidget {
+  const _LavenderMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.auto_awesome, size: 13, color: Color(0xFFA889E8)),
+              SizedBox(width: 4),
+              Text(
+                '91.0 °C',
+                style: TextStyle(
+                  color: Color(0xFF3B2963),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(8, (i) {
+              final lit = i < 5;
+              return Container(
+                width: 4.5,
+                height: 4.5,
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: lit ? const Color(0xFFA889E8) : const Color(0xFFD6C8F5),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            '14.20 V',
+            style: TextStyle(
+              color: Color(0xFF8E72C8),
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 13. Flamingo
+class _FlamingoMicroPreview extends StatelessWidget {
+  const _FlamingoMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.flutter_dash, size: 14, color: Color(0xFFFF7FA8)),
+              SizedBox(width: 4),
+              Text(
+                '91.0 °C',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: 65,
+            height: 3,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4A2542),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: 0.65,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF5C91), Color(0xFFFF9FBD)],
+                  ),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            '14.20 V',
+            style: TextStyle(
+              color: Color(0xFFFFB5CA),
+              fontSize: 8.5,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 14. Big Numbers
+class _BigNumbersMicroPreview extends StatelessWidget {
+  const _BigNumbersMicroPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: const [
+              Text(
+                '91',
+                style: TextStyle(
+                  color: AppColors.neonAmber,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+              Text(
+                '°C',
+                style: TextStyle(
+                  color: Color(0xFF8D90A0),
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(width: 10),
+              Text(
+                '14.2',
+                style: TextStyle(
+                  color: AppColors.neonCyan,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+              Text(
+                'V',
+                style: TextStyle(
+                  color: Color(0xFF8D90A0),
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'HUD NUMERICAL',
+              style: TextStyle(
+                color: Color(0xFF8D90A0),
+                fontSize: 7.5,
+                letterSpacing: 0.8,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 15. Premium
+class _PremiumMicroPainter extends CustomPainter {
+  const _PremiumMicroPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height * 0.52;
+    final r = math.min(size.width, size.height) * 0.35;
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
+
+    // Bezel
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r + 2,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..shader = const LinearGradient(
+          colors: [Colors.white38, Colors.black87],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r + 2)),
+    );
+
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r,
+      Paint()..color = const Color(0xFF0D131D),
+    );
+
+    const start = 135 * math.pi / 180;
+    const sweep = 270 * math.pi / 180;
+
+    // Track
+    canvas.drawArc(
+      rect,
+      start,
+      sweep,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white12,
+    );
+
+    // Arc
+    canvas.drawArc(
+      rect,
+      start,
+      sweep * 0.65,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..shader = const LinearGradient(
+          colors: [AppColors.neonCyan, AppColors.neonAmber],
+        ).createShader(rect),
+    );
+
+    // Ticks
+    for (var i = 0; i <= 8; i++) {
+      final a = start + (i / 8) * sweep;
+      final p1 = Offset(cx + (r - 1) * math.cos(a), cy + (r - 1) * math.sin(a));
+      final p2 = Offset(cx + (r - 3) * math.cos(a), cy + (r - 3) * math.sin(a));
+      canvas.drawLine(
+        p1,
+        p2,
+        Paint()
+          ..strokeWidth = 1
+          ..color = Colors.white60,
+      );
+    }
+
+    // Needle
+    final needleAngle = start + sweep * 0.65;
+    canvas.drawLine(
+      Offset(cx, cy),
+      Offset(cx + (r - 2) * math.cos(needleAngle), cy + (r - 2) * math.sin(needleAngle)),
+      Paint()
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.neonCyan,
+    );
+
+    canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = Colors.white);
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '91°C',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8.5,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy + r * 0.45));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

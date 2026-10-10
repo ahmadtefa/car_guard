@@ -199,13 +199,25 @@ class AppL10n {
   String get styleSporty => isAr ? 'سبورت' : 'Sporty gauges';
   String get styleSegments => isAr ? 'أعمدة مجزأة' : 'Segmented columns';
   String get styleSweeper => isAr ? 'عداد أودي' : 'Audi sweeper';
+  String get styleRing => isAr ? 'نيون دائري' : 'Neon ring';
   String get styleLed => isAr ? 'شريط LED' : 'LED strip';
   String get styleNeedle => isAr ? 'عداد إبرة' : 'Needle meter';
   String get styleOrb => isAr ? 'كرة سائلة' : 'Liquid orb';
+  String get styleCombo => isAr ? 'كلستر رقمي' : 'Digital cluster';
   String get styleRose => isAr ? 'أناقة وردية' : 'Rose elegance';
   String get styleLavender => isAr ? 'لؤلؤة لافندر' : 'Lavender pearl';
   String get styleFlamingo => isAr ? 'فلامنجو' : 'Flamingo';
   String get styleBigNumbers => isAr ? 'أرقام كبيرة' : 'Big Numbers';
+  String get stylePremium => isAr ? 'بريميوم' : 'Premium';
+  String get visualStylePickerSubtitle =>
+      isAr ? '15 نمطاً مخصصاً للمقصورة' : '15 custom cockpit skins';
+  String get activeStyleBadge => isAr ? 'النشط' : 'Active';
+  String get applyStyle => isAr ? 'تطبيق النمط' : 'Apply Style';
+  String get filterAll => isAr ? 'الكل' : 'All';
+  String get filterCockpit => isAr ? 'رياضي' : 'Cockpit';
+  String get filterSciFi => isAr ? 'رقمي' : 'Sci-Fi';
+  String get filterLuxury => isAr ? 'فخامة' : 'Luxury';
+  String get filterMinimal => isAr ? 'أرقام' : 'Minimal';
 
   // ---------- Device controls ----------
   String get deviceControls => isAr ? 'تحكم في الجهاز' : 'Device Controls';

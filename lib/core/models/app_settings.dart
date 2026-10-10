@@ -33,11 +33,16 @@ class AppSettings {
 
   /// Dashboard gauge styles accepted by [dashboardStyleName].
   static const List<String> dashboardStyleNames = [
+    'cards',
     'racing',
     'sporty',
+    'segments',
     'sweeper',
+    'ring',
     'led',
     'needle',
+    'orb',
+    'combo',
     'rose',
     'lavender',
     'flamingo',

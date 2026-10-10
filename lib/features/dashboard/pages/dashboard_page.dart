@@ -28,6 +28,7 @@ import '../widgets/gauge_area.dart';
 import '../widgets/module_limits_card.dart';
 import '../widgets/reading_chart_card.dart';
 import '../widgets/system_status_card.dart';
+import '../widgets/visual_style_picker_sheet.dart';
 
 /// Full-screen dashboard.
 ///
@@ -192,65 +193,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _showStylePicker() {
-    final l = ref.read(l10nProvider);
-
-    final settings = ref.read(settingsProvider).value ?? const AppSettings();
-
-    final options = <(String, IconData, String)>[
-      ('racing', Icons.speed, l.styleRacing),
-      ('sporty', Icons.donut_large_outlined, l.styleSporty),
-      ('sweeper', Icons.linear_scale_outlined, l.styleSweeper),
-      ('led', Icons.lightbulb_outline, l.styleLed),
-      ('needle', Icons.speed_outlined, l.styleNeedle),
-      ('rose', Icons.local_florist_outlined, l.styleRose),
-      ('lavender', Icons.auto_awesome_outlined, l.styleLavender),
-      ('flamingo', Icons.flutter_dash, l.styleFlamingo),
-      ('big_numbers', Icons.format_size, l.styleBigNumbers),
-      ('premium', Icons.speed_outlined, 'Premium'),
-    ];
-
     showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Text(
-                  l.dashboardStyle,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              for (final (name, icon, label) in options)
-                ListTile(
-                  leading: Icon(icon),
-                  title: Text(label),
-                  trailing:
-                      settings.dashboardStyleName == name
-                      ? const Icon(Icons.check_circle)
-                      : null,
-                  onTap: () {
-                    ref
-                        .read(settingsProvider.notifier)
-                        .save(
-                          (ref.read(settingsProvider).value ??
-                                  const AppSettings())
-                              .copyWith(dashboardStyleName: name),
-                        );
-
-                    Navigator.of(sheetContext).pop();
-                  },
-                ),
-            ],
-          ),
-        );
-      },
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const VisualStylePickerSheet(),
     );
   }
 
