@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,400;0,500;0,600;1,400&amp;family=Space+Grotesk:wght@600;700&amp;family=Space+Mono:ital,wght@0,400;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "secondary": "#a2e7ff", "on-primary-container": "#eeefff", "on-primary-fixed": "#00174b", "background": "#0b1326", "on-surface": "#dae2fd", "on-background": "#dae2fd", "on-error": "#690005", "on-secondary": "#003642", "tertiary-fixed-dim": "#00e479", "on-secondary-fixed-variant": "#004e5f", "on-tertiary-fixed-variant": "#005228", "surface-container-high": "#222a3d", "surface-container-lowest": "#060e20", "surface": "#0b1326", "error": "#ffb4ab", "primary-fixed": "#dbe1ff", "surface-tint": "#b4c5ff", "on-secondary-fixed": "#001f27", "tertiary-fixed": "#60ff99", "on-tertiary": "#003919", "surface-container": "#171f33", "tertiary": "#00e479", "on-error-container": "#ffdad6", "surface-dim": "#0b1326", "inverse-primary": "#0053db", "primary": "#b4c5ff", "on-secondary-container": "#005669", "secondary-container": "#00d2fd", "secondary-fixed-dim": "#3cd7ff", "surface-bright": "#31394d", "on-tertiary-container": "#c1ffcc", "surface-container-low": "#131b2e", "on-tertiary-fixed": "#00210c", "outline": "#8d90a0", "inverse-on-surface": "#283044", "primary-container": "#2563eb", "surface-container-highest": "#2d3449", "tertiary-container": "#007e40", "on-primary-fixed-variant": "#003ea8", "on-surface-variant": "#c3c6d7", "inverse-surface": "#dae2fd", "primary-fixed-dim": "#b4c5ff", "outline-variant": "#434655", "secondary-fixed": "#b4ebff", "on-primary": "#002a78", "surface-variant": "#2d3449", "error-container": "#93000a" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-md": "0.75rem", "gutter-tablet": "1.5rem", "space-xs": "0.25rem", "margin": "1rem", "gutter-desktop": "2rem", "margin-desktop": "2rem", "space-lg": "1rem", "space-sm": "0.5rem", "space-xl": "1.5rem", "space-2xl": "2rem", "margin-tablet": "1.5rem" }, "fontFamily": { "body-md": ["Chivo"], "headline-sm": ["Space Grotesk"], "headline-md": ["Space Grotesk"], "label-caps": ["Space Mono"], "metric-lg": ["Space Mono"], "body-lg": ["Chivo"], "display-hud-mobile": ["Space Mono"], "metric-md": ["Space Mono"], "label-sm": ["Chivo"], "display-hud": ["Space Mono"], "headline-lg": ["Space Grotesk"], "headline-lg-mobile": ["Space Grotesk"] }, "fontSize": { "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "metric-lg": ["28px", { "lineHeight": "32px", "fontWeight": "700" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "500" }], "display-hud-mobile": ["38px", { "lineHeight": "44px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "metric-md": ["20px", { "lineHeight": "24px", "fontWeight": "700" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" }], "display-hud": ["56px", { "lineHeight": "64px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-lg-mobile": ["26px", { "lineHeight": "32px", "fontWeight": "700" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.4)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><img alt="Car Guard Shield Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1X39g2dzlvtNasVO_W2cqSzmU7PLSntn3-spsaIwfCWZLp5ZVkqKQER5yUUilgujfpHZAXFhYotyyRqY5Xu7YffNY-QhvBPJsKPK8VFy5QEWaZbb2dN3HCbzQXY2K8gPUGvxhT7axlnN8TL_g3Yu9IGJzMUIsvysdoHem0mgekR2qzkNsW26pMcgVvSvfTU0fyzyX5KP4pQwpWUUZa-7PVEO4JxMyYZZgFGdTBbqZ7vJK3f248MSPLNQ_A"/><div class="flex flex-col min-w-0"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm tracking-tight text-on-surface truncate">Car Guard</span><span class="font-label-caps text-label-caps text-secondary-container uppercase tracking-wider hidden sm:inline">Telemetry</span></div><div class="flex items-center gap-space-xs"><span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span><span class="font-label-caps text-label-caps text-tertiary truncate">Wi-Fi 24ms • 192.168.4.1</span></div></div></div><div class="flex items-center gap-space-sm flex-shrink-0"><button aria-label="Toggle Language" class="min-h-[44px] min-w-[44px] px-space-sm rounded-full bg-surface-container-high/80 text-secondary hover:text-on-surface flex items-center justify-center font-label-caps text-label-caps transition-colors" type="button"><span class="text-xs font-bold">EN</span><span class="text-outline text-xs mx-0.5">/</span><span class="text-xs text-on-surface-variant">عربي</span></button><div class="flex items-center justify-center min-w-[44px] min-h-[44px]"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmZ1lQZpTkr8ilUcCpwCss4wLms95XRYNzaw9MmMuK7Mr3JzEA_smUw18Hlu1bmm9h_xByhIwHu7l30y_JUaKfaZzJEb900veEwmLQDq_6o8ary_dd1OHHko_qhD6XXyfPnfbXgHNK4rKuJ2tp8HzVRMoH6xVGlMbwWdMTejor3hPKrKM8Q-5a5-jbqGm4Sz4KcL-uxau0UwEuuM2DY1__5U1_TUChvM9sOfhGXlfVVz7poVCRAzyR"/></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-20 bg-surface min-h-screen"><div class="flex flex-col w-full px-margin pb-24 text-on-surface">
+<!-- Top Bar / Modal Title Area -->
+<div class="flex flex-col gap-space-sm pt-space-md pb-space-lg">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<button aria-label="Close" class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-secondary hover:bg-surface-container-high transition-colors active:scale-95" id="close-modal-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm tracking-tight text-on-surface">شكل الداشبورد</span>
+<span class="font-label-caps text-label-caps text-secondary-container tracking-wider">SKINS</span>
+</div>
+<p class="font-body-md text-label-sm text-on-surface-variant">15 نمطاً مخصصاً للمقصورة الرياضية والرقمية (15 Cockpit Skins)</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container-low text-tertiary">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<span class="font-label-caps text-label-caps">LIVE 10Hz</span>
+</div>
+</div>
+<!-- Category Filter Carousel / Row -->
+<div class="flex items-center gap-space-sm overflow-x-auto no-scrollbar py-space-xs mt-space-xs">
+<button class="filter-pill active min-h-[38px] px-space-md rounded-full bg-primary-container text-on-primary-container font-label-caps text-label-caps whitespace-nowrap shadow-md transition-all active:scale-95" data-filter="all">
+        الكل (All) • 15
+      </button>
+<button class="filter-pill min-h-[38px] px-space-md rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-label-caps text-label-caps whitespace-nowrap transition-all active:scale-95" data-filter="cockpit">
+        رياضي (Cockpit)
+      </button>
+<button class="filter-pill min-h-[38px] px-space-md rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-label-caps text-label-caps whitespace-nowrap transition-all active:scale-95" data-filter="scifi">
+        مستقبلي (Sci-Fi/EV)
+      </button>
+<button class="filter-pill min-h-[38px] px-space-md rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-label-caps text-label-caps whitespace-nowrap transition-all active:scale-95" data-filter="luxury">
+        فخامة (Luxury)
+      </button>
+<button class="filter-pill min-h-[38px] px-space-md rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-label-caps text-label-caps whitespace-nowrap transition-all active:scale-95" data-filter="minimal">
+        مينيمال (Minimal)
+      </button>
+</div>
+</div>
+<!-- 2-Column Responsive Card Grid (15 Automotive Styles) -->
+<div class="grid grid-cols-2 gap-space-md w-full" id="skins-grid">
+<!-- Card 01: Classic Cards -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="cockpit" data-id="01" data-name="كروت كلاسيكية • Classic Cards">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex flex-col justify-between p-2 shadow-inner">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-sm">COOLANT</span>
+<span class="font-label-caps text-label-sm text-tertiary">91°C</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary-container h-full w-[65%]"></div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-sm">BATT</span>
+<span class="font-label-caps text-label-sm text-secondary">14.2V</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">01. كروت كلاسيكية</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Classic Cards</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">كلاسيك</span>
+</div>
+</div>
+<!-- Card 02: Racing -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="cockpit" data-id="02" data-name="ريسينغ سباق • Racing Track">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<svg class="w-full h-full" viewbox="0 0 120 70">
+<path class="text-surface-container-high" d="M 15 60 A 45 45 0 0 1 105 60" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="8"></path>
+<path class="text-tertiary" d="M 15 60 A 45 45 0 0 1 85 22" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="8"></path>
+<text class="fill-current text-on-surface font-headline-sm text-[16px] font-bold" text-anchor="middle" x="60" y="52">91°C</text>
+<text class="fill-current text-secondary font-label-caps text-[8px]" text-anchor="middle" x="60" y="65">14.2 VOLTS</text>
+</svg>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">02. ريسينغ سباق</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Racing Track</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-tertiary font-label-caps text-[10px]">رياضي حاد</span>
+</div>
+</div>
+<!-- Card 03: Sporty Gauges (Initially Selected) -->
+<div class="skin-card selected group relative flex flex-col rounded-xl bg-surface-container-high p-space-sm cursor-pointer transition-all duration-200 select-none shadow-[0_0_16px_rgba(0,210,253,0.25)]" data-cat="cockpit" data-id="03" data-name="سبورت تناظري • Sporty Gauges">
+<div class="absolute -top-2 right-2 bg-secondary-container text-on-secondary-fixed font-label-caps text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md z-10">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+<span>النشط • Active</span>
+</div>
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-around p-1 shadow-inner">
+<!-- Dual Twin Micro-Gauges -->
+<div class="relative w-11 h-11 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<circle class="text-surface-container-high" cx="18" cy="18" fill="none" r="14" stroke="currentColor" stroke-width="3"></circle>
+<circle class="text-secondary-container" cx="18" cy="18" fill="none" r="14" stroke="currentColor" stroke-dasharray="88" stroke-dashoffset="30" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<span class="absolute font-label-caps text-[9px] font-bold text-secondary">91°</span>
+</div>
+<div class="relative w-11 h-11 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<circle class="text-surface-container-high" cx="18" cy="18" fill="none" r="14" stroke="currentColor" stroke-width="3"></circle>
+<circle class="text-tertiary" cx="18" cy="18" fill="none" r="14" stroke="currentColor" stroke-dasharray="88" stroke-dashoffset="24" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<span class="absolute font-label-caps text-[9px] font-bold text-tertiary">14.2</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate text-secondary">03. سبورت تناظري</span>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-fixed flex items-center justify-center skin-radio">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Sporty Gauges</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-highest text-secondary-container font-label-caps text-[10px]">مزدوج تناظري</span>
+</div>
+</div>
+<!-- Card 04: Segmented Columns -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="scifi" data-id="04" data-name="أعمدة متدرجة • Segmented Columns">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-end justify-center gap-3 p-3 shadow-inner">
+<!-- Vertical Bar 1 -->
+<div class="flex flex-col gap-1 items-center">
+<div class="flex flex-col gap-1">
+<div class="w-4 h-1.5 rounded-xs bg-error"></div>
+<div class="w-4 h-1.5 rounded-xs bg-secondary-container"></div>
+<div class="w-4 h-1.5 rounded-xs bg-secondary-container"></div>
+<div class="w-4 h-1.5 rounded-xs bg-secondary-container"></div>
+<div class="w-4 h-1.5 rounded-xs bg-surface-container-high"></div>
+</div>
+<span class="font-label-caps text-[8px] text-on-surface-variant">TEMP</span>
+</div>
+<!-- Vertical Bar 2 -->
+<div class="flex flex-col gap-1 items-center">
+<div class="flex flex-col gap-1">
+<div class="w-4 h-1.5 rounded-xs bg-tertiary"></div>
+<div class="w-4 h-1.5 rounded-xs bg-tertiary"></div>
+<div class="w-4 h-1.5 rounded-xs bg-tertiary"></div>
+<div class="w-4 h-1.5 rounded-xs bg-surface-container-high"></div>
+<div class="w-4 h-1.5 rounded-xs bg-surface-container-high"></div>
+</div>
+<span class="font-label-caps text-[8px] text-on-surface-variant">BATT</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">04. أعمدة متدرجة</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Segmented Columns</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">مصفوفة ليد</span>
+</div>
+</div>
+<!-- Card 05: Audi Sweeper -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="cockpit" data-id="05" data-name="سويبر أودي • Audi Sweeper">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex flex-col justify-center px-3 shadow-inner">
+<div class="flex justify-between items-center mb-1">
+<span class="font-label-caps text-[10px] text-secondary">DYNAMIC SWEEP</span>
+<span class="font-label-caps text-[10px] text-on-surface font-bold">14.2 V</span>
+</div>
+<div class="relative w-full h-3 bg-surface-container-high rounded-full overflow-hidden skew-x-[-15deg]">
+<div class="h-full bg-gradient-to-r from-secondary-container via-primary to-tertiary w-[75%] rounded-full"></div>
+</div>
+<span class="font-headline-sm text-[12px] font-bold text-on-surface mt-1">91°C NOMINAL</span>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">05. سويبر أودي</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Audi Sweeper</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">سباق مائل</span>
+</div>
+</div>
+<!-- Card 06: Neon Ring -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="scifi" data-id="06" data-name="حلقة نيون • Neon Ring">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<div class="relative w-16 h-16 rounded-full flex items-center justify-center shadow-[0_0_14px_rgba(0,228,121,0.35)]">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 44 44">
+<circle class="text-surface-container-high" cx="22" cy="22" fill="none" r="18" stroke="currentColor" stroke-width="3"></circle>
+<circle class="text-tertiary" cx="22" cy="22" fill="none" r="18" stroke="currentColor" stroke-dasharray="113" stroke-dashoffset="35" stroke-linecap="round" stroke-width="3.5"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="font-headline-sm text-[12px] font-bold text-tertiary">91°C</span>
+<span class="font-label-caps text-[7px] text-on-surface-variant">14.2V</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">06. حلقة نيون</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Neon Ring</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-tertiary font-label-caps text-[10px]">توهج خيالي</span>
+</div>
+</div>
+<!-- Card 07: LED Strip -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="scifi" data-id="07" data-name="شريط ليد • LED Strip">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex flex-col justify-center gap-2 p-3 shadow-inner">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="w-2 h-2 rounded-full bg-secondary-container"></span>
+<span class="w-2 h-2 rounded-full bg-secondary-container"></span>
+<span class="w-2 h-2 rounded-full bg-surface-container-high"></span>
+</div>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-[12px] font-bold text-on-surface">LED MATRIX</span>
+<span class="font-label-caps text-[10px] text-tertiary font-bold">14.2V</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">07. شريط ليد</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">LED Strip</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">دايودات</span>
+</div>
+</div>
+<!-- Card 08: Needle Meter -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="cockpit" data-id="08" data-name="مؤشر الإبرة • Needle Meter">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<svg class="w-full h-full" viewbox="0 0 100 60">
+<path class="text-surface-container-high" d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="currentColor" stroke-width="4"></path>
+<!-- Dial tick marks -->
+<line class="text-on-surface-variant" stroke="currentColor" stroke-width="1.5" x1="20" x2="25" y1="45" y2="42"></line>
+<line class="text-on-surface-variant" stroke="currentColor" stroke-width="1.5" x1="50" x2="50" y1="12" y2="18"></line>
+<line class="text-on-surface-variant" stroke="currentColor" stroke-width="1.5" x1="80" x2="75" y1="45" y2="42"></line>
+<!-- Dynamic Orange Needle -->
+<line class="text-secondary-container" stroke="currentColor" stroke-linecap="round" stroke-width="2.5" x1="50" x2="68" y1="50" y2="22"></line>
+<circle class="text-secondary" cx="50" cy="50" fill="currentColor" r="4"></circle>
+</svg>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">08. مؤشر الإبرة</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Needle Meter</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">ميكانيكي دقيق</span>
+</div>
+</div>
+<!-- Card 09: Liquid Orb -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="scifi" data-id="09" data-name="الجرم السائل • Liquid Orb">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<div class="relative w-14 h-14 rounded-full bg-surface-container-high overflow-hidden flex items-center justify-center">
+<div class="absolute bottom-0 w-full h-[65%] bg-gradient-to-t from-primary-container to-secondary-container opacity-80 rounded-t-lg"></div>
+<span class="relative font-headline-sm text-[12px] font-bold text-on-surface z-10">91°C</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">09. الجرم السائل</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Liquid Orb</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-secondary font-label-caps text-[10px]">مستقبلي</span>
+</div>
+</div>
+<!-- Card 10: Digital Cluster -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="minimal" data-id="10" data-name="كلاستر رقمي • Digital Cluster">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex flex-col justify-center items-center p-2 shadow-inner">
+<span class="font-metric-lg text-metric-lg text-secondary font-bold tracking-widest">91.4</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-label-caps text-[10px] text-tertiary">14.2V</span>
+<span class="font-label-caps text-[10px] text-on-surface-variant">NORMAL</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">10. كلاستر رقمي</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Digital Cluster</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">رقمي OLED</span>
+</div>
+</div>
+<!-- Card 11: Rose Elegance -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="luxury" data-id="11" data-name="الورد الفاخر • Rose Elegance">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<div class="w-14 h-14 rounded-full border-2 border-primary/40 flex flex-col items-center justify-center bg-primary/10">
+<span class="font-headline-sm text-[12px] font-bold text-primary">91°C</span>
+<span class="font-label-caps text-[8px] text-primary">LUXURY</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">11. الورد الفاخر</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Rose Elegance</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-label-caps text-[10px]">فخامة</span>
+</div>
+</div>
+<!-- Card 12: Lavender Pearl -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="luxury" data-id="12" data-name="لؤلؤ لافندر • Lavender Pearl">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex flex-col justify-around p-2 shadow-inner">
+<div class="flex justify-between items-center">
+<span class="font-label-caps text-[9px] text-primary">PEARL HUE</span>
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="font-metric-md text-metric-md text-primary font-bold">91°</span>
+<span class="font-label-caps text-[10px] text-on-surface-variant">14.2 VOLT</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">12. لؤلؤ لافندر</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Lavender Pearl</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-label-caps text-[10px]">باستيل</span>
+</div>
+</div>
+<!-- Card 13: Flamingo Neon -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="scifi" data-id="13" data-name="فلامنجو نيون • Flamingo">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 rounded-lg bg-error-container/40 flex items-center justify-center shadow-[0_0_12px_rgba(255,180,171,0.2)]">
+<span class="font-label-caps text-[11px] font-bold text-error">91°</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-secondary-container/20 flex items-center justify-center">
+<span class="font-label-caps text-[11px] font-bold text-secondary">14.2</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">13. فلامنجو نيون</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Flamingo</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-error font-label-caps text-[10px]">نيون حيوي</span>
+</div>
+</div>
+<!-- Card 14: Big Numbers -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="minimal" data-id="14" data-name="أرقام عملاقة • Big Numbers">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-1 shadow-inner">
+<span class="font-display-hud-mobile text-display-hud-mobile text-on-surface font-black tracking-tighter">91</span>
+<span class="font-label-caps text-[12px] text-tertiary font-bold ml-1">°C</span>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">14. أرقام عملاقة</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Big Numbers</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-caps text-[10px]">قراءة سريعة</span>
+</div>
+</div>
+<!-- Card 15: Premium Chronograph -->
+<div class="skin-card group relative flex flex-col rounded-xl bg-surface-container-low p-space-sm cursor-pointer transition-all duration-200 select-none hover:bg-surface-container" data-cat="luxury" data-id="15" data-name="كرونوغراف فاخر • Premium Chrono">
+<div class="relative w-full h-24 rounded-lg bg-surface-container-lowest overflow-hidden flex items-center justify-center p-2 shadow-inner">
+<div class="w-16 h-16 rounded-full border border-secondary/30 flex flex-col items-center justify-center relative shadow-[0_0_10px_rgba(162,231,255,0.15)]">
+<div class="w-1 h-3 bg-secondary-container rounded-full absolute top-1"></div>
+<span class="font-headline-sm text-[11px] font-bold text-secondary">CHRONO</span>
+<span class="font-label-caps text-[8px] text-tertiary">91° | 14.2V</span>
+</div>
+</div>
+<div class="flex flex-col mt-space-sm min-w-0">
+<div class="flex items-center justify-between gap-1">
+<span class="font-headline-sm text-body-lg font-bold truncate">15. كرونوغراف فاخر</span>
+<span class="w-5 h-5 rounded-full bg-surface-container flex items-center justify-center skin-radio text-transparent group-[.selected]:text-on-primary group-[.selected]:bg-secondary-container">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</span>
+</div>
+<span class="font-label-caps text-label-sm text-on-surface-variant truncate">Premium Chrono</span>
+<span class="self-start mt-1 px-1.5 py-0.5 rounded bg-surface-container-high text-secondary-container font-label-caps text-[10px]">ساعات سويسرية</span>
+</div>
+</div>
+</div>
+<!-- Sticky Bottom Bar / Selector Drawer (Docked above App Navigation) -->
+<div class="sticky bottom-20 mt-space-xl -mx-margin px-margin pt-space-sm pb-space-md bg-surface-container-lowest/90 backdrop-blur-xl border-t-0 shadow-[0_-8px_24px_rgba(0,0,0,0.6)] z-40">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary animate-pulse"></span>
+<span class="font-body-lg text-body-lg text-on-surface font-semibold truncate" id="selected-summary-name">النمط المحدد: سبورت تناظري • Sporty Gauges</span>
+</div>
+<div class="flex items-center gap-space-xs font-label-caps text-label-sm text-secondary-container">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+<span>0.12ms</span>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full min-h-[48px] rounded-full bg-primary-container text-on-primary-container font-headline-sm text-headline-sm font-bold flex items-center justify-center gap-space-sm shadow-[0_0_20px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all" id="apply-skin-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">palette</span>
+<span>تطبيق النمط المختار • Apply Skin</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    const cards = document.querySelectorAll('.skin-card');
+    const filterPills = document.querySelectorAll('.filter-pill');
+    const summaryText = document.getElementById('selected-summary-name');
+    const applyBtn = document.getElementById('apply-skin-btn');
+    const closeBtn = document.getElementById('close-modal-btn');
+
+    let currentSelectedId = "03";
+
+    // Handle Card Selection
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        cards.forEach(c => {
+          c.classList.remove('selected', 'bg-surface-container-high', 'shadow-[0_0_16px_rgba(0,210,253,0.25)]');
+          c.classList.add('bg-surface-container-low');
+          const radio = c.querySelector('.skin-radio');
+          if (radio) {
+            radio.classList.remove('text-on-secondary-fixed', 'bg-secondary-container');
+            radio.classList.add('text-transparent', 'bg-surface-container');
+          }
+          // Remove active badge if present
+          const existingBadge = c.querySelector('.active-badge');
+          if (existingBadge) existingBadge.remove();
+        });
+
+        card.classList.add('selected', 'bg-surface-container-high', 'shadow-[0_0_16px_rgba(0,210,253,0.25)]');
+        card.classList.remove('bg-surface-container-low');
+
+        const radio = card.querySelector('.skin-radio');
+        if (radio) {
+          radio.classList.remove('text-transparent', 'bg-surface-container');
+          radio.classList.add('text-on-secondary-fixed', 'bg-secondary-container');
+        }
+
+        const skinName = card.getAttribute('data-name');
+        currentSelectedId = card.getAttribute('data-id');
+        if (summaryText) {
+          summaryText.textContent = `النمط المحدد: ${skinName}`;
+        }
+
+        // Add visual badge
+        const badge = document.createElement('div');
+        badge.className = 'active-badge absolute -top-2 right-2 bg-secondary-container text-on-secondary-fixed font-label-caps text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md z-10';
+        badge.innerHTML = '<span class="material-symbols-outlined text-[12px]">verified</span><span>النشط • Active</span>';
+        card.appendChild(badge);
+      });
+    });
+
+    // Handle Category Filter
+    filterPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        filterPills.forEach(p => {
+          p.classList.remove('bg-primary-container', 'text-on-primary-container');
+          p.classList.add('bg-surface-container', 'text-on-surface-variant');
+        });
+        pill.classList.remove('bg-surface-container', 'text-on-surface-variant');
+        pill.classList.add('bg-primary-container', 'text-on-primary-container');
+
+        const filter = pill.getAttribute('data-filter');
+        cards.forEach(card => {
+          const cat = card.getAttribute('data-cat');
+          if (filter === 'all' || cat === filter) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Apply Button Delight Animation
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        applyBtn.innerHTML = '<span class="material-symbols-outlined text-[20px] animate-spin">autorenew</span><span>جارٍ التحديث • Updating...</span>';
+        setTimeout(() => {
+          applyBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check_circle</span><span>تم تطبيق النمط بنجاح! • Applied</span>';
+          applyBtn.classList.remove('bg-primary-container', 'text-on-primary-container');
+          applyBtn.classList.add('bg-tertiary', 'text-on-tertiary');
+          setTimeout(() => {
+            applyBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">palette</span><span>تطبيق النمط المختار • Apply Skin</span>';
+            applyBtn.classList.add('bg-primary-container', 'text-on-primary-container');
+            applyBtn.classList.remove('bg-tertiary', 'text-on-tertiary');
+          }, 1800);
+        }, 600);
+      });
+    }
+
+    // Modal Close Trigger
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.history.back();
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.5)]" data-active-classes="text-secondary"><div class="flex justify-around items-center h-20 px-space-xs"><a class="flex flex-col items-center justify-center gap-space-xs min-w-[44px] min-h-[44px] px-space-xs text-on-surface-variant hover:text-on-surface transition-colors flex-1" data-path="dashboard" href="#"><span class="material-symbols-outlined text-[22px]">speed</span><span class="font-label-sm text-label-sm">Dashboard</span></a><a class="flex flex-col items-center justify-center gap-space-xs min-w-[44px] min-h-[44px] px-space-xs text-on-surface-variant hover:text-on-surface transition-colors flex-1" data-path="alerts-and-analysis" href="#"><span class="material-symbols-outlined text-[22px]">warning</span><span class="font-label-sm text-label-sm">Alerts</span></a><a class="flex flex-col items-center justify-center gap-space-xs min-w-[44px] min-h-[44px] px-space-xs text-on-surface-variant hover:text-on-surface transition-colors flex-1" data-path="style-picker" href="#"><span class="material-symbols-outlined text-[22px]">palette</span><span class="font-label-sm text-label-sm">Styles</span></a><a class="flex flex-col items-center justify-center gap-space-xs min-w-[44px] min-h-[44px] px-space-xs text-on-surface-variant hover:text-on-surface transition-colors flex-1" data-path="settings" href="#"><span class="material-symbols-outlined text-[22px]">tune</span><span class="font-label-sm text-label-sm">Settings</span></a></div></nav></body></html>
