@@ -57,7 +57,7 @@ Widget buildGaugeArea(
       speed: trip.hasFix ? trip.speedKmh : null,
       distance: trip.hasFix ? trip.distanceKm : null,
       temperatureLabel: l.engineTemperature,
-      voltageLabel: l.voltageDifference,
+      voltageLabel: l.batteryVoltLabel,
       speedLabel: l.vehicleSpeed,
       distanceLabel: l.tripDistance,
       temperatureUnit: '°C',
