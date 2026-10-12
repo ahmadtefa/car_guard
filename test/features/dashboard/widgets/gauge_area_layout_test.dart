@@ -373,7 +373,7 @@ void main() {
             speed: 42,
             distance: 1.25,
             temperatureLabel: 'Engine Temperature',
-            voltageLabel: 'Voltage Difference',
+            voltageLabel: 'Battery Voltage',
             speedLabel: 'Vehicle speed',
             distanceLabel: 'Trip distance',
             temperatureUnit: '°C',
@@ -387,7 +387,7 @@ void main() {
     await tester.pump();
 
     final temperature = tester.getRect(find.text('Engine Temperature'));
-    final voltage = tester.getRect(find.text('Voltage Difference'));
+    final voltage = tester.getRect(find.text('Battery Voltage'));
     final speed = tester.getRect(find.text('Vehicle speed'));
     final distance = tester.getRect(find.text('Trip distance'));
 
@@ -433,13 +433,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
 
       expect(find.text('ENGINE TEMP'), findsWidgets);
-      expect(find.text('Voltage Difference'), findsWidgets);
-      expect(find.text('0.4 V'), findsOneWidget);
+      expect(find.text('Battery Voltage'), findsWidgets);
+      expect(find.text('12.6 V'), findsOneWidget);
       expect(find.text('Vehicle speed'), findsOneWidget);
       expect(find.text('Trip distance'), findsOneWidget);
 
       final temperatureRect = tester.getRect(find.text('ENGINE TEMP').first);
-      final voltageRect = tester.getRect(find.text('Voltage Difference').first);
+      final voltageRect = tester.getRect(find.text('Battery Voltage').first);
       final speedRect = tester.getRect(find.text('Vehicle speed'));
       final distanceRect = tester.getRect(find.text('Trip distance'));
 
@@ -493,7 +493,7 @@ void main() {
 
         final temperatureRect = tester.getRect(find.text('ENGINE TEMP').first);
         final voltageRect = tester.getRect(
-          find.text('Voltage Difference').first,
+          find.text('Battery Voltage').first,
         );
         final speedRect = tester.getRect(find.text('Vehicle speed'));
         final distanceRect = tester.getRect(find.text('Trip distance'));
