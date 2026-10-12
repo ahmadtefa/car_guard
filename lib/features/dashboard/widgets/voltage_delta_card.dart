@@ -116,7 +116,7 @@ class VoltageDeltaCard extends ConsumerWidget {
       case 'sweeper':
         return AudiSweeperGauge(
           label: l.batteryVoltLabel,
-          value: voltage ?? 0,
+          value: voltage,
           unit: 'V',
           percent: percent,
           gradientColors: const [
@@ -131,7 +131,7 @@ class VoltageDeltaCard extends ConsumerWidget {
       case 'led':
         return LedStripGauge(
           label: l.batteryVoltLabel,
-          value: voltage ?? 0,
+          value: voltage,
           unit: 'V',
           percent: percent,
           danger: warning,
@@ -140,10 +140,11 @@ class VoltageDeltaCard extends ConsumerWidget {
       case 'needle':
         return NeedleMeterGauge(
           label: l.batteryVoltLabel,
-          value: voltage ?? 0,
+          value: voltage,
           unit: 'V',
           percent: percent,
           danger: warning,
+          onTap: onTap,
         );
       default:
         return BaseDashboardCard(
