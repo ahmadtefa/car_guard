@@ -342,7 +342,7 @@ void main() {
 
     expect(find.byType(BigNumbersDashboard), findsOneWidget);
     expect(find.text('Engine Temperature'), findsOneWidget);
-    expect(find.text('Voltage Difference'), findsOneWidget);
+    expect(find.text('Battery Voltage'), findsOneWidget);
     expect(find.text('Vehicle speed'), findsOneWidget);
     expect(find.text('Trip distance'), findsOneWidget);
     expect(find.text('82'), findsOneWidget);
@@ -351,7 +351,7 @@ void main() {
     expect(find.text('1.25'), findsOneWidget);
 
     final temperature = tester.getRect(find.text('Engine Temperature'));
-    final voltage = tester.getRect(find.text('Voltage Difference'));
+    final voltage = tester.getRect(find.text('Battery Voltage'));
     final speed = tester.getRect(find.text('Vehicle speed'));
     final distance = tester.getRect(find.text('Trip distance'));
 
