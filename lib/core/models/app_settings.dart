@@ -179,9 +179,29 @@ class AppSettings {
   /// Builds settings from a persisted JSON map, falling back to defaults
   /// for any missing or invalid entry.
   factory AppSettings.fromJson(Map<String, dynamic> json) {
+    final rawHost = json['deviceHost'];
+    final host = rawHost is String && rawHost.trim().isNotEmpty
+        ? rawHost.trim()
+        : '192.168.4.1';
+    final rawPort = json['devicePort'];
+    final port = rawPort is int && rawPort >= 1 && rawPort <= 65535
+        ? rawPort
+        : 81;
+    final rawCooldown = json['alertCooldownMinutes'];
+    final cooldownMinutes = rawCooldown is int && rawCooldown >= 1 && rawCooldown <= 60
+        ? rawCooldown
+        : 5;
+    final rawSpeedLimit = json['speedLimit'];
+    final speedLimit = rawSpeedLimit is num &&
+            rawSpeedLimit.isFinite &&
+            rawSpeedLimit >= 20 &&
+            rawSpeedLimit <= 240
+        ? rawSpeedLimit.toDouble()
+        : 120.0;
+
     return AppSettings(
-      deviceHost: json['deviceHost'] as String? ?? '192.168.4.1',
-      devicePort: json['devicePort'] as int? ?? 81,
+      deviceHost: host,
+      devicePort: port,
       alertsEnabled: json['alertsEnabled'] as bool? ?? true,
       coolantAlertsEnabled: json['coolantAlertsEnabled'] as bool? ?? true,
       connectionAlertsEnabled:
@@ -190,7 +210,7 @@ class AppSettings {
       // they always fall back to the defaults so stale stored values have
       // zero effect (alerting follows the module-reported limits only).
       alertCooldown: Duration(
-        minutes: json['alertCooldownMinutes'] as int? ?? 5,
+        minutes: cooldownMinutes,
       ),
       demoModeEnabled: json['demoModeEnabled'] as bool? ?? false,
       themeModeName:
@@ -207,7 +227,7 @@ class AppSettings {
       alarmSoundEnabled: json['alarmSoundEnabled'] as bool? ?? true,
       backgroundMonitoringEnabled:
           json['backgroundMonitoringEnabled'] as bool? ?? false,
-      speedLimit: (json['speedLimit'] as num?)?.toDouble() ?? 120.0,
+      speedLimit: speedLimit,
     );
   }
 
