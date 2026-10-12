@@ -47,7 +47,8 @@ void main() {
       ],
     );
     container.read(readingsHistoryProvider);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await container.read(settingsProvider.future);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     return container;
   }
 
