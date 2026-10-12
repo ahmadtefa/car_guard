@@ -247,9 +247,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    expect(find.text('12.60 V'), findsOneWidget);
+    expect(find.text('12.6 V'), findsOneWidget);
     expect(find.text('Battery Voltage'), findsOneWidget);
-    expect(find.text('-12.60 V'), findsNothing);
+    expect(find.text('-12.6 V'), findsNothing);
   });
 
   testWidgets('existing dashboard styles keep their specialized gauges', (
