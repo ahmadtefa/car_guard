@@ -7,7 +7,7 @@ import '../../../core/l10n/app_l10n.dart';
 import '../../../core/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
 
-/// Item metadata for each of the 15 automotive dashboard styles.
+/// Item metadata for each of the 12 automotive dashboard styles.
 class StyleCardItem {
   const StyleCardItem({
     required this.id,
@@ -24,15 +24,8 @@ class StyleCardItem {
   final IconData icon;
 }
 
-/// The 15 existing dashboard styles defined in AppSettings.dashboardStyleNames.
+/// The 12 supported dashboard styles defined in AppSettings.dashboardStyleNames.
 const List<StyleCardItem> kDashboardStyles = [
-  StyleCardItem(
-    id: 'cards',
-    category: 'cockpit',
-    badgeText: 'كلاسيك',
-    englishSubtitle: 'Classic Cards',
-    icon: Icons.dashboard_outlined,
-  ),
   StyleCardItem(
     id: 'racing',
     category: 'cockpit',
@@ -46,13 +39,6 @@ const List<StyleCardItem> kDashboardStyles = [
     badgeText: 'تناظري',
     englishSubtitle: 'Sporty Gauges',
     icon: Icons.donut_large_outlined,
-  ),
-  StyleCardItem(
-    id: 'segments',
-    category: 'cockpit',
-    badgeText: 'أعمدة',
-    englishSubtitle: 'Segmented Columns',
-    icon: Icons.view_week_outlined,
   ),
   StyleCardItem(
     id: 'sweeper',
@@ -81,13 +67,6 @@ const List<StyleCardItem> kDashboardStyles = [
     badgeText: 'إبرة VU',
     englishSubtitle: 'Needle Meter',
     icon: Icons.speed_outlined,
-  ),
-  StyleCardItem(
-    id: 'orb',
-    category: 'scifi',
-    badgeText: 'سائل',
-    englishSubtitle: 'Liquid Orb',
-    icon: Icons.water_drop_outlined,
   ),
   StyleCardItem(
     id: 'combo',
@@ -134,7 +113,7 @@ const List<StyleCardItem> kDashboardStyles = [
 ];
 
 /// A modern, visual modal sheet for browsing, previewing and selecting from
-/// all 15 automotive dashboard styles, inspired by Google Stitch designs.
+/// all 12 automotive dashboard styles, inspired by Google Stitch designs.
 class VisualStylePickerSheet extends ConsumerStatefulWidget {
   const VisualStylePickerSheet({super.key});
 
