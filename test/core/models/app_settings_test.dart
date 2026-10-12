@@ -72,6 +72,20 @@ void main() {
       expect(restored.speedLimit, settings.speedLimit);
     });
 
+    test('invalid connection and speed settings fall back to safe defaults', () {
+      final restored = AppSettings.fromJson(<String, dynamic>{
+        'deviceHost': '   ',
+        'devicePort': 70000,
+        'alertCooldownMinutes': -10,
+        'speedLimit': -1,
+      });
+
+      expect(restored.deviceHost, '192.168.4.1');
+      expect(restored.devicePort, 81);
+      expect(restored.alertCooldown, const Duration(minutes: 5));
+      expect(restored.speedLimit, 120.0);
+    });
+
     test('missing JSON fields fall back to defaults', () {
       final restored = AppSettings.fromJson(<String, dynamic>{});
 
