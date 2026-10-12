@@ -5,6 +5,12 @@ on:
     branches: ['**']
   workflow_dispatch:
 
+# Keep only the newest build for a branch; rapid commits must not leave
+# several expensive Flutter builds queued or running at once.
+concurrency:
+  group: car-guard-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
