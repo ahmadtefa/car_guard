@@ -369,6 +369,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return switch (name) {
       'racing' => l.styleRacing,
       'sporty' => l.styleSporty,
+      'ring' => l.styleRing,
+      'combo' => l.styleCombo,
+      'premium' => l.stylePremium,
       'sweeper' => l.styleSweeper,
       'led' => l.styleLed,
       'needle' => l.styleNeedle,
