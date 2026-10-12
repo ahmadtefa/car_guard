@@ -113,7 +113,6 @@ class AlertsAnalysisPage extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () => _exportReport(
               context,
-              ref,
               history: history,
               entries: analysis.history,
               trip: analysis.trip,
@@ -142,8 +141,7 @@ class AlertsAnalysisPage extends ConsumerWidget {
   }
 
   Future<void> _exportReport(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     required List<ReadingSample> history,
     required List<AlertHistoryEntry> entries,
     required TripSummary trip,
