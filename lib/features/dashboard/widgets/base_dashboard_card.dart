@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/widgets/primary_card.dart';
-import '../../../core/widgets/section_title.dart';
 
-/// A reusable layout wrapper for dashboard cards.
+/// A reusable, compact dashboard metric card.
+///
+/// Keep the metric title inside the same surface as its reading and gauge;
+/// a second heading outside the card made the dashboard visually repetitive.
 class BaseDashboardCard extends StatelessWidget {
-  /// Creates a reusable dashboard card shell.
   const BaseDashboardCard({
     super.key,
     required this.title,
@@ -16,70 +17,86 @@ class BaseDashboardCard extends StatelessWidget {
     this.child,
   });
 
-  /// Title displayed above the card content.
   final String title;
-
-  /// Primary value shown in the card.
   final String value;
-
-  /// Subtitle displayed beneath the primary value.
   final String subtitle;
-
-  /// Status label shown beneath the subtitle.
   final String statusText;
-
-  /// Optional custom child content inserted before the status text.
   final Widget? child;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionTitle(title: title),
-        PrimaryCard(
-          child: SizedBox(
-            width: double.infinity,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return PrimaryCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
                     title,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    softWrap: true,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  if (value.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      value,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                  ],
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                  if (child != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    child!,
-                  ],
-                  if (statusText.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      statusText,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ],
-                ],
-              ),
+                ),
+                Container(
+                  width: 7,
+                  height: 7,
+                  margin: const EdgeInsets.only(top: 7, left: 8, right: 2),
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.primary.withValues(alpha: 0.45),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
+            if (value.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(subtitle, style: theme.textTheme.bodyMedium),
+            ],
+            if (child != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              child!,
+            ],
+            if (statusText.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                statusText,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 }
