@@ -19,10 +19,10 @@ import 'trip_cards.dart';
 import 'voltage_delta_card.dart';
 
 /// Builds the four primary dashboard readings in their fixed order:
-/// engine temperature, voltage difference, speed, then distance.
+/// engine temperature, battery voltage, speed, then distance.
 ///
 /// The selected dashboard style is shared by the temperature and
-/// voltage-difference gauges. The voltage card and phone GPS trip cards keep
+/// battery-voltage gauges. The phone GPS trip cards keep
 /// their existing data sources; only their placement is centralized here so
 /// the normal and fullscreen dashboards cannot drift apart.
 Widget buildGaugeArea(
@@ -80,7 +80,7 @@ Widget buildGaugeArea(
     final batteryVoltage = runtimeBatteryVoltage;
     final common = _FeminineDashboardData(
       temperatureLabel: l.engineTempLabel,
-      voltageLabel: l.voltageDifference,
+      voltageLabel: l.batteryVoltLabel,
       speedLabel: l.vehicleSpeed,
       distanceLabel: l.tripDistance,
       temperature: temperature,
@@ -238,7 +238,7 @@ class ResponsivePrimaryReadings extends StatelessWidget {
 }
 
 /// Keeps the existing style picker meaningful while the second primary metric
-/// is now the existing voltage-difference card instead of battery voltage.
+/// is now the existing battery-voltage card instead of battery voltage.
 Widget _buildTemperatureGauge({
   required AppSettings settings,
   required DashboardState state,
@@ -344,7 +344,7 @@ class _UnavailableGaugeArea extends StatelessWidget {
             unit: '°C',
           ),
           voltageDifference: _UnavailableGaugeCard(
-            label: l.voltageDifference,
+            label: l.batteryVoltLabel,
             unit: 'V',
           ),
         ),

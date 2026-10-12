@@ -228,7 +228,7 @@ void main() {
     }
   });
 
-  testWidgets('Voltage Difference never displays a negative value', (
+  testWidgets('Battery Voltage displays the live battery reading', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -237,7 +237,7 @@ void main() {
           settingsProvider.overrideWith(() => _TestSettingsNotifier()),
           deviceStatusProvider.overrideWith(
             (ref) => Stream<DeviceStatus>.value(
-              _connectedStatusWithVoltage(-12.6),
+              _connectedStatusWithVoltage(12.6),
             ),
           ),
         ],
@@ -247,8 +247,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    expect(find.text('12.6 V'), findsOneWidget);
-    expect(find.text('-12.6 V'), findsNothing);
+    expect(find.text('12.60 V'), findsOneWidget);
+    expect(find.text('Battery Voltage'), findsOneWidget);
+    expect(find.text('-12.60 V'), findsNothing);
   });
 
   testWidgets('existing dashboard styles keep their specialized gauges', (

@@ -3,173 +3,148 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/l10n/app_l10n.dart';
-import '../providers/voltage_delta_provider.dart';
+import '../../../core/providers/device_status_provider.dart';
+import '../../../core/services/device_models.dart';
+import '../../settings/providers/settings_provider.dart';
 import 'base_dashboard_card.dart';
 import 'dashboard_gauges.dart';
 import 'mini_gauges.dart';
 import 'more_gauges.dart';
 import 'premium_needle_gauge.dart';
 
-/// Shows the non-negative voltage difference using the selected dashboard
-/// gauge style. Classic Cards keeps the original card and arc implementation.
+/// Displays the live battery voltage with the selected dashboard gauge style.
+/// The historical class name is retained to avoid breaking existing imports.
 class VoltageDeltaCard extends ConsumerWidget {
   const VoltageDeltaCard({super.key, this.styleName = 'cards'});
 
-  /// Uses the same persisted dashboard style as the temperature gauge.
   final String styleName;
 
-  static const double _gaugeScale = 30.0;
+  static const double _minimumVoltage = 10;
+  static const double _maximumVoltage = 16;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-    final delta = ref.watch(voltageDeltaProvider)?.abs();
+    final device = ref.watch(deviceStatusProvider).value;
+    final settings = ref.watch(settingsProvider).value;
+    final double? voltage =
+        device?.connected == true ? device!.batteryData.voltage : null;
+    final ModuleLimits? limits =
+        device?.connected == true ? device!.moduleLimits : null;
+    final lowValue = limits?.minVolt ?? settings?.minBatteryVoltage ?? 12.0;
+    final highValue = limits?.maxVolt ?? settings?.maxBatteryVoltage ?? 14.8;
+    final warning = voltage != null &&
+        (voltage < lowValue || voltage > highValue);
+    final valueText =
+        voltage == null ? '--.- V' : '\${voltage.toStringAsFixed(2)} V';
+    final statusText = voltage == null
+        ? l.collectingData
+        : warning
+            ? (voltage < lowValue ? l.batteryLowTitle : l.batteryHighTitle)
+            : l.normal;
 
-    final String valueText;
-    final String statusText;
-
-    if (delta == null) {
-      valueText = '--.- V';
-      statusText = l.collectingData;
-    } else {
-      valueText = '${delta.toStringAsFixed(2)} V';
-      statusText = delta < 0.15 ? l.deltaStable : l.deltaRising;
+    if (styleName == 'cards') {
+      return BaseDashboardCard(
+        title: l.batteryVoltage,
+        value: valueText,
+        subtitle: l.vehicleBatteryInfo,
+        statusText: statusText,
+        child: MiniVoltBarGauge(
+          value: voltage,
+          min: _minimumVoltage,
+          max: _maximumVoltage,
+          lowValue: lowValue,
+          highValue: highValue,
+        ),
+      );
     }
 
-    return _buildGauge(
-      l: l,
-      delta: delta,
-      valueText: valueText,
-      statusText: statusText,
-    );
-  }
-
-  Widget _buildGauge({
-    required AppL10n l,
-    required double? delta,
-    required String valueText,
-    required String statusText,
-  }) {
-    final card = _buildCardsGauge(
-      l: l,
-      delta: delta,
-      valueText: valueText,
-      statusText: statusText,
-    );
-
-    // The classic card is the exact Engine Temperature card structure. Keep
-    // the empty card for a missing reading instead of presenting a synthetic
-    // zero through one of the non-nullable style gauges.
-    if (delta == null || styleName == 'cards') return card;
-
-    final reading = delta.abs();
-    final percent = (reading / _gaugeScale).clamp(0.0, 1.0).toDouble();
-    void onTap() {}
+    final percent = voltage == null
+        ? 0.0
+        : ((voltage - _minimumVoltage) /
+                (_maximumVoltage - _minimumVoltage))
+            .clamp(0.0, 1.0)
+            .toDouble();
 
     switch (styleName) {
       case 'premium':
         return PremiumNeedleGauge(
-          title: l.voltageDifference,
-          value: reading,
+          title: l.batteryVoltLabel,
+          value: voltage,
           unit: 'V',
-          min: 0,
-          max: 30,
-          onTap: onTap,
+          min: _minimumVoltage,
+          max: _maximumVoltage,
+          warning: warning,
         );
       case 'racing':
         return RacingGauge(
-          label: l.voltageDifference,
-          value: reading,
+          label: l.batteryVoltLabel,
+          value: voltage ?? 0,
           unit: 'V',
           percent: percent,
-          warning: false,
-          onTap: onTap,
+          warning: warning,
         );
-
       case 'sporty':
         return SportyGauge(
-          label: l.voltageDifference,
-          value: reading,
-          min: 0,
-          max: _gaugeScale,
-          redlineValue: _gaugeScale,
+          label: l.batteryVoltLabel,
+          value: voltage ?? 0,
+          min: _minimumVoltage,
+          max: _maximumVoltage,
+          redlineValue: highValue,
           unit: 'V',
-          warning: false,
-          onTap: onTap,
+          warning: warning,
         );
-
       case 'sweeper':
         return AudiSweeperGauge(
-          label: l.voltageDifference,
-          value: reading,
+          label: l.batteryVoltLabel,
+          value: voltage ?? 0,
           unit: 'V',
           percent: percent,
-          gradientColors: [
+          gradientColors: const [
             AppColors.neonCyan,
+            AppColors.neonGreen,
             AppColors.neonAmber,
             AppColors.neonRed,
           ],
-          accentColor: AppColors.neonMagenta,
-          onTap: onTap,
+          accentColor: warning ? AppColors.neonRed : AppColors.neonCyan,
         );
-
       case 'led':
         return LedStripGauge(
-          label: l.voltageDifference,
-          value: reading,
+          label: l.batteryVoltLabel,
+          value: voltage ?? 0,
           unit: 'V',
           percent: percent,
-          danger: false,
-          onTap: onTap,
+          danger: warning,
         );
-
       case 'needle':
         return NeedleMeterGauge(
-          label: l.voltageDifference,
-          value: reading,
+          label: l.batteryVoltLabel,
+          value: voltage ?? 0,
           unit: 'V',
           percent: percent,
-          danger: false,
-          onTap: onTap,
+          danger: warning,
         );
-
       default:
-        return card;
-    }
-  }
-
-  Widget _buildCardsGauge({
-    required AppL10n l,
-    required double? delta,
-    required String valueText,
-    required String statusText,
-  }) {
-    return BaseDashboardCard(
-      title: l.voltageDifference,
-      value: valueText,
-      subtitle: l.chargingDeltaInfo,
-      statusText: statusText,
-      child: Column(
-        children: [
-          MiniArcGauge(
-            value: delta,
-            min: 0,
-            max: _gaugeScale,
-            warnValue: _gaugeScale,
-            criticalValue: _gaugeScale,
-            danger: false,
-            unit: 'V',
+        return BaseDashboardCard(
+          title: l.batteryVoltage,
+          value: valueText,
+          subtitle: l.vehicleBatteryInfo,
+          statusText: statusText,
+          child: MiniVoltBarGauge(
+            value: voltage,
+            min: _minimumVoltage,
+            max: _maximumVoltage,
+            lowValue: lowValue,
+            highValue: highValue,
           ),
-        ],
-      ),
-    );
+        );
+    }
   }
 }
 
-/// Kept for callers that want the accent color of the current trend.
-Color deltaAccentColor(double? delta) {
-  final magnitude = delta?.abs();
-  if (magnitude == null) return AppColors.textSecondary;
-  if (magnitude < 0.15) return AppColors.neonCyan;
+/// Kept for callers that need a voltage status accent.
+Color deltaAccentColor(double? voltage) {
+  if (voltage == null) return AppColors.textSecondary;
+  if (voltage < 12.0 || voltage > 14.8) return AppColors.neonRed;
   return AppColors.neonGreen;
 }
