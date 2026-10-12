@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:car_guard/core/services/demo_device_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -100,5 +102,20 @@ void main() {
       expect(status.temperatureData.engineTemperature, 90);
       expect(status.controlData.fanRunning, isTrue);
     });
+  });
+
+  test('statusStream emits the initial state immediately', () async {
+    final simulator = DemoDeviceSimulator(
+      interval: const Duration(hours: 1),
+    );
+    addTearDown(simulator.dispose);
+    simulator.start();
+
+    final status = await simulator.statusStream.first;
+
+    expect(status.connected, isTrue);
+    expect(status.deviceId, 'Car Guard (Demo)');
+    expect(status.temperatureData.engineTemperature, 72);
+    expect(status.batteryData.voltage, 12.8);
   });
 }
