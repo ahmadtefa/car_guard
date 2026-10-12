@@ -104,8 +104,9 @@ public final class LicenseProtocolSelfTest {
                 payload, targetSignature, testKey.getPublic()));
         check("other code signature is valid", LicenseProtocol.verifySignature(
                 wrongSerialPayload, otherSignature, testKey.getPublic()));
-        check("target code is rejected for another serial", !LicenseProtocol.parsePayload(
-                LicenseProtocol.decodeBase32(targetCode)).serial.equals("KCG_00000000"));
+        check("target code payload remains bound to target serial", !LicenseProtocol.parsePayload(
+                Arrays.copyOfRange(LicenseProtocol.decodeBase32(targetCode), 0,
+                        LicenseProtocol.PAYLOAD_LENGTH)).serial.equals("KCG_00000000"));
 
         System.out.println("Car Guard protocol tests: " + passed + " passed, 0 failed");
         System.out.println("No production private key or production activation code was used or printed.");
