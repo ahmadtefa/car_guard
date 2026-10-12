@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/license_models.dart';
 import '../../../core/models/reading_sample.dart';
 import '../../../core/providers/device_status_provider.dart';
 import '../../../core/services/device_models.dart';
@@ -35,8 +36,13 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
     final demoEnabled = ref.watch(
       settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
     );
-    final licenseResolved = ref.watch(
-      licenseProvider.select((value) => !value.isUnknown),
+    final licenseRejected = ref.watch(
+      licenseProvider.select(
+        (value) =>
+            value.isLocked &&
+            value.checkStatus != LicenseCheckStatus.checking &&
+            value.checkStatus != LicenseCheckStatus.error,
+      ),
     );
     final dataAccessAllowed =
         settingsReady &&
@@ -47,8 +53,9 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
     if (!dataAccessAllowed) {
       // Settings and license checks can be transiently unavailable during
       // startup or a network outage. Only erase protected history after an
-      // authoritative non-ACTIVE license status has actually been received.
-      if (settingsReady && !demoEnabled && licenseResolved) {
+      // authoritative LOCKED response has been received. An ACTIVE status
+      // temporarily marked Checking/Error must never erase the saved history.
+      if (settingsReady && !demoEnabled && licenseRejected) {
         unawaited(storage.delete(storageKey));
       }
       return const <ReadingSample>[];
