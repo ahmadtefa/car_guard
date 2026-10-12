@@ -141,6 +141,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
       if (confirmed != true || !mounted) return;
 
+      // A settings restore must match its persisted OFF state immediately;
+      // otherwise an already-running foreground monitor could keep working
+      // after the UI claims background monitoring is disabled.
+      await BackgroundMonitor.stop();
       await ref.read(settingsProvider.notifier).save(
         restored.copyWith(
           demoModeEnabled: false,
