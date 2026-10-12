@@ -92,7 +92,7 @@ void main() {
 
       // Verify title
       expect(find.text('Dashboard style'), findsOneWidget);
-      expect(find.text('15 custom cockpit skins'), findsOneWidget);
+      expect(find.text('12 custom cockpit skins'), findsOneWidget);
 
       // Verify active badge on 'racing'
       expect(find.text('Active'), findsOneWidget);
@@ -124,7 +124,7 @@ void main() {
 
       // Verify Arabic title and subtitle
       expect(find.text('شكل الداشبورد'), findsOneWidget);
-      expect(find.text('15 نمطاً مخصصاً للمقصورة'), findsOneWidget);
+      expect(find.text('12 نمطاً مخصصاً للمقصورة'), findsOneWidget);
 
       // Verify Arabic category chips
       expect(find.text('الكل (12)'), findsOneWidget);
