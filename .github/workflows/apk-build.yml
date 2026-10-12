@@ -35,3 +35,9 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Test ESP8266 firmware contracts
+        run: python3 -m unittest discover -s firmware/tests -p 'test_*.py' -v
+
+      - name: Test license issuer protocol
+        run: bash license-issuer/scripts/run_protocol_tests.sh
