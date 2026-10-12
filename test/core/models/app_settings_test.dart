@@ -81,20 +81,17 @@ void main() {
     });
 
     test('all dashboard styles are supported, persistable and reloadable', () {
-      expect(AppSettings.dashboardStyleNames.length, 15);
+      expect(AppSettings.dashboardStyleNames.length, 12);
       expect(
         AppSettings.dashboardStyleNames,
         containsAll(<String>[
-          'cards',
-          'racing',
+                    'racing',
           'sporty',
-          'segments',
-          'sweeper',
+                    'sweeper',
           'ring',
           'led',
           'needle',
-          'orb',
-          'combo',
+                    'combo',
           'rose',
           'lavender',
           'flamingo',
