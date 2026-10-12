@@ -45,9 +45,9 @@ Widget _buildTestApp({
 }
 
 void main() {
-  group('VisualStylePickerSheet metadata & 15 styles', () {
-    test('contains all 15 dashboard styles from AppSettings without omissions', () {
-      expect(kDashboardStyles.length, 15);
+  group('VisualStylePickerSheet metadata & 12 styles', () {
+    test('contains all 12 supported dashboard styles from AppSettings without omissions', () {
+      expect(kDashboardStyles.length, 12);
       final ids = kDashboardStyles.map((s) => s.id).toList();
       expect(ids, containsAll(AppSettings.dashboardStyleNames));
       expect(AppSettings.dashboardStyleNames, containsAll(ids));
@@ -66,22 +66,22 @@ void main() {
       }
     });
 
-    test('categories partition the 15 styles cleanly', () {
+    test('categories partition the 12 styles cleanly', () {
       final cockpit = kDashboardStyles.where((s) => s.category == 'cockpit').map((s) => s.id).toList();
       final scifi = kDashboardStyles.where((s) => s.category == 'scifi').map((s) => s.id).toList();
       final luxury = kDashboardStyles.where((s) => s.category == 'luxury').map((s) => s.id).toList();
       final minimal = kDashboardStyles.where((s) => s.category == 'minimal').map((s) => s.id).toList();
 
-      expect(cockpit, ['cards', 'racing', 'sporty', 'segments', 'sweeper', 'premium']);
-      expect(scifi, ['ring', 'led', 'needle', 'orb', 'combo']);
+      expect(cockpit, ['racing', 'sporty', 'sweeper', 'premium']);
+      expect(scifi, ['ring', 'led', 'needle', 'combo']);
       expect(luxury, ['rose', 'lavender', 'flamingo']);
       expect(minimal, ['big_numbers']);
-      expect(cockpit.length + scifi.length + luxury.length + minimal.length, 15);
+      expect(cockpit.length + scifi.length + luxury.length + minimal.length, 12);
     });
   });
 
   group('VisualStylePickerSheet widget rendering & interaction', () {
-    testWidgets('renders all 15 styles in English and shows active badge on current style', (tester) async {
+    testWidgets('renders all 12 styles in English and shows active badge on current style', (tester) async {
       await tester.pumpWidget(
         _buildTestApp(
           child: const VisualStylePickerSheet(),
@@ -98,7 +98,7 @@ void main() {
       expect(find.text('Active'), findsOneWidget);
 
       // Verify category filter chips
-      expect(find.text('All (15)'), findsOneWidget);
+      expect(find.text('All (12)'), findsOneWidget);
       expect(find.text('Cockpit'), findsOneWidget);
       expect(find.text('Sci-Fi'), findsOneWidget);
       expect(find.text('Luxury'), findsOneWidget);
@@ -106,7 +106,6 @@ void main() {
 
       // Verify some styles are visible initially in the grid
       expect(find.text('Racing'), findsOneWidget);
-      expect(find.text('Classic cards'), findsOneWidget);
       expect(find.text('Sporty gauges'), findsOneWidget);
     });
 
@@ -128,7 +127,7 @@ void main() {
       expect(find.text('15 نمطاً مخصصاً للمقصورة'), findsOneWidget);
 
       // Verify Arabic category chips
-      expect(find.text('الكل (15)'), findsOneWidget);
+      expect(find.text('الكل (12)'), findsOneWidget);
       expect(find.text('رياضي'), findsOneWidget);
       expect(find.text('رقمي'), findsOneWidget);
       expect(find.text('فخامة'), findsOneWidget);
@@ -139,7 +138,6 @@ void main() {
 
       // Verify Arabic style names
       expect(find.text('سباق'), findsOneWidget);
-      expect(find.text('كروت كلاسيك'), findsOneWidget);
       expect(find.text('سبورت'), findsOneWidget);
     });
 
@@ -172,13 +170,12 @@ void main() {
       expect(find.text('Big Numbers'), findsOneWidget);
       expect(find.text('Rose elegance'), findsNothing);
 
-      // Tap 'All (15)' to reset
-      await tester.ensureVisible(find.text('All (15)'));
-      await tester.tap(find.text('All (15)'));
+      // Tap 'All (12)' to reset
+      await tester.ensureVisible(find.text('All (12)'));
+      await tester.tap(find.text('All (12)'));
       await tester.pumpAndSettle();
 
       expect(find.text('Racing'), findsOneWidget);
-      expect(find.text('Classic cards'), findsOneWidget);
     });
 
     testWidgets('tapping a style card updates settingsProvider to that style', (tester) async {
