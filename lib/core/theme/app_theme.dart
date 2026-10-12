@@ -69,7 +69,7 @@ abstract final class AppTheme {
         ),
         titleMedium: baseText.titleMedium?.copyWith(
           color: foreground,
-          fontWeight: FontWeight.w650,
+          fontWeight: FontWeight.w600,
         ),
         bodyLarge: baseText.bodyLarge?.copyWith(color: foreground),
         bodyMedium: baseText.bodyMedium?.copyWith(color: muted),
