@@ -92,7 +92,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         allowedExtensions: const ['json'],
         withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (!mounted || result == null || result.files.isEmpty) return;
       final bytes = result.files.single.bytes;
       if (bytes == null || bytes.isEmpty) {
         throw const FormatException('The selected file is empty.');
