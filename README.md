@@ -30,8 +30,10 @@ status streamed straight to your phone over Wi-Fi.
   on the next launch.
 - **Auto reconnect** — the app reconnects to the last saved device address on
   startup.
-- **Live charts** — engine temperature and battery voltage sparklines for the
-  last five minutes (dependency-free CustomPainter).
+- **Live charts and local reading history** — engine temperature and battery
+  voltage sparklines, with up to 300 timestamped readings saved between app
+  launches. Saved real-device readings remain gated by the module's current
+  license authorization; temporary connection loss does not erase them.
 - **Device controls** — mute the buzzer, run the fan test, or reboot the
   module straight from the dashboard (`/mute`, `/testfan`, `/restart`).
 - **Demo mode** — simulate a full device (thermostat cycles, alternator
@@ -170,7 +172,7 @@ flutter test
 ## Roadmap
 
 - [x] OTA firmware upload from the app (`/update`) — available in Advanced Settings; use only firmware built for the exact module and preserve license data.
-- [ ] Persist readings history across sessions (currently in-memory)
+- [x] Persist up to 300 readings across sessions with license-aware local storage
 - [x] Localization (Arabic + English) — done
 - [x] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard) — done
 - [x] In-app alarm siren while an alert is active — done
