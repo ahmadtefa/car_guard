@@ -5,7 +5,6 @@ import 'package:car_guard/core/models/license_models.dart';
 import 'package:car_guard/core/models/reading_sample.dart';
 import 'package:car_guard/core/providers/device_status_provider.dart';
 import 'package:car_guard/core/services/device_models.dart';
-import 'package:car_guard/core/services/storage_service.dart';
 import 'package:car_guard/features/dashboard/providers/readings_history_provider.dart';
 import 'package:car_guard/features/license/models/license_state.dart';
 import 'package:car_guard/features/license/providers/license_provider.dart';
