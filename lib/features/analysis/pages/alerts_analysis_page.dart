@@ -116,6 +116,7 @@ class AlertsAnalysisPage extends ConsumerWidget {
               ref,
               history: history,
               entries: analysis.history,
+              trip: analysis.trip,
               isAr: l.isAr,
             ),
             icon: const Icon(Icons.file_download_outlined),
@@ -145,6 +146,7 @@ class AlertsAnalysisPage extends ConsumerWidget {
     WidgetRef ref, {
     required List<ReadingSample> history,
     required List<AlertHistoryEntry> entries,
+    required TripSummary trip,
     required bool isAr,
   }) async {
     String cell(Object? value) {
@@ -162,6 +164,11 @@ class AlertsAnalysisPage extends ConsumerWidget {
         'alert_kind',
         'occurrences',
         'escalated',
+        'speed_kmh',
+        'distance_km',
+        'duration_seconds',
+        'average_speed_kmh',
+        'maximum_speed_kmh',
       ],
       ...history.map(
         (sample) => <Object?>[
@@ -173,8 +180,29 @@ class AlertsAnalysisPage extends ConsumerWidget {
           '',
           '',
           '',
+          '',
+          '',
+          '',
+          '',
+          '',
         ],
       ),
+      if (trip.available)
+        <Object?>[
+          'trip_summary',
+          DateTime.now().toLocal().toIso8601String(),
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          trip.distanceKm.toStringAsFixed(2),
+          trip.durationSeconds,
+          trip.avgSpeedKmh.toStringAsFixed(2),
+          trip.maxSpeedKmh.toStringAsFixed(2),
+        ],
       ...entries.map(
         (entry) => <Object?>[
           'alert',
@@ -185,6 +213,11 @@ class AlertsAnalysisPage extends ConsumerWidget {
           entry.kind.name,
           entry.occurrences,
           entry.escalated,
+          entry.readings['speed']?.toStringAsFixed(2) ?? '',
+          '',
+          '',
+          '',
+          '',
         ],
       ),
     ];
