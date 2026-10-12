@@ -35,6 +35,9 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
     final demoEnabled = ref.watch(
       settingsProvider.select((value) => value.value?.demoModeEnabled ?? false),
     );
+    final licenseResolved = ref.watch(
+      licenseProvider.select((value) => !value.isUnknown),
+    );
     final dataAccessAllowed =
         settingsReady &&
         (demoEnabled || ref.watch(licenseAuthorizationProvider));
@@ -42,8 +45,12 @@ class ReadingsHistoryNotifier extends Notifier<List<ReadingSample>> {
 
     final storage = ref.read(storageServiceProvider);
     if (!dataAccessAllowed) {
-      // Remove protected telemetry from both memory and disk on lock/expiry.
-      unawaited(storage.delete(storageKey));
+      // Settings and license checks can be transiently unavailable during
+      // startup or a network outage. Only erase protected history after an
+      // authoritative non-ACTIVE license status has actually been received.
+      if (settingsReady && !demoEnabled && licenseResolved) {
+        unawaited(storage.delete(storageKey));
+      }
       return const <ReadingSample>[];
     }
 
