@@ -116,8 +116,14 @@ class DemoDeviceSimulator {
   Timer? _timer;
   DemoDeviceState _state = const DemoDeviceState();
 
-  /// Broadcast stream of simulated readings; safe to listen to repeatedly.
-  Stream<DeviceStatus> get statusStream => _controller.stream;
+  /// The stream always begins with the simulator's current state before
+  /// forwarding timer updates. This prevents a blank/loading dashboard during
+  /// demo mode and avoids consumers rendering disconnected placeholders while
+  /// waiting for the first one-second timer tick.
+  Stream<DeviceStatus> get statusStream async* {
+    yield _state.toDeviceStatus();
+    yield* _controller.stream;
+  }
 
   /// Starts emitting; calling an already running simulator is a no-op.
   void start() {
