@@ -537,6 +537,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             const SizedBox(height: AppSpacing.xl),
             SecondaryButton(
+              onPressed: () => context.push('/support'),
+              child: Text(l.isAr ? 'التشخيص والمساعدة' : 'Diagnostics & Help'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SecondaryButton(
               onPressed: _resetToDefaults,
               child: Text(l.resetToDefaults),
             ),
