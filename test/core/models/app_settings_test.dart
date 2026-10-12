@@ -113,12 +113,14 @@ void main() {
       }
     });
 
-    test('invalid dashboard styles fall back to racing', () {
-      final restored = AppSettings.fromJson(<String, dynamic>{
-        'dashboardStyleName': 'hologram',
-      });
+    test('invalid and retired dashboard styles fall back to racing', () {
+      for (final style in <String>['hologram', 'cards', 'segments', 'orb']) {
+        final restored = AppSettings.fromJson(<String, dynamic>{
+          'dashboardStyleName': style,
+        });
 
-      expect(restored.dashboardStyleName, 'racing');
+        expect(restored.dashboardStyleName, 'racing', reason: style);
+      }
     });
 
     test('invalid language names fall back to English', () {
