@@ -210,7 +210,7 @@ class AppL10n {
   String get styleBigNumbers => isAr ? 'أرقام كبيرة' : 'Big Numbers';
   String get stylePremium => isAr ? 'بريميوم' : 'Premium';
   String get visualStylePickerSubtitle =>
-      isAr ? '15 نمطاً مخصصاً للمقصورة' : '15 custom cockpit skins';
+      isAr ? '12 نمطاً مخصصاً للمقصورة' : '12 custom cockpit skins';
   String get activeStyleBadge => isAr ? 'النشط' : 'Active';
   String get applyStyle => isAr ? 'تطبيق النمط' : 'Apply Style';
   String get filterAll => isAr ? 'الكل' : 'All';
