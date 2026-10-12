@@ -121,6 +121,15 @@ class AlertsAnalysisPage extends ConsumerWidget {
             icon: const Icon(Icons.file_download_outlined),
             label: Text(l.isAr ? 'تصدير تقرير CSV' : 'Export CSV report'),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            child: Text(
+              l.isAr
+                  ? 'يشمل آخر القراءات المتاحة (حتى 5 دقائق)، وسجل الإنذارات، وملخص الرحلة الحالية.'
+                  : 'Includes recent available readings (up to 5 minutes), alert history, and the current trip summary.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           if (analysis.history.isEmpty)
             _EmptyNote(icon: Icons.history_toggle_off, text: l.noAlertsYet)
