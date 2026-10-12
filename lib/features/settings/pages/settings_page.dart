@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +49,127 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l.settingsSaved)),
     );
+  }
+
+  Future<void> _exportSettings() async {
+    final settings = ref.read(settingsProvider).value ?? const AppSettings();
+    final l = ref.read(l10nProvider);
+    final backup = <String, dynamic>{
+      'format': 'car_guard_settings_backup',
+      'schemaVersion': 1,
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      // AppSettings contains preferences only; license records and activation
+      // material are intentionally stored elsewhere and never exported here.
+      'settings': settings.toJson(),
+    };
+
+    try {
+      await FilePicker.platform.saveFile(
+        dialogTitle: l.isAr ? 'حفظ نسخة الإعدادات' : 'Save settings backup',
+        fileName: 'car_guard_settings.json',
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+        bytes: Uint8List.fromList(
+          utf8.encode(const JsonEncoder.withIndent('  ').convert(backup)),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showError(
+        l.isAr
+            ? 'تعذر حفظ النسخة الاحتياطية: $error'
+            : 'Could not save backup: $error',
+      );
+    }
+  }
+
+  Future<void> _importSettings() async {
+    final l = ref.read(l10nProvider);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: l.isAr ? 'اختيار نسخة الإعدادات' : 'Choose settings backup',
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final bytes = result.files.single.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('The selected file is empty.');
+      }
+
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map ||
+          decoded['format'] != 'car_guard_settings_backup' ||
+          decoded['schemaVersion'] != 1 ||
+          decoded['settings'] is! Map) {
+        throw const FormatException('Unsupported settings backup format.');
+      }
+
+      final rawSettings = Map<String, dynamic>.from(decoded['settings'] as Map);
+      final host = rawSettings['deviceHost'];
+      final port = rawSettings['devicePort'];
+      if (host is! String ||
+          host.trim().isEmpty ||
+          port is! int ||
+          port < 1 ||
+          port > 65535) {
+        throw const FormatException('Invalid device connection settings.');
+      }
+
+      final restored = AppSettings.fromJson(rawSettings);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l.isAr ? 'استعادة الإعدادات؟' : 'Restore settings?'),
+          content: Text(
+            l.isAr
+                ? 'سيتم استبدال إعدادات التطبيق الحالية. لن يتم استعادة الترخيص، وسيظل وضع العرض والمراقبة بالخلفية متوقفين حتى تفعّلهما يدويًا.'
+                : 'Current app settings will be replaced. License data is not included, and demo mode and background monitoring will remain off until you enable them manually.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l.isAr ? 'استعادة' : 'Restore'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      await ref.read(settingsProvider.notifier).save(
+        restored.copyWith(
+          demoModeEnabled: false,
+          backgroundMonitoringEnabled: false,
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l.isAr ? 'تمت استعادة الإعدادات' : 'Settings restored',
+          ),
+        ),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      _showError(
+        l.isAr
+            ? 'ملف النسخة الاحتياطية غير صالح: ${error.message}'
+            : 'Invalid backup file: ${error.message}',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showError(
+        l.isAr
+            ? 'تعذرت استعادة الإعدادات: $error'
+            : 'Could not restore settings: $error',
+      );
+    }
   }
 
   Future<void> _resetToDefaults() async {
@@ -394,6 +519,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _save(settings.copyWith(connectionAlertsEnabled: value)),
               ),
             ],
+            const SizedBox(height: AppSpacing.xl),
+            SectionTitle(
+              title: l.isAr ? 'النسخ الاحتياطي للإعدادات' : 'Settings backup',
+              subtitle: l.isAr
+                  ? 'احفظ تفضيلات التطبيق أو استعدها. بيانات الترخيص لا تدخل في النسخة.'
+                  : 'Export or restore app preferences. License data is never included.',
+            ),
+            SecondaryButton(
+              onPressed: _exportSettings,
+              child: Text(l.isAr ? 'تصدير الإعدادات (JSON)' : 'Export settings (JSON)'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SecondaryButton(
+              onPressed: _importSettings,
+              child: Text(l.isAr ? 'استعادة الإعدادات من ملف' : 'Restore settings from file'),
+            ),
             const SizedBox(height: AppSpacing.xl),
             SecondaryButton(
               onPressed: _resetToDefaults,
