@@ -6,8 +6,9 @@ status streamed straight to your phone over Wi-Fi.
 
 ## Features
 
-- **Live dashboard** — engine temperature, battery voltage, voltage
-  difference, coolant level, and fan status update in real time.
+- **Live dashboard** — engine temperature, battery voltage, coolant level,
+  and radiator-fan status update in real time. Battery voltage is the primary
+  voltage gauge; no ECU/CAN connection is required.
 - **Robust transport** — live updates over WebSocket (port 81) with an
   automatic HTTP polling fallback when the socket drops.
 - **Dual connectivity (Android)** — the app pins its traffic to the module's
@@ -58,8 +59,9 @@ status streamed straight to your phone over Wi-Fi.
   HTTP polling keeps running meanwhile.
 - **In-app alarm siren** — loops while a warning/critical alert is active,
   with a mute toggle that also silences the module buzzer.
-- **Correct CSV protocol** — `temp,volt,fanState,?,maxTemp,fanOnTemp,
-  minVolt,maxVolt,offset`, matching the reference firmware.
+- **Firmware-compatible CSV protocol** — telemetry is parsed in the module's
+  11-field format: `temp,volt,fanState,reserved,maxTemp,fanOnTemp,minVolt,
+  maxVolt,offset,alarm,muted`.
 - **Background monitoring (Android)** — a foreground service keeps polling
   the module every 5 seconds with the screen off, shows live readings in a
   persistent notification, fires alert notifications, and auto-starts after
@@ -113,7 +115,7 @@ The repository accepts two payload formats:
 }
 ```
 
-**CSV** (fallback): `temp,volt,coolant,fan,buzzer,voltDiff`
+**CSV** (fallback): `temp,volt,fanState,reserved,maxTemp,fanOnTemp,minVolt,maxVolt,offset,alarm,muted`
 
 HTTP endpoints exposed by the module (`DeviceEndpoints`): `/data`,
 `/getallsettings`, `/saveallsettings`, `/saveadvancedsettings`,
@@ -167,7 +169,7 @@ flutter test
 
 ## Roadmap
 
-- [ ] OTA firmware updates from the app (`/update`)
+- [x] OTA firmware upload from the app (`/update`) — available in Advanced Settings; use only firmware built for the exact module and preserve license data.
 - [ ] Persist readings history across sessions (currently in-memory)
 - [x] Localization (Arabic + English) — done
 - [x] Advanced calibration screen (offset, R1/R2, pull-up, voltage wizard) — done
