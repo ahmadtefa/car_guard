@@ -251,7 +251,7 @@ class _VisualStylePickerSheetState
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 children: [
                   _CategoryChip(
-                    label: '${l.filterAll} (15)',
+                    label: '${l.filterAll} (12)',
                     isSelected: _selectedCategory == 'all',
                     onTap: () => setState(() => _selectedCategory = 'all'),
                   ),
@@ -529,7 +529,7 @@ class _StylePreviewCard extends StatelessWidget {
   }
 }
 
-/// Renders a distinctive, lightweight miniature preview for each of the 15 styles.
+/// Renders a distinctive, lightweight miniature preview for each of the 12 styles.
 class _StyleMicroPreview extends StatelessWidget {
   const _StyleMicroPreview({required this.styleId});
 
@@ -584,7 +584,7 @@ class _CustomPaintPreview extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// 15 Micro-Gauge Implementations
+// 12 supported dashboard style previews
 // -----------------------------------------------------------------------------
 
 // 1. Cards
