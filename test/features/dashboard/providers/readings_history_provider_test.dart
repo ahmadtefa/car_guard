@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:car_guard/core/models/app_settings.dart';
@@ -32,7 +31,7 @@ class _TestLicenseNotifier extends Notifier<LicenseState> {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const sample = ReadingSample(
+  final sample = ReadingSample(
     timestamp: DateTime.utc(2026, 10, 12, 20),
     engineTemperature: 88,
     batteryVoltage: 12.6,
