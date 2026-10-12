@@ -85,13 +85,13 @@ void main() {
       expect(
         AppSettings.dashboardStyleNames,
         containsAll(<String>[
-                    'racing',
+          'racing',
           'sporty',
                     'sweeper',
           'ring',
           'led',
           'needle',
-                    'combo',
+          'combo',
           'rose',
           'lavender',
           'flamingo',
