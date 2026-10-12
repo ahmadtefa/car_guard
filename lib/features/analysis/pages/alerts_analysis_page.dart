@@ -179,8 +179,8 @@ class AlertsAnalysisPage extends ConsumerWidget {
         (entry) => <Object?>[
           'alert',
           entry.timestamp.toLocal().toIso8601String(),
-          entry.readings['temperature']?.toStringAsFixed(2) ?? '',
-          entry.readings['voltage']?.toStringAsFixed(2) ?? '',
+          entry.readings['temp']?.toStringAsFixed(2) ?? '',
+          entry.readings['volt']?.toStringAsFixed(2) ?? '',
           entry.severity.name,
           entry.kind.name,
           entry.occurrences,
