@@ -35,7 +35,7 @@ class AppL10n {
 
   // ---------- Gauges / HUD ----------
   String get engineTempLabel => isAr ? 'حرارة المحرك' : 'ENGINE TEMP';
-  String get batteryVoltLabel => isAr ? 'جهد البطارية' : 'BATTERY VOLT';
+  String get batteryVoltLabel => isAr ? 'جهد البطارية' : 'Battery Voltage';
   String get tapToClose => isAr ? 'اضغط للخروج' : 'Tap to close';
   String get last5Minutes => isAr ? 'آخر 5 دقائق' : 'Last 5 minutes';
   String get collectingData => isAr ? 'جمع البيانات...' : 'Collecting data...';
