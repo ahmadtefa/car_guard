@@ -43,6 +43,22 @@ class VoltageDeltaCard extends ConsumerWidget {
             ? (voltage < lowValue ? l.batteryLowTitle : l.batteryHighTitle)
             : l.normal;
 
+    if (voltage == null) {
+      return BaseDashboardCard(
+        title: l.batteryVoltage,
+        value: '--.- V',
+        subtitle: l.vehicleBatteryInfo,
+        statusText: l.collectingData,
+        child: MiniVoltBarGauge(
+          value: null,
+          min: _minimumVoltage,
+          max: _maximumVoltage,
+          lowValue: lowValue,
+          highValue: highValue,
+        ),
+      );
+    }
+
     if (styleName == 'cards') {
       return BaseDashboardCard(
         title: l.batteryVoltage,
@@ -79,7 +95,7 @@ class VoltageDeltaCard extends ConsumerWidget {
       case 'racing':
         return RacingGauge(
           label: l.batteryVoltLabel,
-          value: voltage ?? 0,
+          value: voltage,
           unit: 'V',
           percent: percent,
           warning: warning,
