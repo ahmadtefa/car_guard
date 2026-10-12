@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/device_status_provider.dart';
-import '../../../core/providers/device_provider.dart';
-import '../../../core/services/device_models.dart';
 import '../../license/providers/license_provider.dart';
 import '../providers/settings_provider.dart';
 
@@ -32,7 +30,6 @@ class SupportPage extends ConsumerWidget {
     final voltage = status?.batteryData.voltage;
     final limits = status?.moduleLimits;
 
-    String yesNo(bool value) => isAr ? (value ? 'نعم' : 'لا') : (value ? 'Yes' : 'No');
     String state(bool value) => value
         ? (isAr ? 'سليم' : 'OK')
         : (isAr ? 'يحتاج مراجعة' : 'Check');
