@@ -1,4 +1,4 @@
-name: Build APK
+name: Validate Flutter
 
 on:
   push:
@@ -35,23 +35,3 @@ jobs:
 
       - name: Test
         run: flutter test
-
-      - name: Build release APK
-        run: flutter build apk --release
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: car-guard-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 90
-
-      - name: Create GitHub release on version tags
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF#refs/tags/}" \
-            build/app/outputs/flutter-apk/app-release.apk \
-            --title "Car Guard ${GITHUB_REF#refs/tags/}" \
-            --generate-notes
