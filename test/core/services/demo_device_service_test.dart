@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:car_guard/core/services/demo_device_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
