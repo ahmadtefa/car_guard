@@ -75,6 +75,8 @@ class VoltageDeltaCard extends ConsumerWidget {
       );
     }
 
+    void onTap() {}
+
     final percent = voltage == null
         ? 0.0
         : ((voltage - _minimumVoltage) /
@@ -91,6 +93,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           min: _minimumVoltage,
           max: _maximumVoltage,
           warning: warning,
+          onTap: onTap,
         );
       case 'racing':
         return RacingGauge(
@@ -99,6 +102,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           unit: 'V',
           percent: percent,
           warning: warning,
+          onTap: onTap,
         );
       case 'sporty':
         return SportyGauge(
@@ -109,6 +113,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           redlineValue: highValue,
           unit: 'V',
           warning: warning,
+          onTap: onTap,
         );
       case 'sweeper':
         return AudiSweeperGauge(
@@ -123,6 +128,7 @@ class VoltageDeltaCard extends ConsumerWidget {
             AppColors.neonRed,
           ],
           accentColor: warning ? AppColors.neonRed : AppColors.neonCyan,
+          onTap: onTap,
         );
       case 'led':
         return LedStripGauge(
@@ -131,6 +137,7 @@ class VoltageDeltaCard extends ConsumerWidget {
           unit: 'V',
           percent: percent,
           danger: warning,
+          onTap: onTap,
         );
       case 'needle':
         return NeedleMeterGauge(
