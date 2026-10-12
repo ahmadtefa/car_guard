@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -106,6 +110,18 @@ class AlertsAnalysisPage extends ConsumerWidget {
           // 6) Persisted alert history — the LAST section, with its own
           //    clear button right beneath the list.
           SectionTitle(title: l.historyTitle),
+          OutlinedButton.icon(
+            onPressed: () => _exportReport(
+              context,
+              ref,
+              history: history,
+              entries: analysis.history,
+              isAr: l.isAr,
+            ),
+            icon: const Icon(Icons.file_download_outlined),
+            label: Text(l.isAr ? 'تصدير تقرير CSV' : 'Export CSV report'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           if (analysis.history.isEmpty)
             _EmptyNote(icon: Icons.history_toggle_off, text: l.noAlertsYet)
           else ...[
@@ -122,6 +138,77 @@ class AlertsAnalysisPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _exportReport(
+    BuildContext context,
+    WidgetRef ref, {
+    required List<ReadingSample> history,
+    required List<AlertHistoryEntry> entries,
+    required bool isAr,
+  }) async {
+    String cell(Object? value) {
+      final raw = '$value';
+      return '"${raw.replaceAll('"', '""')}"';
+    }
+
+    final rows = <List<Object?>>[
+      [
+        'record_type',
+        'timestamp',
+        'temperature_c',
+        'battery_voltage_v',
+        'severity',
+        'alert_kind',
+        'occurrences',
+        'escalated',
+      ],
+      ...history.map(
+        (sample) => <Object?>[
+          'reading',
+          sample.timestamp.toLocal().toIso8601String(),
+          sample.engineTemperature.toStringAsFixed(2),
+          sample.batteryVoltage.toStringAsFixed(2),
+          '',
+          '',
+          '',
+          '',
+        ],
+      ),
+      ...entries.map(
+        (entry) => <Object?>[
+          'alert',
+          entry.timestamp.toLocal().toIso8601String(),
+          entry.readings['temperature']?.toStringAsFixed(2) ?? '',
+          entry.readings['voltage']?.toStringAsFixed(2) ?? '',
+          entry.severity.name,
+          entry.kind.name,
+          entry.occurrences,
+          entry.escalated,
+        ],
+      ),
+    ];
+    final csv = '\uFEFF${rows.map((row) => row.map(cell).join(',')).join('\r\n')}';
+    try {
+      await FilePicker.platform.saveFile(
+        dialogTitle: isAr ? 'حفظ تقرير Car Guard' : 'Save Car Guard report',
+        fileName: 'car_guard_report.csv',
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        bytes: Uint8List.fromList(utf8.encode(csv)),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isAr
+                ? 'تعذر تصدير التقرير: $error'
+                : 'Could not export report: $error',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmClearHistory(
