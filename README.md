@@ -163,11 +163,20 @@ Android Auto), and a release keystore is required.
 
 ## Testing
 
-Tests live in `test/` and mirror the `lib/` layout:
+Validation covers the Flutter app, firmware license/telemetry contracts, and the
+license-issuer protocol. Run the same checks locally:
 
 ```bash
+flutter pub get
+flutter analyze
 flutter test
+python3 -m unittest discover -s firmware/tests -p 'test_*.py' -v
+bash license-issuer/scripts/run_protocol_tests.sh
 ```
+
+The firmware Python suite checks source-level contracts; it does not replace
+compiling the sketch with the ESP8266 Arduino toolchain or testing on hardware.
+The license-issuer protocol test is a plain-JVM test and does not build an APK.
 
 ## Roadmap
 
