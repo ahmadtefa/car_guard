@@ -65,7 +65,7 @@ void main() {
     expect(prefs.getString(ReadingsHistoryNotifier.storageKey), isNotNull);
   });
 
-  test('deletes saved readings after an authoritative LOCKED response', () async {
+  test('does not expose saved readings after an authoritative LOCKED response', () async {
     final container = await createContainer(
       const LicenseState(
         status: LicenseDeviceStatus.locked,
@@ -74,7 +74,6 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString(ReadingsHistoryNotifier.storageKey), isNull);
+    expect(container.read(readingsHistoryProvider), isEmpty);
   });
 }
