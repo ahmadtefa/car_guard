@@ -77,12 +77,10 @@ class VoltageDeltaCard extends ConsumerWidget {
 
     void onTap() {}
 
-    final percent = voltage == null
-        ? 0.0
-        : ((voltage - _minimumVoltage) /
-                (_maximumVoltage - _minimumVoltage))
-            .clamp(0.0, 1.0)
-            .toDouble();
+    final percent = ((voltage - _minimumVoltage) /
+            (_maximumVoltage - _minimumVoltage))
+        .clamp(0.0, 1.0)
+        .toDouble();
 
     switch (styleName) {
       case 'premium':
@@ -107,7 +105,7 @@ class VoltageDeltaCard extends ConsumerWidget {
       case 'sporty':
         return SportyGauge(
           label: l.batteryVoltLabel,
-          value: voltage ?? 0,
+          value: voltage,
           min: _minimumVoltage,
           max: _maximumVoltage,
           redlineValue: highValue,
