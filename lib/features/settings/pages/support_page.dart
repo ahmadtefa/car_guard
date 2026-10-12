@@ -29,6 +29,9 @@ class SupportPage extends ConsumerWidget {
     final temp = status?.temperatureData.engineTemperature;
     final voltage = status?.batteryData.voltage;
     final limits = status?.moduleLimits;
+    final minVolt = limits?.minVolt;
+    final maxVolt = limits?.maxVolt;
+    final validLimits = minVolt != null && maxVolt != null && minVolt < maxVolt;
 
     String state(bool value) => value
         ? (isAr ? 'سليم' : 'OK')
@@ -84,10 +87,10 @@ class SupportPage extends ConsumerWidget {
               _DiagnosticRow(
                 icon: Icons.tune_rounded,
                 label: isAr ? 'حدود الوحدة' : 'Module limits',
-                value: limits != null && limits.minVolt < limits.maxVolt
+                value: validLimits
                     ? (isAr ? 'متاحة' : 'Available')
                     : (isAr ? 'غير متاحة' : 'Unavailable'),
-                ok: limits != null && limits.minVolt < limits.maxVolt,
+                ok: validLimits,
               ),
             ],
           ),
@@ -151,7 +154,7 @@ class SupportPage extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
           Center(
             child: Text(
-              '${isAr ? 'Car Guard — إصدار التطبيق' : 'Car Guard — App build'}',
+              isAr ? 'Car Guard — إصدار التطبيق' : 'Car Guard — App build',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
